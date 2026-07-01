@@ -1,0 +1,69 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: lanting-admin
+  datasource:
+    url: jdbc:sqlite:${LANTING_DATA_DIR:./.data}/lanting.db
+    driver-class-name: org.sqlite.JDBC
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      stat-view-servlet:
+        enabled: true
+        url-pattern: /druid/*
+        login-username: admin
+        login-password: admin
+      # 连接池调优（通常只需关注 initial-size, min-idle, max-active）
+      initial-size: 1
+      max-active: 10
+      min-idle: 1
+      # SQLite 是嵌入式数据库，连接有效性校验关闭
+      test-while-idle: false
+      test-on-borrow: false
+      test-on-return: false
+      # 获取连接时的最大等待时间 (ms)
+      max-wait: 60000
+      # 空闲连接回收器运行间隔 (ms)
+      time-between-eviction-runs-millis: 60000
+      # 连接在池中保持空闲而不被回收的最小时间 (ms)
+      min-evictable-idle-time-millis: 300000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+    banner: false
+
+sa-token:
+  token-name: lanting-token
+  timeout: 2592000        # 30天
+  is-concurrent: true
+  is-share: true
+  token-style: jwt-simple
+  jwt-secret-key: ${LANTING_JWT_SECRET:lanting-stream-ce-default-secret-key-2024}
+  is-read-cookie: true
+  is-read-header: true
+  is-print: false
+
+
+lanting:
+  edition: community
+  limits:
+    max-users: 3
+    max-clusters: 2
+  data:
+    dir: ${LANTING_DATA_DIR:./data}
+    workspace-dir: ${LANTING_DATA_DIR:./data}/workspaces
+    udf-dir: ${LANTING_DATA_DIR:./data}/udfs
+
+logging:
+  level:
+    com.lanting: INFO

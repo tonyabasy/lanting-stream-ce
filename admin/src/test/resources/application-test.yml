@@ -1,0 +1,19 @@
+server:
+  port: 0  # 随机端口，避免与开发环境冲突
+
+spring:
+  datasource:
+    url: jdbc:sqlite:../.data/lanting-test.db
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    clean-on-validation-error: true  # 表结构变化时自动清理重建，仅测试环境使用
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl  # 测试时关闭 SQL 日志
+
+logging:
+  level:
+    com.lanting: WARN  # 测试时减少日志噪音
+    org.flywaydb: WARN
