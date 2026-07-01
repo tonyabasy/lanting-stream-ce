@@ -149,7 +149,7 @@ class UserControllerTest extends BaseIntegrationTest {
     // ==================== DELETE /api/users/{id}（删除用户） ====================
 
     @Test
-    void deleteUser_shouldReturn400_whenDeletingSelf() throws Exception {
+    void deleteUser_shouldReturn403_whenDeletingSelf() throws Exception {
         String token = loginAsAdmin();
         long adminId = objectMapper.readTree(
                 restTemplate.exchange("/api/auth/current", HttpMethod.GET,
