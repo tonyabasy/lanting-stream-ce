@@ -8,6 +8,10 @@ export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
 export const removeToken = (): void => localStorage.removeItem(TOKEN_KEY);
 
+// ==================== 跳转锁 ====================
+
+let isRedirecting = false;
+
 // ==================== Axios 实例 ====================
 
 const request = axios.create({
@@ -42,8 +46,15 @@ request.interceptors.response.use(
     if (error.response) {
       const { status } = error.response;
       if (status === 401) {
-        removeToken();
-        window.location.href = '/login';
+        if (!isRedirecting) {
+          isRedirecting = true;
+          removeToken();
+          // 带 redirect 参数，登录成功后跳回当前页
+          const redirect = encodeURIComponent(
+            window.location.pathname + window.location.search,
+          );
+          window.location.href = `/login?redirect=${redirect}`;
+        }
         return Promise.reject(new Error('登录已过期，请重新登录'));
       }
       if (status === 403) {

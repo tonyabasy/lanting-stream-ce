@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'umi';
+import { useNavigate, useSearchParams } from 'umi';
 import { Button, Input, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import request, { setToken } from '@/utils/request';
@@ -9,6 +9,7 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleLogin = async () => {
     if (!username || !password) return;
@@ -17,7 +18,9 @@ const LoginPage: React.FC = () => {
       const data: any = await request.post('/auth/login', { username, password });
       if (data?.tokenInfo?.token) {
         setToken(data.tokenInfo.token);
-        navigate('/');
+        // 登录成功后跳回过期前的页面，没有 redirect 参数则回首页
+        const redirect = searchParams.get('redirect') || '/';
+        navigate(decodeURIComponent(redirect));
       }
     } catch (e: any) {
       message.error(e.message || '登录失败');
