@@ -26,7 +26,6 @@ logs/
 
 # AI 工具
 .codebuddy/
-.claude/
 
 # jenv
 .java-version

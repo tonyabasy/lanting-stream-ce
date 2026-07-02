@@ -1,9 +1,13 @@
 import { defineConfig } from 'umi';
 
 export default defineConfig({
-  plugins: ['@umijs/plugins/dist/antd'],
+  plugins: ['@umijs/plugins/dist/antd', '@umijs/plugins/dist/initial-state', '@umijs/plugins/dist/model'],
+
+  initialState: {},
+  model: {},
 
   antd: {
+    configProvider: {},
     theme: {
       token: {
         // 品牌色 — clay 橙
@@ -81,7 +85,7 @@ export default defineConfig({
       component: '@/layouts/index',
       routes: [
         { path: '/', component: 'index' },
-        { path: '/jobs', component: 'index' },
+        { path: '/editor', component: 'editor/index' },
         { path: '/datasource', component: 'index' },
         { path: '/cluster', component: 'index' },
         { path: '/users', component: 'index' },

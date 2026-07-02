@@ -33,6 +33,9 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.0
         version: 18.3.7(@types/react@18.3.31)
+      '@types/react-router-dom':
+        specifier: ^5.3.3
+        version: 5.3.3
       typescript:
         specifier: ^5.5.0
         version: 5.9.3
@@ -1622,6 +1625,9 @@ packages:
 
   '@types/react-router-dom@4.3.5':
     resolution: {integrity: sha512-eFajSUASYbPHg2BDM1G8Btx+YqGgvROPIg6sBhl3O4kbDdYXdFdfrgQFf/pcBuQVObjfT9AL/dd15jilR5DIEA==}
+
+  '@types/react-router-dom@5.3.3':
+    resolution: {integrity: sha512-kpqnYK4wcdm5UaWI3fLcELopqLrHgLqNsdpHauzlQktfkHL3npOSwtj1Uz9oKBAzs7lFtVkV8j83voAz2D8fhw==}
 
   '@types/react-router-redux@5.0.27':
     resolution: {integrity: sha512-qC5lbuP2K/kMR/HE3e5ltCJptyiQhmfV0wbklqcqWDbNdpJBDwUsBGP4f/0RDYJf09+OTbz43u6iG+8E0Zcwqw==}
@@ -7277,6 +7283,12 @@ snapshots:
   '@types/react-router-dom@4.3.5':
     dependencies:
       '@types/history': 5.0.0
+      '@types/react': 18.3.31
+      '@types/react-router': 5.1.20
+
+  '@types/react-router-dom@5.3.3':
+    dependencies:
+      '@types/history': 4.7.11
       '@types/react': 18.3.31
       '@types/react-router': 5.1.20
 

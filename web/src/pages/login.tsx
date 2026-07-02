@@ -36,14 +36,14 @@ const LoginPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#FDFCF9',
+        background: 'var(--color-bg-layout)',
       }}
     >
       <div
         style={{
           width: 360,
-          background: '#FAF9F6',
-          border: '0.5px solid #E8E5DF',
+          background: 'var(--color-bg-container)',
+          border: '0.5px solid var(--color-border)',
           borderRadius: 10,
           padding: '40px 32px',
         }}
@@ -55,26 +55,26 @@ const LoginPage: React.FC = () => {
               width: 40,
               height: 40,
               borderRadius: 6,
-              background: '#D97757',
+              background: 'var(--color-primary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 12px',
             }}
           >
-            <span style={{ color: '#fff', fontSize: 18, fontWeight: 500 }}>L</span>
+            <span style={{ color: 'var(--color-text-light-solid)', fontSize: 18, fontWeight: 500, fontFamily: 'var(--font-family)' }}>L</span>
           </div>
           <div
             style={{
               fontSize: 16,
               fontWeight: 500,
-              color: '#1A1915',
-              fontFamily: 'Georgia, serif',
+              color: 'var(--color-text)',
+              fontFamily: 'var(--font-family)',
             }}
           >
             Lanting Stream
           </div>
-          <div style={{ fontSize: 12, color: '#9B9689', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-description)', marginTop: 4 }}>
             AI 驱动的 Flink SQL 平台
           </div>
         </div>
@@ -82,7 +82,7 @@ const LoginPage: React.FC = () => {
         {/* 表单 */}
         <Input
           size="large"
-          prefix={<UserOutlined style={{ color: '#9B9689' }} />}
+          prefix={<UserOutlined style={{ color: 'var(--color-text-description)' }} />}
           placeholder="用户名"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -91,7 +91,7 @@ const LoginPage: React.FC = () => {
         />
         <Input.Password
           size="large"
-          prefix={<LockOutlined style={{ color: '#9B9689' }} />}
+          prefix={<LockOutlined style={{ color: 'var(--color-text-description)' }} />}
           placeholder="密码"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

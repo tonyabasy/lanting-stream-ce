@@ -1,40 +1,26 @@
-import React from 'react';
-import { ConfigProvider } from 'antd';
+import type { RuntimeAntdConfig } from 'umi';
 import zhCN from 'antd/locale/zh_CN';
 import { getToken, removeToken } from '@/utils/request';
-import { getCurrentUser } from '@/services/auth';
-
-/**
- * 全局样式
- */
+import { theme as themeBaoLan, injectCSS } from '@/themes/theme-baolan';
 import '@/global.css';
 
+// 模块加载时立即注入 CSS 变量，避免首屏闪烁
+injectCSS();
+
 /**
- * 运行时 ConfigProvider 兜底。
+ * antd 运行时配置：设置主题和中文 locale。
  */
-export function rootContainer(container: React.ReactNode) {
-  return (
-    <ConfigProvider
-      locale={zhCN}
-      theme={{
-        token: {
-          colorPrimary: '#D97757',
-          colorBgContainer: '#FAF9F6',
-          colorText: '#1A1915',
-          borderRadius: 6,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-        },
-      }}
-    >
-      {container}
-    </ConfigProvider>
-  );
-}
+export const antd: RuntimeAntdConfig = (memo) => {
+  memo.theme = themeBaoLan;
+  memo.locale = zhCN;
+  return memo;
+};
 
 /**
  * 路由守卫：未登录跳转到 /login。
  */
 export function onRouteChange({ location }: { location: { pathname: string } }) {
+  if (process.env.NODE_ENV === 'development') return; // 开发时不守卫
   const token = getToken();
   if (!token && location.pathname !== '/login') {
     removeToken();
@@ -50,6 +36,7 @@ export async function getInitialState() {
   if (!token) return { currentUser: null };
 
   try {
+    const { getCurrentUser } = await import('@/services/auth');
     const user = await getCurrentUser();
     return { currentUser: user };
   } catch {

@@ -1,5 +1,17 @@
 import axios, { AxiosResponse } from 'axios';
 
+// ==================== 统一错误类型 ====================
+
+export class ApiError extends Error {
+  code: number;
+
+  constructor(code: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+  }
+}
+
 // ==================== Token 管理 ====================
 
 const TOKEN_KEY = 'lanting-token';
@@ -7,10 +19,6 @@ const TOKEN_KEY = 'lanting-token';
 export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
 export const removeToken = (): void => localStorage.removeItem(TOKEN_KEY);
-
-// ==================== 跳转锁 ====================
-
-let isRedirecting = false;
 
 // ==================== Axios 实例 ====================
 
@@ -36,38 +44,47 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { data } = response;
-    // 后端统一返回 { code: 0, message: "成功", data: ... }
     if (data.code === 0) {
       return data.data;
     }
-    return Promise.reject(new Error(data.message || '请求失败'));
+    return Promise.reject(new ApiError(data.code, data.message || '请求失败'));
   },
   (error) => {
     if (error.response) {
-      const { status } = error.response;
+      const { status, data: body } = error.response;
+
+      // 401：登录过期
       if (status === 401) {
-        if (!isRedirecting) {
-          isRedirecting = true;
-          removeToken();
-          // 带 redirect 参数，登录成功后跳回当前页
-          const redirect = encodeURIComponent(
-            window.location.pathname + window.location.search,
-          );
-          window.location.href = `/login?redirect=${redirect}`;
-        }
-        return Promise.reject(new Error('登录已过期，请重新登录'));
+        removeToken();
+        const redirect = encodeURIComponent(
+          window.location.pathname + window.location.search,
+        );
+        window.location.href = `/login?redirect=${redirect}`;
+        return Promise.reject(new ApiError(body?.code || 20001, body?.message || '登录已过期，请重新登录'));
       }
+
+      // 403：无权限
       if (status === 403) {
-        return Promise.reject(new Error('没有权限'));
+        return Promise.reject(new ApiError(20002, '没有权限'));
       }
+
+      // 400：参数校验失败 / 业务规则冲突
+      if (status === 400) {
+        const msg = body?.message || '参数错误';
+        return Promise.reject(new ApiError(body?.code || 10001, msg));
+      }
+
+      // 500+：系统内部错误，不暴露详情
       if (status >= 500) {
-        return Promise.reject(new Error('服务器异常，请稍后重试'));
+        return Promise.reject(new ApiError(50001, '服务器异常，请稍后重试'));
       }
     }
+
     if (error.code === 'ECONNABORTED') {
-      return Promise.reject(new Error('请求超时'));
+      return Promise.reject(new ApiError(10002, '请求超时'));
     }
-    return Promise.reject(error);
+    // 网络层错误（ECONNREFUSED、ECONNRESET 等），无 HTTP 响应，前端内部处理
+    return Promise.reject(new ApiError(-1, '网络连接失败'));
   },
 );
 

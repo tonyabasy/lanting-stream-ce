@@ -17,6 +17,7 @@ public enum CommonResultCode implements ResultCode {
 
     // ========== 1xxxx 参数 / 客户端错误 ==========
     PARAM_INVALID(10001, "参数校验失败", 400),
+    TIMEOUT(10002, "请求超时", 408),
 
     // ========== 2xxxx 认证鉴权 ==========
     UNAUTHORIZED(20001, "未登录或登录已过期", 401),

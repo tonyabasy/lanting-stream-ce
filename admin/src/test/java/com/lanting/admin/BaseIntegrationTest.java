@@ -2,13 +2,17 @@ package com.lanting.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lanting.admin.module.user.dto.LoginDTO;
+import com.lanting.admin.module.user.entity.UserEntity;
 import com.lanting.admin.module.user.mapper.UserMapper;
 import com.lanting.admin.module.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -100,9 +104,8 @@ public abstract class BaseIntegrationTest {
     /**
      * 构建带密码的 admin 用户对象，用于重置密码。
      */
-    private com.lanting.admin.module.user.entity.UserEntity buildAdminWithPassword(String rawPassword) {
-        com.lanting.admin.module.user.entity.UserEntity user =
-                new com.lanting.admin.module.user.entity.UserEntity();
+    private UserEntity buildAdminWithPassword(String rawPassword) {
+        UserEntity user = new UserEntity();
         user.setId(1L);
         user.setPassword(passwordEncoder.encode(rawPassword));
         return user;
