@@ -1,20 +1,5 @@
-import type { RuntimeAntdConfig } from 'umi';
-import zhCN from 'antd/locale/zh_CN';
 import { getToken, removeToken } from '@/utils/request';
-import { theme as themeBaoLan, injectCSS } from '@/themes/theme-baolan';
 import '@/global.css';
-
-// 模块加载时立即注入 CSS 变量，避免首屏闪烁
-injectCSS();
-
-/**
- * antd 运行时配置：设置主题和中文 locale。
- */
-export const antd: RuntimeAntdConfig = (memo) => {
-  memo.theme = themeBaoLan;
-  memo.locale = zhCN;
-  return memo;
-};
 
 /**
  * 路由守卫：未登录跳转到 /login。

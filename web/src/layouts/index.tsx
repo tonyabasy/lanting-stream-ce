@@ -1,100 +1,195 @@
-import React from 'react';
-import { Outlet, useNavigate, useLocation } from 'umi';
+import React, { useState } from 'react';
+import { ConfigProvider, Layout, Menu } from 'antd';
+import { Outlet, useNavigate, useLocation, useModel } from 'umi';
+import type { MenuProps } from 'antd';
 import {
   HomeOutlined,
   CodeOutlined,
-  DatabaseOutlined,
-  ClusterOutlined,
-  UserOutlined,
-  LogoutOutlined,
+  RocketOutlined,
+  ToolOutlined,
+  EyeOutlined,
+  SafetyOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons';
-import { removeToken } from '@/utils/request';
+import type { LantingToken } from '@/themes/parseTheme';
+import {toAntdTheme} from '@/themes/parseTheme';
+
+const { Header, Content, Sider } = Layout;
+
+type MenuItem = Required<MenuProps>['items'][number];
+
+const menuItems: MenuItem[] = [
+  { key: '/', icon: <HomeOutlined />, label: '首页' },
+  {
+    key: 'dev',
+    icon: <CodeOutlined />,
+    label: '研发',
+    children: [
+      { key: '/editor', label: '任务开发' },
+      { key: '/datasource', label: '数据源' },
+    ],
+  },
+  { key: '/pub', icon: <RocketOutlined />, label: '发布' },
+  { key: '/ops', icon: <ToolOutlined />, label: '运维' },
+  {
+    key: 'auth',
+    icon: <SafetyOutlined />,
+    label: '权限',
+  },
+  {
+    key: 'design',
+    icon: <EyeOutlined />,
+    label: '设计稿',
+    children: [
+      { key: '/design/login', label: '登录页' },
+      { key: '/design/cluster', label: '集群管理' },
+      { key: '/design/editor', label: '编辑器' },
+      { key: '/design/theme-preview', label: '主题预览' },
+    ],
+  },
+];
 
 const AppLayout: React.FC = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const nav = useNavigate();
   const location = useLocation();
-  const navigate = useNavigate();
-  const pathname = location.pathname;
+  const token = useModel('theme') as LantingToken;
 
-  const handleLogout = () => {
-    removeToken();
-    navigate('/login');
-  };
-
-  const navItems = [
-    { key: '/', icon: <HomeOutlined />, label: '概览' },
-    { key: '/editor', icon: <CodeOutlined />, label: 'SQL 编辑器' },
-    { key: '/datasource', icon: <DatabaseOutlined />, label: '数据源' },
-    { key: '/cluster', icon: <ClusterOutlined />, label: '集群' },
-    { key: '/users', icon: <UserOutlined />, label: '用户' },
-  ];
+  const selectedKey = location.pathname;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      {/* 顶部导航 */}
-      <div style={{
-        height: 48,
-        background: 'var(--color-bg-container)',
-        borderBottom: '0.5px solid var(--color-border)',
-        display: 'flex', alignItems: 'center',
-        padding: '0 18px', gap: 12, flexShrink: 0,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: 6,
-          background: 'var(--color-primary)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <span style={{ color: 'var(--color-text-light-solid)', fontSize: 12, fontWeight: 500, fontFamily: 'var(--font-family)' }}>L</span>
-        </div>
-        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-text)', fontFamily: 'var(--font-family)' }}>
-          Lanting Stream
-        </span>
-        <div style={{ flex: 1 }} />
-        <LogoutOutlined
-          style={{ fontSize: 16, color: 'var(--color-text-description)', cursor: 'pointer' }}
-          onClick={handleLogout}
-        />
-      </div>
+    <ConfigProvider theme={toAntdTheme(token)}>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        {/* 顶栏 */}
+        <Header
+          style={{
+            height: 48,
+            lineHeight: '48px',
+            background: token.colorBgContainer,
+            borderBottom: `0.5px solid ${token.colorBorder}`,
+            display: 'flex',
+            alignItems: 'center',
+            padding: `0 ${token.spacingLG}px`,
+            gap: token.spacingMD,
+          }}
+        >
+          <div
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: token.borderRadius,
+              background: token.colorPrimary,
+              color: token.colorTextLightSolid,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: token.fontSizeCaption,
+              fontWeight: token.fontWeightMedium,
+              fontFamily: 'var(--font-serif)',
+              flexShrink: 0,
+            }}
+          >
+            L
+          </div>
+          <span
+            style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: token.fontSizeBody,
+              fontWeight: token.fontWeightMedium,
+              color: token.colorText,
+            }}
+          >
+            Lanting
+          </span>
+          <span
+            style={{
+              fontSize: token.fontSizeCaption,
+              color: token.colorTextDescription,
+            }}
+          >
+            暂无用户组
+          </span>
+        </Header>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* 侧边栏 */}
-        <div style={{
-          width: 48, background: 'var(--color-bg-subtle)',
-          borderRight: '0.5px solid var(--color-border)',
-          display: 'flex', flexDirection: 'column',
-          alignItems: 'center', padding: '12px 0', gap: 2, flexShrink: 0,
-        }}>
-          {navItems.map((item) => {
-            const active = pathname === item.key;
-            return (
-              <div
-                key={item.key}
-                onClick={() => navigate(item.key)}
-                title={item.label}
+        <Layout style={{ flex: 1, overflow: 'hidden' }}>
+          {/* 侧边栏 */}
+          <Sider
+            width={180}
+            collapsible
+            collapsed={collapsed}
+            onCollapse={setCollapsed}
+            trigger={null}
+            style={{
+              background: token.colorBgContainer,
+              borderRight: `0.5px solid ${token.colorBorder}`,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100%',
+              }}
+            >
+              <Menu
+                mode="inline"
+                selectedKeys={[selectedKey]}
+                defaultOpenKeys={['dev', 'auth', 'design']}
+                items={menuItems}
+                onClick={({ key }) => nav(key)}
                 style={{
-                  width: 32, height: 32, borderRadius: 6,
-                  background: active ? 'var(--color-primary-bg)' : 'transparent',
-                  color: active ? 'var(--color-primary)' : 'var(--color-text-description)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', fontSize: 15,
-                  transition: 'background-color 0.15s, color 0.15s',
+                  flex: 1,
+                  borderRight: 'none',
+                  padding: `${token.spacingMD}px 0`,
+                }}
+              />
+              {/* 用户区 */}
+              <div
+                style={{
+                  padding: `${token.spacingMD}px ${token.spacingLG}px`,
+                  borderTop: `0.5px solid ${token.colorBorder}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: token.spacingSM,
+                  fontSize: token.fontSizeCaption,
+                  color: token.colorTextSecondary,
                 }}
               >
-                {item.icon}
+                <div
+                  style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: '50%',
+                    background: token.colorBgSubtle,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: token.fontSizeCaption,
+                    color: token.colorTextDescription,
+                  }}
+                >
+                  <ThunderboltOutlined />
+                </div>
+                {!collapsed && <span>Admin</span>}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          </Sider>
 
-        {/* 内容区 */}
-        <div style={{
-          flex: 1, background: 'var(--color-bg-layout)',
-          padding: '20px 22px', overflow: 'auto',
-        }}>
-          <Outlet />
-        </div>
-      </div>
-
-    </div>
+          {/* 内容区 */}
+          <Content
+            style={{
+              flex: 1,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              padding: `${token.spacingXL}px ${token.spacing2XL}px`,
+              background: token.colorBgLayout,
+            }}
+          >
+            <Outlet />
+          </Content>
+        </Layout>
+      </Layout>
+    </ConfigProvider>
   );
 };
 

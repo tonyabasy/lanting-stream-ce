@@ -1,0 +1,82 @@
+{
+  "key": "default-light",
+  "name": "宝蓝-light",
+
+  "brand": {
+    "colorPrimary": "#2A5CA0",
+    "colorPrimaryHover": "#234B85",
+    "colorPrimaryBg": "#2A5CA014",
+    "colorPrimaryBorder": "#6089C4",
+    "colorLink": "#2A5CA0",
+    "colorLinkHover": "#234B85"
+  },
+
+  "background": {
+    "colorBgLayout":    "#F0F2F5",
+    "colorBgContainer": "#FFFFFF",
+    "colorBgElevated":  "#FFFFFF",
+    "colorBgSubtle":    "#F5F5F5",
+    "colorBgMuted":     "#EBEBEB"
+  },
+
+  "border": {
+    "colorBorder": "#E5E5E5",
+    "colorBorderSecondary": "#D4D4D4"
+  },
+
+  "text": {
+    "colorText": "#111111",
+    "colorTextSecondary": "#555555",
+    "colorTextDescription": "#999999",
+    "colorTextDisabled": "#CCCCCC",
+    "colorTextLightSolid": "#ffffff",
+    "colorNeutral": "#B4B2A9"
+  },
+
+  "semantic": {
+    "colorSuccess": "#2F9A45",
+    "colorSuccessBg": "#EAF3DE",
+    "colorWarning": "#A97A1D",
+    "colorWarningBg": "#FAEEDA",
+    "colorError": "#9C2E24"
+  },
+
+  "font": {
+    "fontFamily": "system-ui, -apple-system, sans-serif",
+    "fontFamilyCode": "ui-monospace, 'SF Mono', Consolas, monospace"
+  },
+
+  "fontSize": {
+    "fontSizeCaption": 12,
+    "fontSizeBody": 14,
+    "fontSizeTitle": 16,
+    "fontSizeHeading": 20
+  },
+
+  "fontWeight": {
+    "fontWeightRegular": 400,
+    "fontWeightMedium": 500
+  },
+
+  "borderRadius": {
+    "borderRadiusSM": 2,
+    "borderRadius": 4,
+    "borderRadiusLG": 8
+  },
+
+  "spacing": {
+    "spacingXS": 4,
+    "spacingSM": 8,
+    "spacingMD": 12,
+    "spacingLG": 16,
+    "spacingXL": 20,
+    "spacing2XL": 24,
+    "spacing3XL": 32,
+    "spacing4XL": 48
+  },
+
+  "boxShadow": {
+    "boxShadow": "0 4px 16px rgba(0,0,0,0.08)",
+    "boxShadowSecondary": "0 8px 32px rgba(0,0,0,0.12)"
+  }
+}
