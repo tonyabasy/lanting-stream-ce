@@ -2,32 +2,13 @@ server:
   port: 8080
 
 spring:
+  main:
+    banner-mode: off
   application:
     name: lanting-admin
   datasource:
     url: jdbc:sqlite:${LANTING_DATA_DIR:./.data}/lanting.db
     driver-class-name: org.sqlite.JDBC
-    type: com.alibaba.druid.pool.DruidDataSource
-    druid:
-      stat-view-servlet:
-        enabled: true
-        url-pattern: /druid/*
-        login-username: admin
-        login-password: admin
-      # 连接池调优（通常只需关注 initial-size, min-idle, max-active）
-      initial-size: 1
-      max-active: 10
-      min-idle: 1
-      # SQLite 是嵌入式数据库，连接有效性校验关闭
-      test-while-idle: false
-      test-on-borrow: false
-      test-on-return: false
-      # 获取连接时的最大等待时间 (ms)
-      max-wait: 60000
-      # 空闲连接回收器运行间隔 (ms)
-      time-between-eviction-runs-millis: 60000
-      # 连接在池中保持空闲而不被回收的最小时间 (ms)
-      min-evictable-idle-time-millis: 300000
   flyway:
     enabled: true
     locations: classpath:db/migration

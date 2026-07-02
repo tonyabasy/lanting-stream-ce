@@ -89,18 +89,6 @@
                 <version>${mybatis-plus.version}</version>
             </dependency>
 
-            <!-- 数据库连接池 Druid -->
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>druid-spring-boot-3-starter</artifactId>
-                <version>${druid.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.alibaba</groupId>
-                <artifactId>druid</artifactId>
-                <version>${druid.version}</version>
-            </dependency>
-
             <!-- SQLite -->
             <dependency>
                 <groupId>org.xerial</groupId>
