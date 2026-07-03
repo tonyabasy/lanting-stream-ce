@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS lanting_llm_config (
 -- 初始管理员账号
 -- 密码为占位符，应用启动时由 AdminInitializer（CommandLineRunner）替换为真实的 BCrypt 哈希
 INSERT OR IGNORE INTO lanting_user (id, username, password, nickname, super_admin_flag, auth_source, create_time, update_time)
-VALUES (1, 'admin', 'PLACEHOLDER', 'Administrator', 1, 'local', 0, 0);
+VALUES (1, 'admin', '$2a$10$4hYkZrFf570NlpROFczaXumqy8gD1GEzn4CAq.bh8IT8obbXgZK8e', 'Administrator', 1, 'local', 0, 0);
 
 -- 初始默认工作空间
 -- created_by 引用 admin 用户 id=1，需在 admin 插入之后执行（SQLite 顺序执行保证）
