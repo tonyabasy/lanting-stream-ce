@@ -85,7 +85,7 @@ const LoginPage: React.FC = () => {
             style={{ marginBottom: token.spacingLG, borderRadius: token.borderRadius }}
           />
 
-          <div style={{ marginBottom: token.spacingLG }}>
+          {/* <div style={{ marginBottom: token.spacingLG }}>
             <Checkbox
               checked={remember}
               onChange={e => setRemember(e.target.checked)}
@@ -97,7 +97,7 @@ const LoginPage: React.FC = () => {
                 记住我
               </span>
             </Checkbox>
-          </div>
+          </div> */}
 
           <Button
             type="primary"
