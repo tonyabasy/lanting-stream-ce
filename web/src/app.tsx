@@ -5,7 +5,7 @@ import '@/global.css';
  * 路由守卫：未登录跳转到 /login。
  */
 export function onRouteChange({ location }: { location: { pathname: string } }) {
-  // if (process.env.NODE_ENV === 'development') return; // 开发时不守卫
+  if (process.env.NODE_ENV === 'development') return; // 开发时不守卫
   const token = getToken();
   if (!token && location.pathname !== '/login') {
     removeToken();
