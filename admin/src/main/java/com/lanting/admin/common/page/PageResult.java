@@ -1,6 +1,7 @@
 package com.lanting.admin.common.page;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
 import java.util.List;
@@ -17,22 +18,28 @@ import java.util.List;
  * @param <T> 列表元素类型
  * @author wangzhao
  */
+@Schema(description = "分页响应")
 @Getter
 public class PageResult<T> {
 
     /** 当前页数据列表 */
+    @Schema(description = "当前页数据列表")
     private final List<T> records;
 
     /** 总记录数 */
+    @Schema(description = "总记录数")
     private final long total;
 
     /** 当前页码 */
+    @Schema(description = "当前页码")
     private final long pageNum;
 
     /** 每页条数 */
+    @Schema(description = "每页条数")
     private final long pageSize;
 
     /** 总页数 */
+    @Schema(description = "总页数")
     private final long totalPages;
 
     private PageResult(List<T> records, long total, long pageNum, long pageSize, long totalPages) {

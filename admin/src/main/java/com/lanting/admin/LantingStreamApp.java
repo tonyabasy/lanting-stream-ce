@@ -2,12 +2,14 @@ package com.lanting.admin;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.io.File;
 
 /**
  * @author wangzhao
  */
+@EnableAsync
 @SpringBootApplication
 public class LantingStreamApp {
 

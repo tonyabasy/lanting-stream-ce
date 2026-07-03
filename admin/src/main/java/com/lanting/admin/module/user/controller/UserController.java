@@ -6,6 +6,8 @@ import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.user.dto.*;
 import com.lanting.admin.module.user.entity.UserEntity;
 import com.lanting.admin.module.user.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
  *
  * @author wangzhao
  */
+@Tag(name = "用户管理")
 @Validated
 @RestController
 @RequestMapping("/api/users")
@@ -35,6 +38,7 @@ public class UserController {
      * 分页查询用户列表。
      * 所有登录用户可访问，用于"@成员"等功能。
      */
+    @Operation(summary = "分页查询用户列表")
     @GetMapping
     public Result<PageResult<UserEntity>> listUsers(@Valid UserQueryDTO query) {
         return Result.success(userService.searchUsersPage(query));
@@ -43,6 +47,7 @@ public class UserController {
     /**
      * 更新当前用户个人资料。
      */
+    @Operation(summary = "更新当前用户个人资料")
     @PutMapping("/me/profile")
     public Result<UserEntity> updateProfile(@Valid @RequestBody UpdateProfileDTO dto) {
         return Result.success(userService.updateCurrentProfile(dto));
@@ -51,6 +56,7 @@ public class UserController {
     /**
      * 修改当前用户密码。
      */
+    @Operation(summary = "修改当前用户密码")
     @PutMapping("/me/password")
     public Result<Void> updatePassword(@Valid @RequestBody ChangePasswordDTO dto) {
         userService.updateCurrentPassword(dto);
@@ -62,6 +68,7 @@ public class UserController {
     /**
      * 创建用户。
      */
+    @Operation(summary = "创建用户")
     @SaCheckPermission("user:admin")
     @PostMapping
     public Result<UserEntity> createUser(@Valid @RequestBody CreateUserDTO dto) {
@@ -71,6 +78,7 @@ public class UserController {
     /**
      * 编辑用户信息。
      */
+    @Operation(summary = "编辑用户信息")
     @SaCheckPermission("user:admin")
     @PutMapping("/{id}")
     public Result<UserEntity> updateUser(@PathVariable Long id,
@@ -82,6 +90,7 @@ public class UserController {
     /**
      * 删除用户（逻辑删除）。
      */
+    @Operation(summary = "删除用户")
     @SaCheckPermission("user:admin")
     @DeleteMapping("/{id}")
     public Result<Void> deleteUser(@PathVariable @NotNull Long id) {
@@ -92,6 +101,7 @@ public class UserController {
     /**
      * 设置超管标记。
      */
+    @Operation(summary = "设置超级管理员标记")
     @SaCheckPermission("user:admin")
     @PutMapping("/{id}/super-admin")
     public Result<Void> setSuperAdmin(@PathVariable Long id,
@@ -103,6 +113,7 @@ public class UserController {
     /**
      * 重置指定用户密码（不需要旧密码，仅管理员可操作）。
      */
+    @Operation(summary = "重置用户密码")
     @SaCheckPermission("user:admin")
     @PutMapping("/{id}/password")
     public Result<Void> resetPassword(@PathVariable Long id,

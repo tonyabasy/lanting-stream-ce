@@ -5,6 +5,8 @@ import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.user.dto.LoginDTO;
 import com.lanting.admin.module.user.entity.UserEntity;
 import com.lanting.admin.module.user.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
  *
  * @author wangzhao
  */
+@Tag(name = "认证")
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
@@ -32,6 +35,7 @@ public class AuthController {
      * 登录。
      * 返回用户信息及 token，token 同时通过响应头 {@code lanting-token} 下发（Sa-Token 自动处理）。
      */
+    @Operation(summary = "登录")
     @PostMapping("/login")
     public Result<UserEntity> login(@Valid @RequestBody LoginDTO dto) {
         return Result.success(userService.login(dto));
@@ -41,6 +45,7 @@ public class AuthController {
      * 登出。
      * 销毁当前会话 token，未登录时 Sa-Token 静默处理不报错。
      */
+    @Operation(summary = "登出")
     @PostMapping("/logout")
     public Result<Void> logout() {
         StpUtil.logout();
@@ -51,6 +56,7 @@ public class AuthController {
      * 获取当前登录用户信息，附带最新 token 信息（过期时间等）。
      * 需要登录，由 Sa-Token 拦截器统一保障。
      */
+    @Operation(summary = "获取当前登录用户信息")
     @GetMapping("/current")
     public Result<UserEntity> current() {
         return Result.success(userService.getCurrentUser());
