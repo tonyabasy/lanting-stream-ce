@@ -10,6 +10,7 @@ import {
   EyeOutlined,
   SafetyOutlined,
   ThunderboltOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons';
 import type { LantingToken } from '@/themes/parseTheme';
 import {toAntdTheme} from '@/themes/parseTheme';
@@ -31,6 +32,7 @@ const menuItems: MenuItem[] = [
   },
   { key: '/pub', icon: <RocketOutlined />, label: '发布' },
   { key: '/ops', icon: <ToolOutlined />, label: '运维' },
+  { key: '/cluster', icon: <CloudServerOutlined />, label: '集群' },
   {
     key: 'auth',
     icon: <SafetyOutlined />,

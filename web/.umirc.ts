@@ -14,7 +14,7 @@ export default defineConfig({
     { path: '/', component: 'index' },
     { path: '/editor', component: 'editor/index' },
     { path: '/datasource', component: 'index' },
-    { path: '/cluster', component: 'index' },
+    { path: '/cluster', component: 'cluster/index' },
     { path: '/users', component: 'index' },
     { path: '/ops', component: 'ops/index' },
     { path: '/design/login', component: 'design/login' },
