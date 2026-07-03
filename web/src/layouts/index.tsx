@@ -91,14 +91,13 @@ const AppLayout: React.FC = () => {
           >
             L
           </div>
-          <span
-            style={{
-              fontFamily: 'var(--font-serif)',
-              fontSize: token.fontSizeBody,
-              fontWeight: token.fontWeightMedium,
-              color: token.colorText,
-            }}
-          >
+          {/* 顶栏品牌名 */}
+          <span style={{
+            fontFamily: 'var(--font-serif)',
+            fontSize: token.fontSizeBody,
+            fontWeight: token.fontWeightRegular,  // 400，不加粗
+            color: token.colorText,
+          }}>
             Lanting
           </span>
           <span
@@ -176,15 +175,13 @@ const AppLayout: React.FC = () => {
           </Sider>
 
           {/* 内容区 */}
-          <Content
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              padding: `${token.spacingXL}px ${token.spacing2XL}px`,
-              background: token.colorBgLayout,
-            }}
-          >
+          <Content style={{
+            flex: 1,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            padding: `${token.spacingXL}px ${token.spacing2XL}px`,
+            background: token.colorBgContainer,  // 白色，不用 colorBgLayout
+          }}>
             <Outlet />
           </Content>
         </Layout>

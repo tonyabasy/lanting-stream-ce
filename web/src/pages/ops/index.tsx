@@ -1,4 +1,5 @@
 import React from 'react';
+import { useModel } from 'umi';
 import {
   CheckCircleOutlined,
   WarningOutlined,
@@ -7,148 +8,173 @@ import {
   ClusterOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
+import type { LantingToken } from '@/themes/parseTheme';
 
 /** 集群状态卡片 */
 const clusters = [
-  { name: 'prod-yarn', type: 'YARN Session', flink: '2.2.0', status: 'healthy', cpu: '16/32', mem: '24/64' },
-  { name: 'staging-flink', type: 'YARN Application', flink: '2.2.0', status: 'healthy', cpu: '6/16', mem: '12/32' },
-  { name: 'test-k8s', type: 'K8s Application', flink: '2.2.0', status: 'offline', cpu: '-', mem: '-' },
-  { name: 'dev-local', type: 'Local Mini-cluster', flink: '2.2.0', status: 'healthy', cpu: '2/4', mem: '4/8' },
+  { name: 'prod-yarn', type: 'YARN Session', flink: '2.2.0', status: 'healthy' as const, cpu: '16/32', mem: '24/64' },
+  { name: 'staging-flink', type: 'YARN Application', flink: '2.2.0', status: 'healthy' as const, cpu: '6/16', mem: '12/32' },
+  { name: 'test-k8s', type: 'K8s Application', flink: '2.2.0', status: 'offline' as const, cpu: '-', mem: '-' },
+  { name: 'dev-local', type: 'Local Mini-cluster', flink: '2.2.0', status: 'healthy' as const, cpu: '2/4', mem: '4/8' },
 ];
-
-const statusMeta: Record<string, { color: string; bg: string; label: string; icon: React.ReactNode }> = {
-  healthy: { color: '#2F9A45', bg: '#EAF3DE', label: '正常', icon: <CheckCircleOutlined /> },
-  offline: { color: '#9C2E24', bg: '#FCEBEB', label: '离线', icon: <CloseCircleOutlined /> },
-};
 
 /** 作业统计 */
 const jobStats = [
-  { label: '运行中', value: 8, color: '#2F9A45', icon: <ThunderboltOutlined /> },
-  { label: '异常', value: 2, color: '#9C2E24', icon: <WarningOutlined /> },
-  { label: '已停止', value: 4, color: '#999', icon: <CloseCircleOutlined /> },
+  { label: '运行中', value: 8, colorKey: 'success' as const, icon: <ThunderboltOutlined /> },
+  { label: '异常', value: 2, colorKey: 'error' as const, icon: <WarningOutlined /> },
+  { label: '已停止', value: 4, colorKey: 'disabled' as const, icon: <CloseCircleOutlined /> },
 ];
 
 const recentJobs = [
-  { name: 'dws_user_count', status: 'running', uptime: '3h 22m', checkpoint: '正常' },
-  { name: 'dws_gmv_realtime', status: 'warning', uptime: '5h 10m', checkpoint: '延迟 2min' },
-  { name: 'ods_order_sync', status: 'running', uptime: '12h 5m', checkpoint: '正常' },
-  { name: 'dwd_event_clean', status: 'stopped', uptime: '-', checkpoint: '-' },
+  { name: 'dws_user_count', status: 'running' as const, uptime: '3h 22m', checkpoint: '正常' },
+  { name: 'dws_gmv_realtime', status: 'warning' as const, uptime: '5h 10m', checkpoint: '延迟 2min' },
+  { name: 'ods_order_sync', status: 'running' as const, uptime: '12h 5m', checkpoint: '正常' },
+  { name: 'dwd_event_clean', status: 'stopped' as const, uptime: '-', checkpoint: '-' },
 ];
 
-const jobBadge: Record<string, { bg: string; color: string; label: string }> = {
-  running: { bg: '#EAF3DE', color: '#2F9A45', label: '运行中' },
-  warning: { bg: '#FAEEDA', color: '#A97A1D', label: '异常' },
-  stopped: { bg: '#F5F5F5', color: '#999', label: '已停止' },
-};
-
 const OpsPage: React.FC = () => {
+  const token = useModel('theme') as LantingToken;
+
+  /** 根据 colorKey 取对应 color + bg */
+  const colorPair = (key: 'success' | 'error' | 'disabled') => {
+    const map = {
+      success: { color: token.colorSuccess, bg: token.colorSuccessBg },
+      error: { color: token.colorError, bg: '#FCEBEB' },
+      disabled: { color: token.colorTextDescription, bg: '#F5F5F5' },
+    };
+    return map[key];
+  };
+
   return (
     <div>
       {/* 页头 */}
-      <div style={{ marginBottom: 22 }}>
-        <h2 style={{ fontFamily: 'Georgia, "Noto Serif SC", serif', fontSize: 16, fontWeight: 500, color: '#111', margin: '0 0 4px' }}>
+      <div style={{ marginBottom: token.spacingXL }}>
+        <h2
+          style={{
+            fontFamily: 'Georgia, "Noto Serif SC", serif',
+            fontSize: token.fontSizeTitle,
+            fontWeight: token.fontWeightMedium,
+            color: token.colorText,
+            margin: '0 0 4px',
+          }}
+        >
           运维中心
         </h2>
-        <div style={{ fontSize: 12, color: '#999' }}>实时监控集群与作业运行状态</div>
+        <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription }}>
+          实时监控集群与作业运行状态
+        </div>
       </div>
 
       {/* 统计卡片 */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
-        {jobStats.map((s) => (
-          <div
-            key={s.label}
-            style={{
-              flex: 1,
-              background: '#FBFCFD',
-              border: '0.5px solid #E5E5E5',
-              borderRadius: 8,
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-            }}
-          >
+      <div style={{ display: 'flex', gap: token.spacingMD, marginBottom: token.spacingXL }}>
+        {jobStats.map((s) => {
+          const { color } = colorPair(s.colorKey);
+          return (
             <div
+              key={s.label}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: `${s.color}14`,
+                flex: 1,
+                background: token.colorBgSubtle,
+                border: `0.5px solid ${token.colorBorder}`,
+                borderRadius: token.borderRadius,
+                padding: `${token.spacingMD}px ${token.spacingLG}px`,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 16,
-                color: s.color,
+                gap: token.spacingMD,
               }}
             >
-              {s.icon}
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: token.borderRadius,
+                  background: s.colorKey === 'success'
+                    ? token.colorSuccessBg
+                    : s.colorKey === 'disabled'
+                      ? token.colorBgSubtle
+                      : '#FCEBEB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: token.fontSizeTitle,
+                  color,
+                }}
+              >
+                {s.icon}
+              </div>
+              <div>
+                <div style={{ fontSize: token.fontSizeHeading, fontWeight: token.fontWeightMedium, color: token.colorText, lineHeight: 1 }}>
+                  {s.value}
+                </div>
+                <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: token.spacingXS }}>
+                  {s.label}
+                </div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 20, fontWeight: 600, color: '#111', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: '#999', marginTop: 3 }}>{s.label}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* 集群列表 */}
       <div
         style={{
-          background: '#FBFCFD',
-          border: '0.5px solid #E5E5E5',
-          borderRadius: 8,
-          marginBottom: 20,
+          background: token.colorBgContainer,
+          border: `0.5px solid ${token.colorBorder}`,
+          borderRadius: token.borderRadius,
+          marginBottom: token.spacingXL,
           overflow: 'hidden',
         }}
       >
         <div
           style={{
-            padding: '13px 18px',
-            borderBottom: '0.5px solid #E5E5E5',
+            padding: `${token.spacingMD}px ${token.spacingLG}px`,
+            borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
-            fontWeight: 500,
-            color: '#111',
+            fontWeight: token.fontWeightMedium,
+            color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: token.spacingSM,
           }}
         >
-          <ClusterOutlined style={{ color: '#2A5CA0' }} />
+          <ClusterOutlined style={{ color: token.colorPrimary }} />
           集群状态
         </div>
-        <div style={{ padding: '12px 18px' }}>
+        <div style={{ padding: `${token.spacingMD}px ${token.spacingLG}px` }}>
           {clusters.map((c) => {
-            const meta = statusMeta[c.status];
+            const isHealthy = c.status === 'healthy';
             return (
               <div
                 key={c.name}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
+                  gap: token.spacingMD,
                   padding: '10px 0',
-                  borderBottom: '0.5px solid #F0F0F0',
-                  fontSize: 12,
+                  borderBottom: `0.5px solid ${token.colorBgMuted}`,
+                  fontSize: token.fontSizeCaption,
                 }}
               >
-                <span style={{ flex: 1, fontWeight: 500, color: '#111' }}>{c.name}</span>
-                <span style={{ color: '#999', flex: 1 }}>{c.type}</span>
-                <span style={{ color: '#999', width: 70 }}>Flink {c.flink}</span>
-                <span style={{ color: '#555', width: 80 }}>CPU {c.cpu} / MEM {c.mem}</span>
+                <span style={{ flex: 1, fontWeight: token.fontWeightMedium, color: token.colorText }}>
+                  {c.name}
+                </span>
+                <span style={{ color: token.colorTextDescription, flex: 1 }}>{c.type}</span>
+                <span style={{ color: token.colorTextDescription, width: 70 }}>Flink {c.flink}</span>
+                <span style={{ color: token.colorTextSecondary, width: 80 }}>CPU {c.cpu} / MEM {c.mem}</span>
                 <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 4,
+                    gap: token.spacingXS,
                     padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: 11,
-                    background: meta.bg,
-                    color: meta.color,
+                    borderRadius: token.borderRadiusSM,
+                    fontSize: token.fontSizeCaption,
+                    background: isHealthy ? token.colorSuccessBg : '#FCEBEB',
+                    color: isHealthy ? token.colorSuccess : token.colorError,
                   }}
                 >
-                  {meta.icon}
-                  {meta.label}
+                  {isHealthy ? <CheckCircleOutlined /> : <CloseCircleOutlined />}
+                  {isHealthy ? '正常' : '离线'}
                 </span>
               </div>
             );
@@ -159,50 +185,57 @@ const OpsPage: React.FC = () => {
       {/* 作业列表 */}
       <div
         style={{
-          background: '#FBFCFD',
-          border: '0.5px solid #E5E5E5',
-          borderRadius: 8,
+          background: token.colorBgContainer,
+          border: `0.5px solid ${token.colorBorder}`,
+          borderRadius: token.borderRadius,
           overflow: 'hidden',
         }}
       >
         <div
           style={{
-            padding: '13px 18px',
-            borderBottom: '0.5px solid #E5E5E5',
+            padding: `${token.spacingMD}px ${token.spacingLG}px`,
+            borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
-            fontWeight: 500,
-            color: '#111',
+            fontWeight: token.fontWeightMedium,
+            color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: 6,
+            gap: token.spacingSM,
           }}
         >
-          <CodeOutlined style={{ color: '#2A5CA0' }} />
+          <CodeOutlined style={{ color: token.colorPrimary }} />
           近期作业
         </div>
-        <div style={{ padding: '12px 18px' }}>
+        <div style={{ padding: `${token.spacingMD}px ${token.spacingLG}px` }}>
           {recentJobs.map((j) => {
-            const badge = jobBadge[j.status];
+            const badge =
+              j.status === 'running'
+                ? { bg: token.colorSuccessBg, color: token.colorSuccess, label: '运行中' }
+                : j.status === 'warning'
+                  ? { bg: token.colorWarningBg, color: token.colorWarning, label: '异常' }
+                  : { bg: '#F5F5F5', color: token.colorTextDescription, label: '已停止' };
             return (
               <div
                 key={j.name}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
+                  gap: token.spacingMD,
                   padding: '9px 0',
-                  borderBottom: '0.5px solid #F0F0F0',
-                  fontSize: 12,
+                  borderBottom: `0.5px solid ${token.colorBgMuted}`,
+                  fontSize: token.fontSizeCaption,
                 }}
               >
-                <span style={{ flex: 1, fontWeight: 500, color: '#111' }}>{j.name}</span>
-                <span style={{ color: '#999', width: 80 }}>运行 {j.uptime}</span>
-                <span style={{ color: '#555', width: 80 }}>Checkpoint: {j.checkpoint}</span>
+                <span style={{ flex: 1, fontWeight: token.fontWeightMedium, color: token.colorText }}>
+                  {j.name}
+                </span>
+                <span style={{ color: token.colorTextDescription, width: 80 }}>运行 {j.uptime}</span>
+                <span style={{ color: token.colorTextSecondary, width: 80 }}>Checkpoint: {j.checkpoint}</span>
                 <span
                   style={{
                     padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: 11,
+                    borderRadius: token.borderRadiusSM,
+                    fontSize: token.fontSizeCaption,
                     background: badge.bg,
                     color: badge.color,
                   }}

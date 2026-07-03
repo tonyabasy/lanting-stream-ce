@@ -22,7 +22,6 @@ const LoginPage: React.FC = () => {
       const data: any = await request.post('/auth/login', { username, password });
       if (data?.tokenInfo?.token) {
         setToken(data.tokenInfo.token);
-        // 登录成功后跳回过期前的页面，没有 redirect 参数则回首页
         const redirect = searchParams.get('redirect') || '/';
         navigate(decodeURIComponent(redirect));
       }
@@ -35,44 +34,34 @@ const LoginPage: React.FC = () => {
 
   return (
     <ConfigProvider theme={toAntdTheme(token)}>
-      <div
-        style={{
-          height: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: token.colorBgLayout,
-        }}
-      >
-        <div
-          style={{
-            width: 450,
-            background: token.colorBgContainer,
-            border: `0.5px solid ${token.colorBorder}`,
-            borderRadius: token.borderRadiusLG,
-            padding: `${token.spacing4XL}px ${token.spacing2XL}px`,
-          }}
-        >
-          {/* Logo + 标题 */}
-          <div style={{ textAlign: 'center', marginBottom: token.spacing3XL }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: token.borderRadius,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: `0 auto ${token.spacingMD}px`,
-                fontSize: token.fontSizeHeading,
-                fontWeight: token.fontWeightMedium,
-                fontFamily: 'var(--font-serif)',
-              }}
-            >
-              LantingStream
-            </div>
-            <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: token.spacingXS }}>
-              实时数据开发平台
+      {/* 页面背景：中性浅灰，衬托白色卡片 */}
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: token.colorBgLayout,
+      }}>
+        {/* 登录卡片：白色，无边框，轻阴影，大圆角 */}
+        <div style={{
+          width: 400,
+          background: token.colorBgContainer,
+          borderRadius: token.borderRadiusXL,
+          boxShadow: token.boxShadowCard,
+          padding: `${token.spacing4XL}px ${token.spacing3XL}px`,
+        }}>
+
+          {/* 品牌区：只有文字，Serif，无 Logo 图标 */}
+          <div style={{ textAlign: 'center', marginBottom: token.spacing4XL }}>
+            <div style={{
+              fontFamily: 'var(--font-serif)',
+              fontSize: token.fontSizeHeading,
+              fontWeight: token.fontWeightRegular,
+              color: token.colorText,
+              letterSpacing: '0.02em',
+              marginBottom: token.spacingXS,
+            }}>
+              Lanting Stream
             </div>
           </div>
 
@@ -82,28 +71,39 @@ const LoginPage: React.FC = () => {
             prefix={<UserOutlined style={{ color: token.colorTextDescription }} />}
             placeholder="用户名"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={e => setUsername(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.spacingMD }}
+            style={{ marginBottom: token.spacingLG, borderRadius: token.borderRadius }}
           />
           <Input.Password
             size="large"
             prefix={<LockOutlined style={{ color: token.colorTextDescription }} />}
             placeholder="密码"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.spacingMD }}
+            style={{ marginBottom: token.spacingLG, borderRadius: token.borderRadius }}
           />
-          <div style={{ marginBottom: token.spacing2XL }}>
-            <Checkbox checked={remember} onChange={(e) => setRemember(e.target.checked)}>
-              <span style={{ fontSize: token.fontSizeCaption, color: token.colorTextSecondary }}>记住我</span>
+
+          <div style={{ marginBottom: token.spacingLG }}>
+            <Checkbox
+              checked={remember}
+              onChange={e => setRemember(e.target.checked)}
+            >
+              <span style={{
+                fontSize: token.fontSizeCaption,
+                color: token.colorTextSecondary,
+              }}>
+                记住我
+              </span>
             </Checkbox>
           </div>
+
           <Button
             type="primary"
             block
             size="large"
+            style={{borderRadius: token.borderRadius}}
             loading={loading}
             onClick={handleLogin}
           >

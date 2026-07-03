@@ -1,69 +1,64 @@
 {
   "key": "default-light",
-  "name": "宝蓝-light",
-
+  "name": "石绿-light",
   "brand": {
-    "colorPrimary": "#2A5CA0",
-    "colorPrimaryHover": "#234B85",
-    "colorPrimaryBg": "#2A5CA014",
-    "colorPrimaryBorder": "#6089C4",
-    "colorLink": "#2A5CA0",
-    "colorLinkHover": "#234B85"
+    "colorPrimary": "#4A8A6A",
+    "colorPrimaryHover": "#3A7A5A",
+    "colorPrimaryActive": "#2A6A4A",
+    "colorPrimaryBg": "#4A8A6A14",
+    "colorPrimaryBorder": "#7AB0A0",
+    "colorLink": "#4A8A6A",
+    "colorLinkHover": "#3A7A5A"
   },
-
   "background": {
-    "colorBgLayout":    "#F0F2F5",
+    "colorBgLayout": "#FAF8F5",
     "colorBgContainer": "#FFFFFF",
-    "colorBgElevated":  "#FFFFFF",
-    "colorBgSubtle":    "#F5F5F5",
-    "colorBgMuted":     "#EBEBEB"
+    "colorBgElevated": "#FFFFFF",
+    "colorBgSubtle": "#F4F1EC",
+    "colorBgMuted": "#EAE6DF",
+    "colorBgActive": "#E8E8E8"
   },
-
   "border": {
-    "colorBorder": "#E5E5E5",
-    "colorBorderSecondary": "#D4D4D4"
+    "colorBorder": "#E8E4DC",
+    "colorBorderSecondary": "#D8D2C8",
+    "colorSeparator": "rgba(0,0,0,0.06)"
   },
-
   "text": {
-    "colorText": "#111111",
-    "colorTextSecondary": "#555555",
-    "colorTextDescription": "#999999",
-    "colorTextDisabled": "#CCCCCC",
-    "colorTextLightSolid": "#ffffff",
-    "colorNeutral": "#B4B2A9"
+    "colorText": "#1A1815",
+    "colorTextSecondary": "#6B6560",
+    "colorTextDescription": "#9C9488",
+    "colorTextDisabled": "#C8C2BA",
+    "colorTextLightSolid": "#FFFFFF"
   },
-
   "semantic": {
-    "colorSuccess": "#2F9A45",
-    "colorSuccessBg": "#EAF3DE",
-    "colorWarning": "#A97A1D",
-    "colorWarningBg": "#FAEEDA",
-    "colorError": "#9C2E24"
+    "colorSuccess": "#4A7A52",
+    "colorSuccessBg": "#E6F2E8",
+    "colorWarning": "#A07A3A",
+    "colorWarningBg": "#F5EDDC",
+    "colorError": "#7A3A32",
+    "colorErrorBg": "#F2E6E4"
   },
-
   "font": {
     "fontFamily": "system-ui, -apple-system, sans-serif",
     "fontFamilyCode": "ui-monospace, 'SF Mono', Consolas, monospace"
   },
-
   "fontSize": {
     "fontSizeCaption": 12,
     "fontSizeBody": 14,
     "fontSizeTitle": 16,
     "fontSizeHeading": 20
   },
-
   "fontWeight": {
     "fontWeightRegular": 400,
     "fontWeightMedium": 500
   },
-
   "borderRadius": {
-    "borderRadiusSM": 2,
-    "borderRadius": 4,
-    "borderRadiusLG": 8
+    "borderRadiusSM": 4,
+    "borderRadius": 6,
+    "borderRadiusMD": 8,
+    "borderRadiusLG": 12,
+    "borderRadiusXL": 16
   },
-
   "spacing": {
     "spacingXS": 4,
     "spacingSM": 8,
@@ -74,9 +69,9 @@
     "spacing3XL": 32,
     "spacing4XL": 48
   },
-
   "boxShadow": {
-    "boxShadow": "0 4px 16px rgba(0,0,0,0.08)",
-    "boxShadowSecondary": "0 8px 32px rgba(0,0,0,0.12)"
+    "boxShadow": "0 2px 8px rgba(0,0,0,0.06)",
+    "boxShadowSecondary": "0 8px 32px rgba(0,0,0,0.10)",
+    "boxShadowCard": "0 2px 16px rgba(0,0,0,0.04)"
   }
 }

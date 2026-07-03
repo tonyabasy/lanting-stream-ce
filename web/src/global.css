@@ -1,3 +1,20 @@
+/* Playfair Display + 思源宋体，仅用于：品牌名、AI 生成内容正文 */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&family=Noto+Serif+SC:wght@400;500&display=swap');
+
 :root {
-  --font-serif: 'Georgia', 'Noto Serif SC', serif;
+  --font-serif: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
