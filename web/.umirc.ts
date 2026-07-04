@@ -1,10 +1,21 @@
 import { defineConfig } from 'umi';
 
 export default defineConfig({
-  plugins: ['@umijs/plugins/dist/antd', '@umijs/plugins/dist/initial-state', '@umijs/plugins/dist/model'],
+  plugins: [
+    '@umijs/plugins/dist/antd',
+    '@umijs/plugins/dist/initial-state',
+    '@umijs/plugins/dist/model',
+    '@umijs/plugins/dist/locale',
+  ],
 
   initialState: {},
   model: {},
+
+  locale: {
+    default: 'zh-CN',
+    useLocalStorage: true,
+    baseNavigator: true,
+  },
 
   antd: {},
 

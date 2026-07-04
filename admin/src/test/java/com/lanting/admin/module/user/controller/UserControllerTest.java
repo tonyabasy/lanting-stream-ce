@@ -8,6 +8,7 @@ import com.lanting.admin.module.user.dto.CreateUserDTO;
 import com.lanting.admin.module.user.dto.ResetPasswordDTO;
 import com.lanting.admin.module.user.entity.UserEntity;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.*;
 
@@ -39,6 +40,7 @@ class UserControllerTest extends BaseIntegrationTest {
     // ==================== GET /api/users（用户列表） ====================
 
     @Test
+    @DisplayName("未登录获取用户列表返回 401")
     void listUsers_shouldReturn401_whenNotLoggedIn() {
         ResponseEntity<String> response = restTemplate.getForEntity(
                 "/api/users", String.class);
@@ -46,6 +48,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("已登录获取用户列表返回 200")
     void listUsers_shouldReturn200_whenLoggedIn() throws Exception {
         String token = loginAsAdmin();
 
@@ -64,6 +67,7 @@ class UserControllerTest extends BaseIntegrationTest {
     // ==================== POST /api/users（创建用户） ====================
 
     @Test
+    @DisplayName("未登录创建用户返回 401")
     void createUser_shouldReturn401_whenNotLoggedIn() throws Exception {
         CreateUserDTO dto = buildCreateDTO();
 
@@ -76,6 +80,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("非超管创建用户返回 403")
     void createUser_shouldReturn403_whenNotSuperAdmin() throws Exception {
         // 先用超管创建一个普通用户
         String adminToken = loginAsAdmin();
@@ -99,6 +104,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("用户名为空时创建用户返回 400")
     void createUser_shouldReturn400_whenUsernameBlank() throws Exception {
         String token = loginAsAdmin();
         CreateUserDTO dto = new CreateUserDTO();
@@ -117,6 +123,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("用户名重复时创建用户返回 400")
     void createUser_shouldReturn400_whenUsernameDuplicate() throws Exception {
         String token = loginAsAdmin();
         CreateUserDTO dto = new CreateUserDTO();
@@ -135,6 +142,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("合法创建用户返回 200 且不暴露密码")
     void createUser_shouldReturn200_andNotExposePassword_whenValid() throws Exception {
         String token = loginAsAdmin();
         ResponseEntity<String> response = createTestUser(token);
@@ -149,6 +157,7 @@ class UserControllerTest extends BaseIntegrationTest {
     // ==================== DELETE /api/users/{id}（删除用户） ====================
 
     @Test
+    @DisplayName("删除自己返回 403")
     void deleteUser_shouldReturn403_whenDeletingSelf() throws Exception {
         String token = loginAsAdmin();
         long adminId = objectMapper.readTree(
@@ -168,6 +177,7 @@ class UserControllerTest extends BaseIntegrationTest {
     }
 
     @Test
+    @DisplayName("删除受保护管理员返回 403")
     void deleteUser_shouldReturn403_whenDeletingProtectedAdmin() throws Exception {
         String token = loginAsAdmin();
 
@@ -185,6 +195,7 @@ class UserControllerTest extends BaseIntegrationTest {
     // ==================== PUT /api/users/{id}/password（重置密码） ====================
 
     @Test
+    @DisplayName("超管重置密码返回 200 且新密码生效")
     void resetPassword_shouldReturn200_whenSuperAdmin() throws Exception {
         String adminToken = loginAsAdmin();
         createTestUser(adminToken);

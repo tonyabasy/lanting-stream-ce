@@ -8,6 +8,7 @@ import com.lanting.admin.module.user.entity.UserEntity;
 import com.lanting.admin.module.user.mapper.UserMapper;
 import com.lanting.admin.module.user.result.UserResultCode;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -54,6 +55,7 @@ class UserServiceTest {
      * 这是最核心的业务规则，出错会导致数据重复。
      */
     @Test
+    @DisplayName("用户名已存在时抛出 USERNAME_DUPLICATE 异常")
     void createUser_shouldThrow_whenUsernameAlreadyExists() {
         CreateUserDTO dto = new CreateUserDTO();
         dto.setUsername("admin");
@@ -74,6 +76,7 @@ class UserServiceTest {
      * 验证：昵称默认使用用户名、authSource 默认为 local、密码经过编码。
      */
     @Test
+    @DisplayName("昵称和 authSource 未传时使用默认值")
     void createUser_shouldSetDefaults_whenNicknameAndAuthSourceOmitted() {
         CreateUserDTO dto = new CreateUserDTO();
         dto.setUsername("newuser");
@@ -99,6 +102,7 @@ class UserServiceTest {
      * superAdminFlag 未传时默认为 false。
      */
     @Test
+    @DisplayName("superAdminFlag 未传时默认为 false")
     void createUser_shouldDefaultSuperAdminFlagToFalse_whenNotProvided() {
         CreateUserDTO dto = new CreateUserDTO();
         dto.setUsername("newuser");
@@ -119,6 +123,7 @@ class UserServiceTest {
      * 内置管理员（id=1）不可修改超管标记。
      */
     @Test
+    @DisplayName("受保护管理员不可修改超管标记")
     void setSuperAdmin_shouldThrow_whenTargetIsProtectedAdmin() {
         BusinessException ex = assertThrows(
                 BusinessException.class,

@@ -1,4 +1,4 @@
-package com.lanting.admin.config;
+package com.lanting.admin.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

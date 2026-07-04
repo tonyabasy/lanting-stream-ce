@@ -1,5 +1,6 @@
-package com.lanting.admin.module.user.controller;
+package com.lanting.admin.module.test;
 
+import com.lanting.admin.common.exception.BusinessException;
 import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.user.entity.PublicUser;
 import com.lanting.admin.module.user.entity.UserEntity;
@@ -10,11 +11,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 临时验证接口：验证 Jackson 序列化机制，确认后删除。
+ * 测试接口：用于集成测试及开发验证。
  */
 @RestController
-@RequestMapping("/test")
-public class TempVerifyController {
+@RequestMapping("/api/test")
+public class TestController {
 
     @Autowired
     private UserService userService;
@@ -38,5 +39,13 @@ public class TempVerifyController {
     @GetMapping("/user-full")
     public Result<UserEntity> getFullUser() {
         return Result.success(userService.getUserByName("admin"));
+    }
+
+    /**
+     * 验证三：业务异常国际化及 MessageFormat 占位符填充。
+     */
+    @GetMapping("/business-exception")
+    public Result<Void> throwBusinessException() {
+        throw BusinessException.of(TestResultCode.TEST_MESSAGE_FORMAT, "Alice", 42);
     }
 }

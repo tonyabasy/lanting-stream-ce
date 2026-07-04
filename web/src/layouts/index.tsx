@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ConfigProvider, Layout, Menu } from 'antd';
-import { Outlet, useNavigate, useLocation, useModel } from 'umi';
+import { Outlet, useNavigate, useLocation, useModel, useIntl } from 'umi';
 import type { MenuProps } from 'antd';
 import {
   HomeOutlined,
@@ -14,39 +14,40 @@ import {
 } from '@ant-design/icons';
 import type { LantingToken } from '@/themes/parseTheme';
 import {toAntdTheme} from '@/themes/parseTheme';
+import LanguageSwitch from '@/components/LanguageSwitch';
 
 const { Header, Content, Sider } = Layout;
 
 type MenuItem = Required<MenuProps>['items'][number];
 
-const menuItems: MenuItem[] = [
-  { key: '/', icon: <HomeOutlined />, label: '首页' },
+const getMenuItems = (formatMessage: ReturnType<typeof useIntl>['formatMessage']): MenuItem[] => [
+  { key: '/', icon: <HomeOutlined />, label: formatMessage({ id: 'menu.home' }) },
   {
     key: 'dev',
     icon: <CodeOutlined />,
-    label: '研发',
+    label: formatMessage({ id: 'menu.dev' }),
     children: [
-      { key: '/editor', label: '任务开发' },
-      { key: '/datasource', label: '数据源' },
+      { key: '/editor', label: formatMessage({ id: 'menu.task' }) },
+      { key: '/datasource', label: formatMessage({ id: 'menu.datasource' }) },
     ],
   },
-  { key: '/pub', icon: <RocketOutlined />, label: '发布' },
-  { key: '/ops', icon: <ToolOutlined />, label: '运维' },
-  { key: '/cluster', icon: <CloudServerOutlined />, label: '集群' },
+  { key: '/pub', icon: <RocketOutlined />, label: formatMessage({ id: 'menu.publish' }) },
+  { key: '/ops', icon: <ToolOutlined />, label: formatMessage({ id: 'menu.ops' }) },
+  { key: '/cluster', icon: <CloudServerOutlined />, label: formatMessage({ id: 'menu.cluster' }) },
   {
     key: 'auth',
     icon: <SafetyOutlined />,
-    label: '权限',
+    label: formatMessage({ id: 'menu.auth' }),
   },
   {
     key: 'design',
     icon: <EyeOutlined />,
-    label: '设计稿',
+    label: formatMessage({ id: 'menu.design' }),
     children: [
-      { key: '/design/login', label: '登录页' },
-      { key: '/design/cluster', label: '集群管理' },
-      { key: '/design/editor', label: '编辑器' },
-      { key: '/design/theme-preview', label: '主题预览' },
+      { key: '/design/login', label: formatMessage({ id: 'menu.design.login' }) },
+      { key: '/design/cluster', label: formatMessage({ id: 'menu.design.cluster' }) },
+      { key: '/design/editor', label: formatMessage({ id: 'menu.design.editor' }) },
+      { key: '/design/theme-preview', label: formatMessage({ id: 'menu.design.theme' }) },
     ],
   },
 ];
@@ -56,8 +57,10 @@ const AppLayout: React.FC = () => {
   const nav = useNavigate();
   const location = useLocation();
   const token = useModel('theme') as LantingToken;
+  const { formatMessage } = useIntl();
 
   const selectedKey = location.pathname;
+  const menuItems = getMenuItems(formatMessage);
 
   return (
     <ConfigProvider theme={toAntdTheme(token)}>
@@ -108,8 +111,11 @@ const AppLayout: React.FC = () => {
               color: token.colorTextDescription,
             }}
           >
-            暂无用户组
+            {formatMessage({ id: 'menu.userGroup' })}
           </span>
+          <div style={{ marginLeft: 'auto' }}>
+            <LanguageSwitch token={token} />
+          </div>
         </Header>
 
         <Layout style={{ flex: 1, overflow: 'hidden' }}>

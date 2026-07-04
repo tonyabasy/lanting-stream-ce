@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
+import { getIntl, getLocale } from 'umi';
 
 // ==================== 统一错误类型 ====================
 
@@ -10,6 +11,16 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.code = code;
   }
+}
+
+// ==================== 兜底文案 ====================
+
+function getFallbackMessage(key: string): string {
+  const intl = getIntl(getLocale() || 'zh-CN');
+  return intl.formatMessage({
+    id: key,
+    defaultMessage: intl.formatMessage({ id: 'error.default' }),
+  });
 }
 
 // ==================== Token 管理 ====================
@@ -28,13 +39,14 @@ const request = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// --- 请求拦截器：注入 Sa-Token JWT token ---
+// --- 请求拦截器：注入 Sa-Token JWT token 和当前语言 ---
 request.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
       config.headers['lanting-token'] = token;
     }
+    config.headers['Accept-Language'] = getLocale() || 'zh-CN';
     return config;
   },
   (error) => Promise.reject(error),
@@ -47,7 +59,9 @@ request.interceptors.response.use(
     if (data.code === 0) {
       return data.data;
     }
-    return Promise.reject(new ApiError(data.code, data.message || '请求失败'));
+    return Promise.reject(
+      new ApiError(data.code, data.message || getFallbackMessage('error.default')),
+    );
   },
   (error) => {
     if (error.response) {
@@ -60,31 +74,56 @@ request.interceptors.response.use(
           window.location.pathname + window.location.search,
         );
         window.location.href = `/login?redirect=${redirect}`;
-        return Promise.reject(new ApiError(body?.code || 20001, body?.message || '登录已过期，请重新登录'));
+        return Promise.reject(
+          new ApiError(
+            body?.code || 20001,
+            body?.message || getFallbackMessage('error.default'),
+          ),
+        );
       }
 
       // 403：无权限
       if (status === 403) {
-        return Promise.reject(new ApiError(20002, '没有权限'));
+        return Promise.reject(
+          new ApiError(
+            20002,
+            body?.message || getFallbackMessage('error.default'),
+          ),
+        );
       }
 
       // 400：参数校验失败 / 业务规则冲突
       if (status === 400) {
-        const msg = body?.message || '参数错误';
+        const msg = body?.message || getFallbackMessage('error.default');
         return Promise.reject(new ApiError(body?.code || 10001, msg));
+      }
+
+      // 404：资源不存在
+      if (status === 404) {
+        return Promise.reject(
+          new ApiError(
+            body?.code || 404,
+            body?.message || getFallbackMessage('error.notFound'),
+          ),
+        );
       }
 
       // 500+：系统内部错误，不暴露详情
       if (status >= 500) {
-        return Promise.reject(new ApiError(50001, '服务器异常，请稍后重试'));
+        return Promise.reject(
+          new ApiError(
+            50001,
+            body?.message || getFallbackMessage('error.server'),
+          ),
+        );
       }
     }
 
     if (error.code === 'ECONNABORTED') {
-      return Promise.reject(new ApiError(10002, '请求超时'));
+      return Promise.reject(new ApiError(10002, getFallbackMessage('error.timeout')));
     }
     // 网络层错误（ECONNREFUSED、ECONNRESET 等），无 HTTP 响应，前端内部处理
-    return Promise.reject(new ApiError(-1, '网络连接失败'));
+    return Promise.reject(new ApiError(-1, getFallbackMessage('error.network')));
   },
 );
 
