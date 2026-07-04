@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useModel } from 'umi';
+import { useIntl, useModel } from 'umi';
 import { Modal, Form, Input, Select, Switch, Popconfirm, Button, Spin, message } from 'antd';
 import {
   PlusOutlined,
@@ -16,6 +16,7 @@ import {
   toggleClusterStatus,
   checkFlinkVersion,
 } from '@/services/cluster';
+import { ApiError } from '@/utils/request';
 import type { ClusterVO, CreateClusterDTO, UpdateClusterDTO } from '@/types/cluster';
 import type { LantingToken } from '@/themes/parseTheme';
 
@@ -49,6 +50,7 @@ function resourceTypeFromTarget(deployTarget: string): string {
 
 const ClusterPage: React.FC = () => {
   const token = useModel('theme') as LantingToken;
+  const { formatMessage } = useIntl();
 
   // 列表状态
   const [clusters, setClusters] = useState<ClusterVO[]>([]);
@@ -70,7 +72,7 @@ const ClusterPage: React.FC = () => {
     setLoading(true);
     listClusters()
       .then(setClusters)
-      .catch((err: Error) => message.error(err.message ?? '加载集群列表失败'))
+      .catch((err: Error) => message.error(err.message || formatMessage({ id: 'error.default' })))
       .finally(() => setLoading(false));
   }, []);
 
@@ -106,8 +108,9 @@ const ClusterPage: React.FC = () => {
     try {
       const version = await checkFlinkVersion(flinkHome);
       setDetectedVersion(version);
-    } catch {
+    } catch (err: any) {
       setDetectedVersion(null);
+      message.error(err.message || formatMessage({ id: 'error.default' }));
     } finally {
       setCheckingVersion(false);
     }
@@ -134,8 +137,10 @@ const ClusterPage: React.FC = () => {
       setModalOpen(false);
       fetchClusters();
     } catch (err: any) {
-      // 表单校验失败不处理
-      if (err.message) message.error(err.message);
+      // 只处理接口异常，表单校验失败不提示
+      if (err instanceof ApiError) {
+        message.error(err.message || formatMessage({ id: 'error.default' }));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -149,7 +154,7 @@ const ClusterPage: React.FC = () => {
       message.success(`已删除集群「${name}」`);
       fetchClusters();
     } catch (err: any) {
-      message.error(err.message ?? '删除失败');
+      message.error(err.message || formatMessage({ id: 'error.default' }));
     }
   };
 
@@ -158,7 +163,7 @@ const ClusterPage: React.FC = () => {
       await toggleClusterStatus(id);
       fetchClusters();
     } catch (err: any) {
-      message.error(err.message ?? '操作失败');
+      message.error(err.message || formatMessage({ id: 'error.default' }));
     }
   };
 

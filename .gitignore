@@ -15,6 +15,7 @@ dependency-reduced-pom.xml
 .data/
 admin/.data/
 **/.data/
+.adrs
 
 # 日志
 *.log
