@@ -84,6 +84,23 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 );
 
 -- ============================================================
+-- 文件系统元数据索引表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lanting_file_index (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    path        VARCHAR(1000) NOT NULL UNIQUE,
+    name        VARCHAR(200)  NOT NULL,
+    type        VARCHAR(10)   NOT NULL,             -- file / folder
+    parent_path VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
+    mtime       BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
+    create_time BIGINT        NOT NULL DEFAULT 0,
+    update_time BIGINT        NOT NULL DEFAULT 0
+);
+
+-- tree() 按 parent_path 分组查询，此索引是核心
+CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_path);
+
+-- ============================================================
 -- 初始化数据
 -- ============================================================
 

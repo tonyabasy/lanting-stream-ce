@@ -430,7 +430,7 @@ sequenceDiagram
 应用启动时（`@PostConstruct`）对默认工作空间执行初始化：
 - 目录不存在则创建
 - 不是 Git 仓库则 `git init`
-- 确保 `ddl/`、`jobs/`、`docs/` 三个目录存在（用 `.gitkeep` 占位，Git 不追踪空目录）
+- 确保 `ddl/`、`jobs/`、`docs/` 三个目录存在（目录结构由 DB 索引维护）
 - 如果是新初始化的仓库，做一次初始 commit：`init: workspace initialized`，author 为 `system`
 - 不预置示例文件
 
@@ -441,12 +441,12 @@ sequenceDiagram
 ### 通用文件操作
 
 ```
-GET    /api/files/tree?sort={name|mtime}
+GET    /api/files/tree?parentPath={path}&sort={name|mtime}
        返回：List<FileTreeNode>
-       说明：递归返回完整目录树，过滤 .lanting/、.git/ 目录和 .gitkeep 文件；每个节点包含
-            当前锁定状态（lockedBy / lockedAt），供前端展示协作编辑状态。
-            sort 参数可选：name（字母顺序）、mtime（磁盘文件 mtime 倒序），默认为 name。
-            注意：`mtime` 基于磁盘文件的最后修改时间（包含自动保存），不是 Git commit 时间。
+       说明：按层级返回子节点（DB 索引查询），不递归；节点包含当前锁定状态
+            （lockedBy / lockedAt），供前端展示协作编辑状态。parentPath 为空字符串
+            表示根层级，展开文件夹时传入文件夹路径获取子层级，前端按需懒加载。
+            sort 参数可选：name（字母顺序）、mtime（索引表 mtime 倒序），默认为 name。
 
 GET    /api/files/content?path={path}
        返回：文件内容字符串
@@ -462,7 +462,8 @@ POST   /api/files/save
 
 POST   /api/files/folder
        body：{ path }
-       说明：创建文件夹，写入 .gitkeep 占位，自动 git commit。创建新路径，不需要抢锁。
+       说明：创建文件夹，目录结构写入 DB 索引，不产生 git commit（空目录 Git 不追踪）。
+            创建新路径，不需要抢锁。
 
 DELETE /api/files?path={path}&force={false}
        返回：无 / 错误时返回 Result<DeleteLockedVO>

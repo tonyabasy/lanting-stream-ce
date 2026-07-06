@@ -12,8 +12,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -29,6 +27,9 @@ public class WorkspaceService {
 
     @Autowired
     private WorkspaceMapper workspaceMapper;
+
+    @Autowired
+    private FileIndexService fileIndexService;
 
     @Value("${lanting.data.workspace-dir}")
     private String workspaceDir;
@@ -91,7 +92,7 @@ public class WorkspaceService {
     }
 
     /**
-     * 初始化工作空间：创建目录、git init、初始 commit。
+     * 初始化工作空间：创建目录、git init、初始空 commit、建立文件索引。
      *
      * @param workspace 工作空间
      */
@@ -100,26 +101,28 @@ public class WorkspaceService {
         try {
             Files.createDirectories(root);
 
+            // 创建默认子目录，目录结构由 DB 索引维护，不再写入 .gitkeep
             for (String dir : DEFAULT_DIRS) {
                 Path dirPath = root.resolve(dir);
                 Files.createDirectories(dirPath);
-                Path gitkeep = dirPath.resolve(".gitkeep");
-                if (!Files.exists(gitkeep)) {
-                    Files.createFile(gitkeep);
-                }
             }
 
             Path gitDir = root.resolve(".git");
             if (!Files.exists(gitDir)) {
                 Git git = Git.init().setDirectory(root.toFile()).call();
-                git.add().addFilepattern(".").call();
+                // 空目录无法产生有意义 commit，做空提交保证 HEAD 存在
                 git.commit()
                         .setMessage("init: workspace initialized")
                         .setAuthor("system", "system@lanting.io")
+                        .setAllowEmpty(true)
                         .call();
                 git.close();
-                log.info("工作空间初始化完成：{}，commit: {}", root, workspace.getId());
+                log.info("工作空间 Git 初始化完成：{}，workspaceId: {}", root, workspace.getId());
             }
+
+            // 扫描磁盘建立文件索引
+            fileIndexService.scanAndIndex(root);
+            log.info("工作空间索引初始化完成：{}，workspaceId: {}", root, workspace.getId());
         } catch (Exception e) {
             log.error("工作空间初始化失败：{}", root, e);
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());

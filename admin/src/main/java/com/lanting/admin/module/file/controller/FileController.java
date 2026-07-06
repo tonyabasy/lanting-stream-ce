@@ -12,7 +12,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -45,12 +44,15 @@ public class FileController {
     // ==================== 通用文件操作 ====================
 
     /**
-     * 获取文件树。按指定排序字段返回当前磁盘文件结构，节点附带软锁状态。
+     * 获取文件树。按层级从 DB 索引查询，节点附带软锁状态。
+     * <p>
+     * parentPath 为空字符串表示根层级；展开文件夹时传入文件夹路径获取子层级。
      */
     @Operation(summary = "获取文件树")
     @GetMapping("/tree")
-    public Result<List<FileTreeNode>> tree(@RequestParam(defaultValue = "name") String sort) {
-        return Result.success(gitFileService.tree(sort));
+    public Result<List<FileTreeNode>> tree(@RequestParam(defaultValue = "") String parentPath,
+                                           @RequestParam(defaultValue = "name") String sort) {
+        return Result.success(gitFileService.tree(parentPath, sort));
     }
 
     /**
@@ -73,7 +75,7 @@ public class FileController {
     }
 
     /**
-     * 创建文件夹。创建成功后立即写入 .gitkeep 并提交，目录结构进入版本历史。
+     * 创建文件夹。目录结构由 DB 索引维护，创建成功后自动提交。
      */
     @Operation(summary = "创建文件夹")
     @PostMapping("/folder")

@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_pa
 ### 创建文件 / 创建文件夹
 
 ```
-1. 磁盘操作（Files.write / createDirectories + .gitkeep）
+1. 磁盘操作（Files.write / createDirectories）
 2. 成功 → DB INSERT
 3. 失败 → 抛出异常（磁盘未写成功，DB 不更新，无不一致）
 ```
@@ -142,7 +142,7 @@ reconcile 可以多次安全执行，每次执行后系统状态趋向一致。
 // 递归遍历磁盘，每个节点一次磁盘 IO
 public List<FileTreeNode> tree(String sort) {
     Path root = workspaceService.getDefaultWorkspaceRoot();
-    ...
+    // ...
 }
 ```
 
@@ -153,9 +153,8 @@ public List<FileTreeNode> tree(String parentPath, String sort) {
     // 查询指定父路径下的直接子节点
     List<FileIndexEntity> children = fileIndexService.listByParentPath(parentPath);
 
-    // 过滤系统占位文件（.gitkeep 入索引但不对用户展示）
+    // 直接返回子节点
     return children.stream()
-        .filter(e -> !".gitkeep".equals(e.getName()))
         .map(e -> toTreeNode(e))
         .peek(node -> fillLockStatus(node))   // 实时填充锁状态
         .sorted(buildComparator(sort))
@@ -166,7 +165,6 @@ public List<FileTreeNode> tree(String parentPath, String sort) {
 - 前端按需懒加载：首次请求根层级（`parentPath=""`），展开文件夹时再请求子层级
 - `lockedBy` / `lockedAt` 在组装节点时实时从 `FileLockService` 填充（内存操作，无磁盘 IO）
 - `mtime` 排序直接使用索引表中的 `mtime` 字段，无需读磁盘
-- `.gitkeep` 作为系统占位文件入索引，但 `tree()` 查询时过滤，不展示给用户
 
 ---
 

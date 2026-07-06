@@ -34,6 +34,10 @@ public class FileTreeNode {
     @Schema(description = "抢锁时间戳（毫秒）")
     private Long lockedAt;
 
+    /** 文件最后修改时间（毫秒），用于 mtime 排序 */
+    @Schema(description = "文件最后修改时间（毫秒）")
+    private Long mtime;
+
     /** 子节点，folder 时有值，file 时为 null */
     @Schema(description = "子节点")
     private List<FileTreeNode> children;
