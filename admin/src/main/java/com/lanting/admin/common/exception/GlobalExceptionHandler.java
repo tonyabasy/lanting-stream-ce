@@ -69,12 +69,17 @@ public class GlobalExceptionHandler {
 
     /**
      * 业务异常：由 Service 层主动抛出，携带具体的 ResultCode。
+     * <p>
+     * 如果异常通过 {@code BusinessException(ResultCode, String)} 构造并传入了自定义 message，
+     * 优先使用该自定义消息；否则根据 ResultCode 和 args 解析国际化文案。
      */
     @ExceptionHandler(BusinessException.class)
     public Result<Void> handleBusinessException(BusinessException e, HttpServletResponse response) {
         ResultCode rc = e.getResultCode();
         response.setStatus(rc.getHttpStatus());
-        String message = resolveMessage(rc, e.getArgs());
+        String message = e.getCustomMessage() != null
+                ? e.getCustomMessage()
+                : resolveMessage(rc, e.getArgs());
         log.warn("业务异常: code={}, message={}", rc.getCode(), message);
         return Result.error(rc, message);
     }

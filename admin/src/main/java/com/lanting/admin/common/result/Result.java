@@ -56,4 +56,14 @@ public class Result<T> {
     public static <T> Result<T> error(ResultCode resultCode, String message) {
         return new Result<>(resultCode.getCode(), message, null);
     }
+
+    /** 失败，覆盖默认提示信息并返回数据 */
+    public static <T> Result<T> error(ResultCode resultCode, String message, T data) {
+        return new Result<>(resultCode.getCode(), message, data);
+    }
+
+    /** 失败，根据 ResultCode 并返回数据 */
+    public static <T> Result<T> error(ResultCode resultCode, T data) {
+        return new Result<>(resultCode.getCode(), resultCode.getMessage(), data);
+    }
 }

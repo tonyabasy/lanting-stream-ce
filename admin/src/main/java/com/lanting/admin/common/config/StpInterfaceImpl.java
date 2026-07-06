@@ -15,8 +15,7 @@ import java.util.List;
  * 超管（{@code superAdminFlag = true}）拥有所有模块的管理权限；
  * 普通用户没有任何 {@code *:admin} 权限。
  * <p>
- * EE 可通过 {@code @Primary} 覆盖此 Bean，实现细粒度权限或多租户隔离，CE 代码无需改动。
- * 见 {@code extension-points-watchlist.md}。
+ * CE 仅实现基于超管标志的粗粒度权限，不引入角色体系。
  *
  * @author wangzhao
  */

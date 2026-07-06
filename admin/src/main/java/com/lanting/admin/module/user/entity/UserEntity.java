@@ -29,4 +29,11 @@ public class UserEntity extends PublicUser {
      */
     @JsonIgnore
     private String password;
+
+    /**
+     * 用户偏好配置，JSON 字符串。
+     * 不对外暴露，通过 {@code /api/lanting/preferences} 读写。
+     */
+    @JsonIgnore
+    private String preferences;
 }

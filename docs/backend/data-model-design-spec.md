@@ -10,10 +10,10 @@
 | ------------ | ------- | -------- | ------ | ------------------------------------------------------------ |
 | `id`         | INTEGER | NOT NULL | -      | 主键，自增（SQLite `AUTOINCREMENT`）                         |
 | `is_delete`  | INTEGER | NOT NULL | 0      | 软删除标志：0 表示未删除；非零（记录 id）表示已删除          |
-| `create_time`| INTEGER | NOT NULL | 0      | 秒级时间戳，对应 Java `Long`                                 |
-| `update_time`| INTEGER | NOT NULL | 0      | 秒级时间戳，对应 Java `Long`                                 |
+| `create_time`| BIGINT | NOT NULL | 0      | 毫秒级时间戳，对应 Java `Long`                                 |
+| `update_time`| BIGINT | NOT NULL | 0      | 毫秒级时间戳，对应 Java `Long`                                 |
 
-- 时间字段统一使用**秒级时间戳**（INTEGER），便于跨时区存储与比较。
+- 时间字段统一使用**毫秒级时间戳**（`BIGINT`），对应 Java `Long`。
 - 软删除由 MyBatis-Plus `@TableLogic` 管理，删除时自动将 `is_delete` 更新为当前记录 `id`。
 
 ## 2. 命名规范
@@ -31,8 +31,9 @@
 
 ### 2.3 实体类
 
-- 与表名对应，采用大驼峰命名，去掉 `lanting_` 前缀。
-- 示例：`User`、`Workspace`、`Cluster`。
+- 与表名对应，采用大驼峰命名，去掉 `lanting_` 前缀，并以 `Entity` 为后缀。
+- 示例：`UserEntity`、`WorkspaceEntity`、`ClusterEntity`。
+- 表名包含业务模块前缀时（如 `lanting_file_publish`），实体命名优先保留表名的业务语义，可保留为 `PublishEntity`，不强制拆分为 `FilePublishEntity`。
 
 ## 3. 软删除与唯一约束
 
@@ -60,7 +61,7 @@
 | 描述/备注            | VARCHAR(500)| 较长文本描述                                   |
 | 大文本/JSON          | TEXT        | 配置、日志、DDL 等                           |
 | URL/路径             | VARCHAR(500)| 文件路径、访问地址等                           |
-| 时间戳               | INTEGER/BIGINT | 秒级时间戳，具体类型与同表其他字段保持一致 |
+| 时间戳               | BIGINT | 毫秒级时间戳，具体类型与同表其他字段保持一致 |
 | 删除标志             | INTEGER     | 0 或记录 id，由 MyBatis-Plus 管理             |
 
 ## 5. 变更管理

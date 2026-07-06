@@ -10,6 +10,8 @@
     </parent>
 
     <artifactId>common</artifactId>
+    <name>Lanting Common</name>
+    <description>公共组件</description>
 
     <properties>
         <maven.compiler.source>21</maven.compiler.source>

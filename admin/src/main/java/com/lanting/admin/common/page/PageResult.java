@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 统一分页响应结构。
@@ -56,6 +58,20 @@ public class PageResult<T> {
     public static <T> PageResult<T> of(IPage<T> page) {
         return new PageResult<>(
                 page.getRecords(),
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getPages()
+        );
+    }
+
+    /**
+     * 从 MyBatis-Plus 分页结果转换，支持 entity -> VO 的映射。
+     */
+    public static <S, T> PageResult<T> of(IPage<S> page, Function<S, T> converter) {
+        List<T> records = page.getRecords().stream().map(converter).collect(Collectors.toList());
+        return new PageResult<>(
+                records,
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),

@@ -1,6 +1,7 @@
 package com.lanting.admin.module.user.controller;
 
 import cn.dev33.satoken.annotation.SaCheckPermission;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.lanting.admin.common.page.PageResult;
 import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.user.dto.*;
@@ -10,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -60,6 +62,27 @@ public class UserController {
     @PutMapping("/me/password")
     public Result<Void> updatePassword(@Valid @RequestBody ChangePasswordDTO dto) {
         userService.updateCurrentPassword(dto);
+        return Result.success();
+    }
+
+    /**
+     * 读取当前用户偏好。
+     */
+    @Operation(summary = "读取当前用户偏好")
+    @GetMapping("/me/preferences")
+    public Result<String> getPreferences() {
+        UserEntity user = userService.getCurrentUser();
+        String preferences = user.getPreferences();
+        return Result.success(StringUtils.isBlank(preferences) ? "{}" : preferences);
+    }
+
+    /**
+     * 保存当前用户偏好。
+     */
+    @Operation(summary = "保存当前用户偏好")
+    @PutMapping("/me/preferences")
+    public Result<Void> savePreferences(@RequestBody JsonNode body) {
+        userService.updateCurrentUserPreferences(body.toString());
         return Result.success();
     }
 

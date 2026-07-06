@@ -83,6 +83,17 @@ public class UserService extends BasicServiceImpl<UserMapper, UserEntity> {
     }
 
     /**
+     * 更新当前登录用户的偏好配置。
+     *
+     * @param preferences 偏好 JSON 字符串
+     */
+    public void updateCurrentUserPreferences(String preferences) {
+        UserEntity user = getCurrentUser();
+        user.setPreferences(preferences);
+        updateById(user);
+    }
+
+    /**
      * 根据用户名、昵称或邮箱模糊搜索用户。关键词为空时返回所有用户。
      */
     public List<UserEntity> searchUsers(String keyword) {

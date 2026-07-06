@@ -17,23 +17,27 @@ public class BusinessException extends RuntimeException {
 
     private final ResultCode resultCode;
     private final Object[] args;
+    private final String customMessage;
 
     public BusinessException(ResultCode resultCode) {
         super(resultCode.getMessage());
         this.resultCode = resultCode;
         this.args = null;
+        this.customMessage = null;
     }
 
     public BusinessException(ResultCode resultCode, String message) {
         super(message);
         this.resultCode = resultCode;
         this.args = null;
+        this.customMessage = message;
     }
 
     public BusinessException(ResultCode resultCode, Object[] args) {
         super(resultCode.getMessage());
         this.resultCode = resultCode;
         this.args = args != null ? Arrays.copyOf(args, args.length) : null;
+        this.customMessage = null;
     }
 
     /**

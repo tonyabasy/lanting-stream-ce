@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS lanting_user (
     email            VARCHAR(200),
     super_admin_flag INTEGER       NOT NULL DEFAULT 0,
     auth_source      VARCHAR(50)   NOT NULL DEFAULT 'local',
+    preferences      TEXT                   DEFAULT '{}',
     is_delete        INTEGER       NOT NULL DEFAULT 0,
     create_time      BIGINT        NOT NULL DEFAULT 0,
     update_time      BIGINT        NOT NULL DEFAULT 0
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS lanting_workspace (
     name        VARCHAR(100) NOT NULL,
     git_path    VARCHAR(500) NOT NULL,
     description VARCHAR(500),
+    config      TEXT                  DEFAULT '{}',
     created_by  INTEGER,
     is_delete   INTEGER      NOT NULL DEFAULT 0,
     create_time BIGINT       NOT NULL DEFAULT 0,
@@ -52,113 +54,34 @@ CREATE TABLE IF NOT EXISTS lanting_cluster (
     update_time    BIGINT       NOT NULL DEFAULT 0,
     UNIQUE (name, is_delete)
 );
---
--- -- ============================================================
--- -- 数据源表
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_datasource (
---     id          INTEGER PRIMARY KEY AUTOINCREMENT,
---     name        VARCHAR(100) NOT NULL,
---     type        VARCHAR(50)  NOT NULL,
---     config      TEXT         NOT NULL,
---     status      VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',
---     is_delete   INTEGER      NOT NULL DEFAULT 0,
---     create_time BIGINT       NOT NULL DEFAULT 0,
---     update_time BIGINT       NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- 表元数据（用于编辑器自动补全）
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_table_meta (
---     id            INTEGER PRIMARY KEY AUTOINCREMENT,
---     datasource_id INTEGER      NOT NULL,
---     table_name    VARCHAR(200) NOT NULL,
---     ddl_content   TEXT,
---     description   VARCHAR(500),
---     is_delete     INTEGER      NOT NULL DEFAULT 0,
---     create_time   BIGINT       NOT NULL DEFAULT 0,
---     update_time   BIGINT       NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- 字段元数据
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_column_meta (
---     id          INTEGER PRIMARY KEY AUTOINCREMENT,
---     table_id    INTEGER      NOT NULL,
---     name        VARCHAR(200) NOT NULL,
---     type        VARCHAR(100),
---     comment     VARCHAR(500),
---     is_delete   INTEGER      NOT NULL DEFAULT 0,
---     create_time BIGINT       NOT NULL DEFAULT 0,
---     update_time BIGINT       NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- 作业提交记录
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_job_submission (
---     id             INTEGER PRIMARY KEY AUTOINCREMENT,
---     job_id         VARCHAR(100),
---     job_name       VARCHAR(200),
---     cluster_id     INTEGER     NOT NULL,
---     script_file    VARCHAR(500),
---     status         VARCHAR(20) NOT NULL DEFAULT 'SUBMITTING',
---     source         VARCHAR(20) NOT NULL DEFAULT 'PLATFORM',
---     job_manager_url VARCHAR(500),
---     submit_log     TEXT,
---     error_message  TEXT,
---     submitted_by   INTEGER,
---     is_delete      INTEGER     NOT NULL DEFAULT 0,
---     create_time    BIGINT      NOT NULL DEFAULT 0,
---     update_time    BIGINT      NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- UDF 表
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_udf (
---     id          INTEGER PRIMARY KEY AUTOINCREMENT,
---     name        VARCHAR(200) NOT NULL,
---     description VARCHAR(500),
---     is_delete   INTEGER      NOT NULL DEFAULT 0,
---     create_time BIGINT       NOT NULL DEFAULT 0,
---     update_time BIGINT       NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- UDF 版本表
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_udf_version (
---     id          INTEGER PRIMARY KEY AUTOINCREMENT,
---     udf_id      INTEGER      NOT NULL,
---     version     VARCHAR(50)  NOT NULL,
---     class_name  VARCHAR(500) NOT NULL,
---     jar_path    VARCHAR(500) NOT NULL,
---     is_current  INTEGER      NOT NULL DEFAULT 0,
---     change_log  VARCHAR(500),
---     created_by  INTEGER,
---     is_delete   INTEGER      NOT NULL DEFAULT 0,
---     create_time BIGINT       NOT NULL DEFAULT 0,
---     update_time BIGINT       NOT NULL DEFAULT 0
--- );
---
--- -- ============================================================
--- -- LLM 配置表
--- -- ============================================================
--- CREATE TABLE IF NOT EXISTS lanting_llm_config (
---     id          INTEGER PRIMARY KEY AUTOINCREMENT,
---     name        VARCHAR(100) NOT NULL,
---     provider    VARCHAR(50)  NOT NULL,
---     api_key     VARCHAR(500) NOT NULL,
---     base_url    VARCHAR(500),
---     model       VARCHAR(100),
---     is_default  INTEGER      NOT NULL DEFAULT 0,
---     is_delete   INTEGER      NOT NULL DEFAULT 0,
---     create_time BIGINT       NOT NULL DEFAULT 0,
---     update_time BIGINT       NOT NULL DEFAULT 0
--- );
+
+-- ============================================================
+-- 文件系统发布记录表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lanting_file_publish (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag_name     VARCHAR(100) NOT NULL,
+    display_name VARCHAR(200),
+    commit_hash  VARCHAR(100) NOT NULL,
+    created_by   VARCHAR(100) NOT NULL,
+    is_delete    INTEGER      NOT NULL DEFAULT 0,
+    create_time  BIGINT       NOT NULL DEFAULT 0,
+    update_time  BIGINT       NOT NULL DEFAULT 0,
+    UNIQUE (tag_name, is_delete)
+);
+
+-- ============================================================
+-- 文件系统 Review 记录表
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lanting_file_review (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag_name    VARCHAR(100) NOT NULL,
+    reviewer    VARCHAR(100) NOT NULL,
+    comment     VARCHAR(500),
+    is_delete   INTEGER      NOT NULL DEFAULT 0,
+    create_time BIGINT       NOT NULL DEFAULT 0,
+    update_time BIGINT       NOT NULL DEFAULT 0
+);
 
 -- ============================================================
 -- 初始化数据
@@ -171,5 +94,5 @@ VALUES (1, 'admin', '$2a$10$4hYkZrFf570NlpROFczaXumqy8gD1GEzn4CAq.bh8IT8obbXgZK8
 
 -- 初始默认工作空间
 -- created_by 引用 admin 用户 id=1，需在 admin 插入之后执行（SQLite 顺序执行保证）
-INSERT OR IGNORE INTO lanting_workspace (name, git_path, description, created_by, create_time, update_time)
-VALUES ('default', './data/workspaces/default', '默认工作空间', 1, 0, 0);
+INSERT OR IGNORE INTO lanting_workspace (name, git_path, description, config, created_by, create_time, update_time)
+VALUES ('default', './data/workspaces/default', '默认工作空间', '{}', 'admin', 0, 0);

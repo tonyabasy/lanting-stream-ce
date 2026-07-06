@@ -88,7 +88,7 @@ export const getJob = (id: number): Promise<ApiResponse<JobVO>> =>
 // types/api.ts 追加
 export interface PageParams {
   pageNum:  number;  // 从 1 开始
-  pageSize: number;  // 默认 20
+  pageSize: number;  // 默认 10，与后端 PageQuery 对齐
 }
 ```
 
