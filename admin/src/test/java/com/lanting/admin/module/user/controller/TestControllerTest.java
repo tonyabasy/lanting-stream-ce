@@ -21,7 +21,7 @@ class TestControllerTest extends BaseIntegrationTest {
     @DisplayName("中文请求下业务异常返回已填充占位符的中文消息")
     void businessException_shouldReturnChineseMessageWithFilledArgs_whenAcceptLanguageIsZhCN() throws Exception {
         ResponseEntity<String> response = restTemplate.exchange(
-                "/test/business-exception",
+                "/api/test/business-exception",
                 HttpMethod.GET,
                 new HttpEntity<>(languageHeaders("zh-CN")),
                 String.class);
@@ -36,7 +36,7 @@ class TestControllerTest extends BaseIntegrationTest {
     @DisplayName("英文请求下业务异常返回已填充占位符的英文消息")
     void businessException_shouldReturnEnglishMessageWithFilledArgs_whenAcceptLanguageIsEnUS() throws Exception {
         ResponseEntity<String> response = restTemplate.exchange(
-                "/test/business-exception",
+                "/api/test/business-exception",
                 HttpMethod.GET,
                 new HttpEntity<>(languageHeaders("en-US")),
                 String.class);

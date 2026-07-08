@@ -66,8 +66,8 @@ public class FileLockService {
      * 临界区与 {@link #acquire} 互斥：动作执行期间他人的抢锁请求会阻塞等待；
      * 若他人先抢到锁，本方法进入临界区后校验失败，抛 30709 文件已被锁定。
      * <p>
-     * <b>死锁纪律</b>：action 内允许获取工作空间锁（path stripe → workspaceLock 的顺序），
-     * 但任何持有工作空间锁的代码<b>不得</b>再调用本方法或锁操作（反向嵌套会死锁），
+     * <b>死锁纪律</b>：action 内允许获取 Git 写锁（path stripe → gitWriteLock 的顺序），
+     * 但任何持有 gitWriteLock 的代码<b>不得</b>再调用本方法或锁操作（反向嵌套会死锁），
      * 见 GitFileService#withWorkspaceLock 的说明。
      *
      * @param path     文件相对路径
@@ -144,10 +144,10 @@ public class FileLockService {
 
     /**
      * 当前持锁人是否是指定用户。
-     *
-     * @param path   文件相对路径
-     * @param holder 持锁人 username
-     * @return 是否持锁
+     * <p>
+     * 此方法读取的是某一时刻的快照，不保证调用后锁状态不变。
+     * {@link GitFileService#commit} 使用此方法判断文件是否可提交，是已知的设计取舍
+     * （commit 不要求原子性）。
      */
     public boolean isHolder(String path, String holder) {
         LockInfo current = lockMap.get(path);

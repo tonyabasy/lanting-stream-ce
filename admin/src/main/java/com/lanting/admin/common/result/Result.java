@@ -1,5 +1,6 @@
 package com.lanting.admin.common.result;
 
+import com.lanting.admin.common.config.GlobalExceptionHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -9,7 +10,7 @@ import lombok.NoArgsConstructor;
 /**
  * 统一 API 响应体。
  * <p>
- * HTTP 状态码由 {@link com.lanting.admin.common.exception.GlobalExceptionHandler}
+ * HTTP 状态码由 {@link GlobalExceptionHandler}
  * 根据 {@link ResultCode#getHttpStatus()} 设置，body 中的 {@code code} 字段供前端做细粒度判断。
  *
  * @param <T> data 类型

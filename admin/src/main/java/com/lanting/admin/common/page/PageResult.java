@@ -44,12 +44,17 @@ public class PageResult<T> {
     @Schema(description = "总页数")
     private final long totalPages;
 
-    private PageResult(List<T> records, long total, long pageNum, long pageSize, long totalPages) {
+    /** 是否还有下一页（游标/未知总数分页场景） */
+    @Schema(description = "是否还有下一页")
+    private final boolean hasMore;
+
+    private PageResult(List<T> records, long total, long pageNum, long pageSize, long totalPages, boolean hasMore) {
         this.records = records;
         this.total = total;
         this.pageNum = pageNum;
         this.pageSize = pageSize;
         this.totalPages = totalPages;
+        this.hasMore = hasMore;
     }
 
     /**
@@ -61,7 +66,8 @@ public class PageResult<T> {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getPages()
+                page.getPages(),
+                false
         );
     }
 
@@ -75,7 +81,15 @@ public class PageResult<T> {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getPages()
+                page.getPages(),
+                false
         );
+    }
+
+    /**
+     * 未知总数分页（游标分页）。total 与 totalPages 固定返回 -1，调用方通过 hasMore 判断是否有下一页。
+     */
+    public static <T> PageResult<T> ofHasMore(List<T> records, long pageNum, long pageSize, boolean hasMore) {
+        return new PageResult<>(records, -1L, pageNum, pageSize, -1L, hasMore);
     }
 }

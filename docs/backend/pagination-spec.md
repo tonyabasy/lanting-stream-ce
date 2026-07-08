@@ -84,6 +84,7 @@ public class PageResult<T> {
     private long pageNum;
     private long pageSize;
     private long totalPages;
+    private boolean hasMore;
 
     public static <T> PageResult<T> of(IPage<T> page) {
         PageResult<T> result = new PageResult<>();
@@ -92,6 +93,7 @@ public class PageResult<T> {
         result.pageNum = page.getCurrent();
         result.pageSize = page.getSize();
         result.totalPages = page.getPages();
+        result.hasMore = false;
         return result;
     }
 }
@@ -108,6 +110,9 @@ Page<JobSubmission> page = new Page<>(query.getPageNum(), query.getPageSize());
 Page<JobSubmission> result = jobSubmissionMapper.selectPage(page, queryWrapper);
 return PageResult.of(result);
 ```
+
+- 对无法高效获取总记录数的场景（如 JGit `git log` 游标分页），使用 `PageResult.ofHasMore(...)`，
+  此时 `total` 与 `totalPages` 固定为 `-1`，调用方通过 `hasMore` 判断是否继续翻页。
 
 ## 最大页大小：两道防线
 

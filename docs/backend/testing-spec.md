@@ -5,103 +5,126 @@
 
 ---
 
+## 核心判断标准
+
+**被测逻辑的边界在哪里，决定用什么测试方式——而不是"用不用 Mock"。**
+
+| 情况 | 做法 |
+|---|---|
+| 被测逻辑在 Java 代码里，IO 只是副作用 | Mock IO，专注测 Java 逻辑 |
+| 被测逻辑本身就是 IO 操作的组合 | 用真实 IO + 隔离环境，不 Mock |
+| 需要验证多个组件协作（含 HTTP 层） | `@SpringBootTest` 集成测试，尽量少 |
+
+**本项目的实际指导原则**：
+
+优先使用真实环境测试（`@TempDir` + SQLite + 本地 Git），这个项目的技术栈天然规避了"全不 Mock"的主要风险：
+
+- SQLite 是本地文件，没有连接池和外部服务依赖
+- 文件系统和 Git 仓库用 `@TempDir` 隔离，每个测试独立，自动清理
+- 不依赖任何网络服务，不存在"外部服务不可用导致测试失败"的问题
+
+因此：
+- **Mockito** 只用于纯内存逻辑、不依赖任何 IO 的 Service（如 `FileLockService`）
+- **`@TempDir` + 手动构造 Service** 用于 IO 密集型 Service（如 `GitFileService`），不启动 Spring 上下文
+- **`@SpringBootTest`** 只用于涉及 Sa-Token 会话/鉴权的场景（Controller 层），因为 Sa-Token 与 `@WebMvcTest` 不兼容
+
+---
+
 ## 测试分层体系
 
-规范的 Spring Boot 项目测试分三层，各司其职：
-
 ```
-        ┌─────────────────────────┐
-        │   集成测试 @SpringBootTest │  ← 少量，验证完整链路
-        ├─────────────────────────┤
-        │  切片测试 @WebMvcTest 等  │  ← 适量，验证框架行为
-        ├─────────────────────────┤
-        │   单元测试 Mockito        │  ← 多量，验证业务逻辑
-        └─────────────────────────┘
+        ┌──────────────────────────────┐
+        │  集成测试 @SpringBootTest      │  ← 少量，含 HTTP 层和鉴权的场景
+        ├──────────────────────────────┤
+        │  IO 集成测试 @TempDir          │  ← 适量，IO 密集型 Service
+        ├──────────────────────────────┤
+        │  单元测试 Mockito              │  ← 适量，纯内存业务逻辑
+        └──────────────────────────────┘
 ```
 
 ### 第一层：单元测试
 
 **工具**：`@ExtendWith(MockitoExtension.class)` + Mockito，不启动 Spring 上下文。
 
-**测什么**：有分支、有边界、出错难发现的业务逻辑（Service 层）。
+**适用场景**：被测逻辑是纯 Java 计算，IO 只是副作用（可以被 Mock 掉而不影响测试价值）。
 
-**不测什么**：简单 CRUD、纯数据类、配置类、Mapper。
+**典型例子**：`FileLockService`（纯内存 ConcurrentHashMap 操作）、`UserService.createUser`（业务规则校验）。
+
+**不适用场景**：IO 本身就是被测逻辑的一部分。Mock 掉文件系统或 Git 仓库，等于把被测逻辑也 Mock 掉了，测试没有意义。
 
 ```java
 @ExtendWith(MockitoExtension.class)
-class UserServiceTest {
-    @Mock
-    private UserMapper userMapper;
-    @InjectMocks
-    private UserService userService;
+class FileLockServiceTest {
+
+    private FileLockService lockService = new FileLockService();
 
     @Test
-    void createUser_shouldThrow_whenUsernameAlreadyExists() {
-        when(userMapper.selectOne(any())).thenReturn(existingUser);
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> userService.createUser(dto));
-        assertEquals(UserResultCode.USERNAME_DUPLICATE, ex.getResultCode());
+    void doIfHolder_shouldExecuteAction_whenCallerIsHolder() {
+        lockService.acquire("jobs/a.sql", "alice");
+        String result = lockService.doIfHolder("jobs/a.sql", "alice", () -> "executed");
+        assertEquals("executed", result);
+    }
+
+    @Test
+    void doIfHolder_shouldThrow_whenCallerIsNotHolder() {
+        lockService.acquire("jobs/a.sql", "alice");
+        assertThrows(BusinessException.class,
+            () -> lockService.doIfHolder("jobs/a.sql", "bob", () -> "executed"));
     }
 }
 ```
 
 ---
 
-### 第二层：切片测试
+### 第二层：IO 集成测试
 
-Spring Boot 提供的"切片测试"只加载特定层的最小上下文，比 `@SpringBootTest` 快，又能验证真实的框架行为（注解、序列化、校验等），是单元测试和集成测试之间的重要补充。
+**工具**：`@TempDir` + 手动构造 Service，不启动 Spring 上下文。
 
-#### Controller 层：`@WebMvcTest`
+**适用场景**：Service 的核心逻辑是文件系统、Git 仓库、本地数据库等 IO 操作的组合，无法通过 Mock 有效验证。
 
-**测什么**：
-- 路由是否正确（URL、HTTP 方法）
-- `@Valid` 参数校验是否生效，非法入参能否返回 400
-- 响应体序列化是否正确（字段名、类型、`@JsonIgnore` 是否生效）
-- `GlobalExceptionHandler` 的异常到 HTTP 状态码映射是否正确
-- Sa-Token 鉴权拦截是否生效
+**典型例子**：`GitFileService`（Git + 磁盘）、`FileIndexService`（索引 DB + 磁盘）。
 
-**不测什么**：业务逻辑（Mock 掉 Service）。
+**关键优势**：
+- 不启动 Spring 容器，启动开销接近零
+- `@TempDir` 每个测试独立目录，天然隔离，JUnit 自动清理
+- 验证的是真实行为，不是 Mock 出来的假设
 
 ```java
-@WebMvcTest(UserController.class)
-class UserControllerTest {
+@ExtendWith(MockitoExtension.class)
+class GitFileServiceIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @TempDir
+    Path tempDir;
 
-    @MockBean
-    private UserService userService;
+    private GitFileService gitFileService;
 
-    @Test
-    void login_shouldReturn400_whenUsernameBlank() throws Exception {
-        mockMvc.perform(post("/api/user/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"\",\"password\":\"123456\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(10001));
+    @BeforeEach
+    void setUp() throws Exception {
+        // 初始化真实 Git 仓库
+        Git.init().setDirectory(tempDir.toFile()).call();
+        // 手动构造 Service，注入真实依赖
+        gitFileService = new GitFileService(/* workspacePath = */ tempDir, ...);
     }
 
     @Test
-    void login_shouldReturn200_whenValid() throws Exception {
-        UserEntity mockUser = new UserEntity();
-        mockUser.setUsername("admin");
-        when(userService.login(any())).thenReturn(mockUser);
+    void delete_shouldBeTrackedInGit_afterCommit() throws Exception {
+        // 创建文件 → 提交 → 删除 → 提交 → 验证 HEAD tree 中不含该文件
+        gitFileService.save(new SaveFileDTO("jobs/a.sql", "SELECT 1"));
+        gitFileService.commit(new CommitFileDTO(List.of("jobs/a.sql"), "add"));
+        gitFileService.delete("jobs/a.sql", false);
 
-        mockMvc.perform(post("/api/user/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"admin\",\"password\":\"admin123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.username").value("admin"))
-                .andExpect(jsonPath("$.data.password").doesNotExist()); // 验证敏感字段不暴露
+        // 用 JGit 验证 HEAD tree 中文件已不存在
+        try (Git git = Git.open(tempDir.toFile());
+             RevWalk walk = new RevWalk(git.getRepository())) {
+            RevCommit head = walk.parseCommit(git.getRepository().resolve("HEAD"));
+            try (TreeWalk treeWalk = TreeWalk.forPath(
+                    git.getRepository(), "jobs/a.sql", head.getTree())) {
+                assertNull(treeWalk, "删除后文件应从 Git tree 中移除");
+            }
+        }
     }
 }
 ```
-
-#### Mapper 层：`@MybatisPlusTest`
-
-**测什么**：复杂的自定义 SQL、多表查询、分页逻辑。
-
-**不测什么**：MyBatis-Plus 自动生成的 `selectById`、`insert` 等基础方法，测的是框架本身。
 
 ---
 
@@ -109,40 +132,53 @@ class UserControllerTest {
 
 **工具**：`@SpringBootTest`，启动完整 Spring 上下文。
 
-**测什么**：跨层的完整链路（Controller → Service → Mapper → 真实数据库），用于验证层与层之间的协作，以及配置类、Bean 装配是否正确。
+**适用场景**：需要完整 HTTP 链路和 Sa-Token 鉴权的 Controller 测试。
 
-**什么时候写**：
-- 某个链路被反复改出 bug，切片测试已经覆盖不到
-- 准备发版前的回归验证
+**为什么不用 `@WebMvcTest`**：Sa-Token 的拦截器和 `@SaCheckPermission` 注解处理器依赖完整 Spring 容器，与 `@WebMvcTest` 不兼容，因此 Controller 测试统一使用 `@SpringBootTest`。
 
-**注意**：集成测试启动慢（数秒），数量要少，不要把所有测试都写成 `@SpringBootTest`。
+**注意**：集成测试启动慢（数秒），数量要少，只测需要完整 HTTP 链路的场景。
+
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+class FileControllerTest extends BaseIntegrationTest {
+
+    @Test
+    void save_shouldReturn401_whenNotLoggedIn() {
+        ResponseEntity<String> response = restTemplate.postForEntity(
+            "/api/files/save",
+            new HttpEntity<>(new SaveFileDTO("jobs/a.sql", "SELECT 1"), jsonHeaders()),
+            String.class);
+        assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
+    }
+}
+```
 
 ---
 
 ## 各层职责对照表
 
-| 测试层 | 工具 | 典型场景 | 启动速度 |
+| 测试层 | 工具 | 适用场景 | 启动速度 |
 |---|---|---|---|
-| 单元测试 | Mockito | Service 业务规则、工具类 | 毫秒级 |
-| Controller 切片 | `@WebMvcTest` + MockMvc | 路由、校验、序列化、鉴权 | 秒级（部分上下文） |
-| Mapper 切片 | `@MybatisPlusTest` | 复杂自定义 SQL | 秒级（部分上下文） |
-| 集成测试 | `@SpringBootTest` | 完整链路、Bean 装配 | 数秒（完整上下文） |
+| 单元测试 | Mockito | 纯内存业务逻辑（锁、规则校验） | 毫秒级 |
+| IO 集成测试 | `@TempDir` + 手动构造 | IO 密集型 Service（Git、文件系统、索引） | 毫秒级 |
+| 集成测试 | `@SpringBootTest` | 含 Sa-Token 鉴权的 HTTP 链路 | 数秒 |
 
 ---
 
-## 本项目中的具体判断
+## 本项目具体判断
 
 | 类/方法 | 测试层 | 原因 |
 |---|---|---|
+| `FileLockService` | 单元测试 | 纯内存逻辑，无 IO |
 | `UserService.createUser`（用户名重复） | 单元测试 | 业务规则，有分支 |
-| `buildSearchWrapper` | 单元测试 | 多字段多分支，容易漏 |
-| `UserController` 所有接口 | Controller 切片 | 验证路由、校验、序列化、鉴权 |
-| `GlobalExceptionHandler` | Controller 切片 | 异常到 HTTP 状态码映射容易配错，随 `@WebMvcTest` 一起验证 |
-| `UserMapper.listUsersNotGroupAdmin` | Mapper 切片 | 自定义 SQL，需验证正确性 |
-| `UserService.deleteUser` | 不写 | 逻辑极简，切片测试覆盖即可 |
-| `Result` 静态工厂方法 | 不写 | 就是 new 对象，没有逻辑 |
+| `GitFileService` 所有方法 | IO 集成测试 | IO 就是被测逻辑，不能 Mock |
+| `FileIndexService` reconcile | IO 集成测试 | 索引 DB + 磁盘扫描，需真实环境 |
+| `UserController` / `FileController` | 集成测试 | Sa-Token 鉴权需要完整上下文 |
+| `GlobalExceptionHandler` | 集成测试 | 随 Controller 测试一起验证 |
 | `UserMapper` 基础 CRUD | 不写 | 测框架，不测业务 |
 | Entity / DTO | 不写 | 纯数据类 |
+| `WorkspaceService.init` | 不写 | 测的是 JDK 和 JGit 行为，不是业务逻辑 |
 
 ---
 
@@ -155,22 +191,25 @@ class UserControllerTest {
 ```java
 // 正确：测行为
 @Test
-void createUser_shouldThrow_whenUsernameAlreadyExists() {
-    when(userMapper.selectOne(any())).thenReturn(existingUser);
-    assertThrows(BusinessException.class, () -> userService.createUser(dto));
+void delete_shouldBeTrackedInGit() {
+    // 验证删除后 Git tree 中文件不存在
 }
 
-// 错误：测实现（过度 Mock，一旦重构就得改测试）
+// 错误：测实现（一旦重构就得改测试）
 @Test
-void createUser_shouldCallMapperOnce() {
-    userService.createUser(dto);
-    verify(userMapper, times(1)).selectOne(any());
+void delete_shouldCallGitAddOnce() {
+    verify(git.add(), times(1)).call();
 }
 ```
 
-### 原则二：只 Mock 外部依赖
+### 原则二：Mock 的判断标准
 
-数据库、网络、文件系统才 Mock，业务逻辑本身不 Mock。Controller 切片测试中 Mock 掉 Service 是正确的，因为 Service 对 Controller 层来说就是"外部依赖"。
+不是"IO 就 Mock"，而是"IO 是副作用才 Mock，IO 是逻辑就不 Mock"：
+
+```
+IO 是副作用（数据库只是存储结果）→ Mock，专注测 Java 逻辑
+IO 是逻辑（文件操作、Git 操作本身就是目的）→ 不 Mock，用真实 IO
+```
 
 ### 原则三：一个测试只验证一个场景
 
@@ -178,44 +217,35 @@ void createUser_shouldCallMapperOnce() {
 
 ```java
 // 正确
-createUser_shouldThrow_whenUsernameAlreadyExists()
-login_shouldReturn400_whenPasswordBlank()
-login_shouldNotExposePassword_inResponse()
+delete_shouldBeTrackedInGit_afterCommit()
+save_shouldReturn401_whenNotLoggedIn()
+doIfHolder_shouldThrow_whenCallerIsNotHolder()
 
 // 错误
-testCreateUser()
+testDelete()
 test1()
 ```
 
 ### 原则四：覆盖边界值和异常路径，不只测 happy path
-
-```
-// 登录接口至少要测：
-- 用户名为空 → 400
-- 密码为空 → 400
-- 用户不存在 → 对应业务错误码
-- 密码错误 → 对应业务错误码
-- 正常登录 → 200，返回 token，不含 password 字段
-```
 
 ---
 
 ## 什么是错的做法
 
 ### 错误一：为覆盖率而测
-追求覆盖率指标，结果大量测试是在测 getter/setter 和框架代码。AI 生成测试时尤其容易犯这个错。
+追求覆盖率指标，结果大量测试是在测 getter/setter 和框架代码。
 
-### 错误二：过度 Mock
-把 Service 里所有依赖都 Mock 掉，测试变成了验证"调用了哪些方法"，重构时测试先炸。
+### 错误二：对 IO 密集型 Service 过度 Mock
+Mock 掉文件系统或 Git 仓库，等于把被测逻辑也 Mock 掉了，测试验证的只是"我调用了这些方法"，没有业务价值，重构时还会先炸。
 
 ### 错误三：测试代码比实现还复杂
-需要 50 行 setup 才能测 5 行业务代码，说明要么业务代码依赖太多（需要重构），要么这段代码根本不值得单独测（换用切片测试或集成测试）。
+需要 50 行 setup 才能测 5 行业务代码，说明要么业务代码依赖太多需要重构，要么这段代码根本不值得单独测。
 
 ### 错误四：把所有测试都写成 `@SpringBootTest`
-`@SpringBootTest` 启动慢，应该只用于真正需要完整上下文的场景。能用切片测试解决的不要用 `@SpringBootTest`，能用单元测试解决的不要用切片测试。
+`@SpringBootTest` 启动慢，本项目只在 Controller 层（Sa-Token 鉴权场景）使用，IO 集成测试用 `@TempDir` + 手动构造，不需要 Spring 容器。
 
-### 错误五：用 curl 手工验证替代自动化 Controller 测试
-curl 是开发时的临时验证手段，不可重复、不能进 CI、改了代码也不会自动报警。Controller 层的验证应该用 `@WebMvcTest` + MockMvc 自动化。
+### 错误五：测框架行为
+`WorkspaceService.init()` 调用 `Files.createDirectories` 和 `Git.init()`，测的是 JDK 和 JGit 的行为，不是业务逻辑，不写。
 
 ---
 
@@ -223,10 +253,11 @@ curl 是开发时的临时验证手段，不可重复、不能进 CI、改了代
 
 在生成任何测试代码之前，先逐项确认：
 
-- [ ] 这段逻辑应该用哪一层测试？（单元 / 切片 / 集成）
+- [ ] 被测逻辑的边界在哪里？IO 是副作用还是逻辑本身？
+- [ ] 选择正确的测试层：纯内存 → Mockito；IO 密集 → `@TempDir`；HTTP/鉴权 → `@SpringBootTest`
 - [ ] 测试在验证行为还是实现？如果是实现，重写
-- [ ] Mock 的是外部依赖还是业务逻辑？如果是业务逻辑，去掉 Mock
+- [ ] Mock 的是外部依赖还是被测逻辑？如果是被测逻辑，去掉 Mock
 - [ ] 方法名能清晰描述场景和期望结果吗？
 - [ ] 是否覆盖了边界值和异常路径，不只是 happy path？
 - [ ] 测试之间是否相互独立？
-- [ ] 有没有用 `@SpringBootTest` 做本可以用切片测试完成的事？
+- [ ] 有没有用 `@SpringBootTest` 做本可以用 `@TempDir` 完成的事？

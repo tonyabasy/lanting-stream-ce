@@ -1,8 +1,7 @@
 package com.lanting.admin.module.file.service;
 
-import cn.dev33.satoken.stp.StpUtil;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lanting.admin.common.exception.BusinessException;
+import com.lanting.admin.common.exception.ContentInconsistentException;
 import com.lanting.admin.common.page.PageResult;
 import com.lanting.admin.common.result.CommonResultCode;
 import com.lanting.admin.module.file.dto.*;
@@ -16,6 +15,7 @@ import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
+import org.eclipse.jgit.errors.InvalidObjectIdException;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
+
+import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 
 /**
  * 基于 Git 的文件服务，file 模块的核心。
@@ -84,34 +86,28 @@ public class GitFileService {
     private static final long MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
     /**
-     * 所有文件遍历均跳过的目录：.lanting 是系统配置，.git 是仓库内部数据
-     */
-    private static final List<String> IGNORED_DIRS = List.of(".lanting", ".git");
-
-    /**
-     * 工作空间级别锁。社区版仅支持一个默认工作空间，因此使用单锁即可。
-     */
-    private final ReentrantLock workspaceLock = new ReentrantLock();
-
-    /**
-     * 在工作空间锁内执行操作。所有 Git 写操作必须经过此方法串行化。
-     * <p>
-     * ReentrantLock 可重入，嵌套调用安全；Git 写操作（add/commit/tag）在工作空间内串行执行，
+     * Git 写操作锁。所有 Git 写操作（add/commit/tag）必须经过此方法串行化，
      * 避免并发 commit 导致对象库状态不一致。
+     */
+    private final ReentrantLock gitWriteLock = new ReentrantLock();
+
+    /**
+     * 在 Git 写锁内执行操作。所有 Git 写操作必须经过此方法串行化。
+     * <p>
+     * ReentrantLock 可重入，嵌套调用安全。EE 分布式部署时替换此方法实现
+     * 为分布式锁即可，调用方无需改动（见 extension-points-watchlist.md）。
      * <p>
      * <b>锁顺序纪律（防死锁）</b>：允许在文件锁临界区内（{@link FileLockService#doIfHolder}）
-     * 获取本锁，即 path stripe → workspaceLock；但在本锁内<b>绝不允许</b>再调用
+     * 获取本锁，即 path stripe → gitWriteLock；但在本锁内<b>绝不允许</b>再调用
      * {@code doIfHolder}/{@code acquire}/{@code release}/{@code forceRelease}，
      * 反向嵌套会与 save/delete/revert 构成死锁。
-     * 删除目录时，deleteInternal 内的 forceRelease 会清理子文件锁，这些子文件路径可能命中不同 stripe，
-     * 但 lockMap 是 ConcurrentHashMap，清锁操作线程安全，不会阻塞无关路径的写操作。
      */
     private <T> T withWorkspaceLock(Supplier<T> action) {
-        workspaceLock.lock();
+        gitWriteLock.lock();
         try {
             return action.get();
         } finally {
-            workspaceLock.unlock();
+            gitWriteLock.unlock();
         }
     }
 
@@ -167,6 +163,9 @@ public class GitFileService {
 
     /**
      * 读取磁盘当前文件内容。读取不需要持锁，返回内容包含自动保存但未提交的数据。
+     * <p>
+     * 每次读取都会比对 DB 索引中的 CRC32：不一致时仍抛出磁盘真实内容，由全局异常处理器返回
+     * {@code code=30714} 但 {@code data=磁盘内容} 的响应。
      */
     public String content(String path) {
         validatePath(path);
@@ -181,7 +180,21 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_TYPE_NOT_ALLOWED);
         }
         try {
-            return Files.readString(filePath, StandardCharsets.UTF_8);
+            byte[] bytes = Files.readAllBytes(filePath);
+            String content = new String(bytes, StandardCharsets.UTF_8);
+            FileIndexEntity index = fileIndexService.getByPath(path);
+
+            // 索引不存在或缺少 CRC32：返回内容并提示不一致
+            if (index == null || index.getCrc32() == null) {
+                throw new ContentInconsistentException(FileResultCode.FILE_CONTENT_INCONSISTENT, "文件索引不存在", content);
+            }
+
+            long diskCrc32 = FileIndexService.crc32(bytes);
+            if (index.getCrc32() != diskCrc32) {
+                throw new ContentInconsistentException(FileResultCode.FILE_CONTENT_INCONSISTENT, "文件内容与索引不一致，请执行索引修复", content);
+            }
+
+            return content;
         } catch (IOException e) {
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
         }
@@ -199,7 +212,7 @@ public class GitFileService {
     public void save(SaveFileDTO dto) {
         String path = dto.getPath();
         validatePath(path);
-        String username = currentUsername();
+        String username = currentUser();
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path filePath = root.resolve(path).toAbsolutePath().normalize();
         ensureInsideWorkspace(filePath, root);
@@ -216,8 +229,8 @@ public class GitFileService {
                 }
                 // CREATE + TRUNCATE：不存在则创建，存在则整体覆盖（自动保存总是全量写入）
                 Files.write(filePath, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                // 磁盘写入成功后更新索引
-                fileIndexService.indexOnSave(path, root);
+                // 磁盘写入成功后更新索引，直接用内存 bytes 计算 CRC32 避免重复读盘
+                fileIndexService.indexOnSave(path, root, bytes);
                 return null;
             } catch (IOException e) {
                 throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
@@ -228,7 +241,7 @@ public class GitFileService {
     // ==================== 创建文件夹 ====================
 
     /**
-     * 创建文件夹。新路径无并发冲突风险，不需要抢锁；
+     * 创建文件夹。新路径无并发冲突风险，不需要 Git 写锁；
      * 目录结构由 {@link FileIndexService} 维护，不再写入 .gitkeep 占位。
      */
     public void createFolder(CreateFolderDTO dto) {
@@ -237,20 +250,17 @@ public class GitFileService {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path folderPath = root.resolve(path).toAbsolutePath().normalize();
         ensureInsideWorkspace(folderPath, root);
-
-        if (Files.exists(folderPath)) {
-            throw new BusinessException(FileResultCode.FILE_ALREADY_EXISTS);
-        }
-        withWorkspaceLock(() -> {
-            try {
-                Files.createDirectories(folderPath);
-                // 目录结构由 DB 索引维护，不再写入 .gitkeep 占位
-                fileIndexService.indexOnCreate(path, "folder", root);
-            } catch (IOException e) {
-                throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+        try {
+            if (Files.exists(folderPath)) {
+                throw new BusinessException(FileResultCode.FILE_ALREADY_EXISTS);
             }
-            return null;
-        });
+            Files.createDirectories(folderPath);
+            fileIndexService.indexOnCreate(path, "folder", root);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+        }
     }
 
     // ==================== 删除文件/文件夹 ====================
@@ -275,7 +285,7 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
 
-        String username = currentUsername();
+        String username = currentUser();
         // 删除文件
         if (Files.isRegularFile(targetPath)) {
             // 持锁校验与删除在同一临界区内原子执行；单文件删除时 deleteInternal 内的 forceRelease
@@ -374,7 +384,7 @@ public class GitFileService {
      * 若 committed 列表为空，Controller 层返回 30713 无可提交的文件。
      */
     public CommitResultVO commit(CommitFileDTO dto) {
-        String username = currentUsername();
+        String username = currentUser();
         List<String> committed = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
 
@@ -404,28 +414,38 @@ public class GitFileService {
     // ==================== 历史记录 ====================
 
     /**
-     * 查询文件历史记录。已接入 HistoryPageQuery 统一分页校验，并按 path 过滤（path 为空时查整个仓库）。
+     * 查询 Git 文件历史记录（游标分页）。
+     * <p>
+     * 返回的 {@link PageResult 分页结果}中 total 与 totalPages 固定为 -1，
+     * 通过 hasMore 判断是否有下一页。
+     *
+     * @param query 查询参数，path 为空字符串时查询整个仓库历史
      */
     public PageResult<FileHistoryVO> history(HistoryPageQuery query) {
+        String path = query.getPath();
+        if (path == null || path.isBlank()) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID, "path 不能为空");
+        }
         Path root = workspaceService.getDefaultWorkspaceRoot();
         try (Git git = Git.open(root.toFile())) {
-            List<RevCommit> commits = new ArrayList<>();
             LogCommand log = git.log();
-            if (query.getPath() == null || query.getPath().isBlank()) {
-                throw new BusinessException(CommonResultCode.PARAM_INVALID, "path 不能为空");
-            }
-            log.call().forEach(commits::add);
-            int total = commits.size();
+            log.addPath(path);
+
             int page = query.getPageNum();
             int pageSize = query.getPageSize();
-            // 内存分页：JGit log 无法直接拿 total，必须先遍历全部 commit 再截取。
-            // 单仓库 commit 量级有限（万级以内），当前规模下可接受
             int skip = (page - 1) * pageSize;
-            // limit 取“页大小”与“剩余条数”的较小值，越界页码（skip ≥ total）时 limit 为 0，返回空页而非报错
-            int limit = Math.min(pageSize, Math.max(0, total - skip));
+            // 多取一条用于判断是否有下一页，避免再查一次总数
+            log.setSkip(skip).setMaxCount(pageSize + 1);
 
-            List<FileHistoryVO> list = new ArrayList<>();
-            for (int i = skip; i < skip + limit && i < total; i++) {
+            List<RevCommit> commits = new ArrayList<>(pageSize + 1);
+            for (RevCommit commit : log.call()) {
+                commits.add(commit);
+            }
+
+            boolean hasMore = commits.size() > pageSize;
+            int limit = Math.min(pageSize, commits.size());
+            List<FileHistoryVO> list = new ArrayList<>(limit);
+            for (int i = 0; i < limit; i++) {
                 RevCommit commit = commits.get(i);
                 FileHistoryVO vo = new FileHistoryVO();
                 vo.setCommitHash(commit.getName());
@@ -435,10 +455,7 @@ public class GitFileService {
                 vo.setTimestamp(commit.getCommitTime() * 1000L);
                 list.add(vo);
             }
-            Page<FileHistoryVO> pageResult = new Page<>(page, pageSize);
-            pageResult.setRecords(list);
-            pageResult.setTotal(total);
-            return PageResult.of(pageResult);
+            return PageResult.ofHasMore(list, page, pageSize, hasMore);
         } catch (IOException | GitAPIException e) {
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
         }
@@ -448,31 +465,52 @@ public class GitFileService {
 
     /**
      * 计算指定文件在两个 commit 之间的 unified diff。from/to 均为完整 commit SHA，
-     * 由 Controller 层 @NotBlank 保证非空；非法 SHA 由 ObjectId.fromString 抛出异常转 30708。
+     * 由 Controller 层 @NotBlank 保证非空；非法 SHA 转 PARAM_INVALID（10001）；
+     * 文件在两边 commit 中均不存在时抛 FILE_NOT_FOUND（30702）。
      */
     public String diff(String path, String from, String to) {
         validatePath(path);
+        if (from == null || to == null) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID, "from 和 to 不能为空");
+        }
+        if (from.equals(to)) {
+            return "";
+        }
         Path root = workspaceService.getDefaultWorkspaceRoot();
         try (Git git = Git.open(root.toFile());
+             RevWalk walk = new RevWalk(git.getRepository());
              ByteArrayOutputStream out = new ByteArrayOutputStream();
-             DiffFormatter formatter = new DiffFormatter(out);
-             RevWalk walk = new RevWalk(git.getRepository())) {
-            formatter.setRepository(git.getRepository());
+             DiffFormatter formatter = new DiffFormatter(out)) {
             ObjectId fromId = ObjectId.fromString(from);
             ObjectId toId = ObjectId.fromString(to);
             RevCommit fromCommit = walk.parseCommit(fromId);
             RevCommit toCommit = walk.parseCommit(toId);
             CanonicalTreeParser oldTree = prepareTreeParser(git.getRepository(), fromCommit);
             CanonicalTreeParser newTree = prepareTreeParser(git.getRepository(), toCommit);
+            formatter.setRepository(git.getRepository());
             List<DiffEntry> diffs = git.diff()
                     .setOldTree(oldTree)
                     .setNewTree(newTree)
                     .setPathFilter(PathFilter.create(path))
                     .call();
+            if (diffs.isEmpty()) {
+                // 两边都不存在 → FILE_NOT_FOUND；内容没变化 → 返回空字符串
+                boolean existsInFrom = TreeWalk.forPath(
+                        git.getRepository(), path, fromCommit.getTree()) != null;
+                boolean existsInTo = TreeWalk.forPath(
+                        git.getRepository(), path, toCommit.getTree()) != null;
+                if (!existsInFrom && !existsInTo) {
+                    throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
+                }
+                return "";
+            }
             for (DiffEntry entry : diffs) {
                 formatter.format(entry);
             }
             return out.toString(StandardCharsets.UTF_8);
+        } catch (org.eclipse.jgit.errors.InvalidObjectIdException e) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID,
+                    "非法的 commit hash: " + e.getMessage());
         } catch (IOException | GitAPIException e) {
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
         }
@@ -492,136 +530,156 @@ public class GitFileService {
     // ==================== 文件级回滚 ====================
 
     /**
-     * 文件级回滚（软回滚）：读取目标 commit 中该文件的内容覆盖当前文件，自动产生一次新 commit。
+     * 文件级回滚（软回滚）：读取目标 commit 中该文件的内容覆盖当前文件，只写磁盘不 commit。
+     * 用户确认后可自行选择是否提交此次变更。
      * 不使用 git revert（多文件/合并场景易冲突，服务端无法交互式解决）。
      * <p>
-     * 持锁校验与“读历史 + 覆盖 + commit”通过 doIfHolder 原子执行；
-     * path stripe → workspaceLock，符合锁顺序纪律。
+     * 持锁校验与磁盘写入通过 {@link FileLockService#doIfHolder} 在同一临界区内原子执行。
+     * 不需要 Git 写锁（没有 commit 操作）。
      */
-    public String revert(RevertFileDTO dto) {
+    public void revert(RevertFileDTO dto) {
         String path = dto.getPath();
         validatePath(path);
-        String username = currentUsername();
+        String username = currentUser();
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path filePath = root.resolve(path);
-        return fileLockService.doIfHolder(path, username, () -> withWorkspaceLock(() -> {
+        fileLockService.doIfHolder(path, username, () -> {
             try (Git git = Git.open(root.toFile());
                  RevWalk walk = new RevWalk(git.getRepository())) {
                 ObjectId commitId = ObjectId.fromString(dto.getCommitHash());
                 RevCommit commit = walk.parseCommit(commitId);
                 String content = readFileFromCommit(git.getRepository(), commit, path);
-                Files.writeString(filePath, content, StandardCharsets.UTF_8);
-                String hash = gitCommit(List.of(path), "revert: " + path + " to " + dto.getCommitHash());
+                byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+                Files.write(filePath, bytes);
                 // gitCommit 成功后再更新索引（文件可能已不存在，用 UPSERT）
-                fileIndexService.indexOnSave(path, root);
-                return hash;
+                fileIndexService.indexOnSave(path, root, bytes);
+            } catch (InvalidObjectIdException e) {
+                throw new BusinessException(CommonResultCode.PARAM_INVALID, e.getMessage());
             } catch (IOException e) {
                 throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
             }
-        }));
+            return null;
+        });
     }
 
     // ==================== 发布级回滚 ====================
 
-    /**
-     * 发布级回滚预检。列出目标 tag 中当前被他人锁定的文件，供前端二次确认。
-     */
-    public RollbackCheckVO rollbackCheck(String tagName) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
-        String username = currentUsername();
-        try (Git git = Git.open(root.toFile())) {
-            List<String> files = listFilesInTag(git.getRepository(), tagName);
-            List<LockedFileVO> lockedFiles = new ArrayList<>();
-            for (String file : files) {
-                String holder = fileLockService.getHolder(file);
-                if (holder != null && !holder.equals(username)) {
-                    LockedFileVO vo = new LockedFileVO();
-                    vo.setPath(file);
-                    vo.setLockedBy(holder);
-                    lockedFiles.add(vo);
-                }
-            }
-            RollbackCheckVO vo = new RollbackCheckVO();
-            vo.setLockedFiles(lockedFiles);
-            return vo;
-        } catch (IOException e) {
-            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
-        }
-    }
+//    /**
+//     * 发布级回滚预检。列出目标 tag 中当前被他人锁定的文件，供前端二次确认。
+//     */
+//    public RollbackCheckVO rollbackCheck(String tagName) {
+//        Path root = workspaceService.getDefaultWorkspaceRoot();
+//        String username = currentUser();
+//        try (Git git = Git.open(root.toFile())) {
+//            List<String> files = listFilesInTag(git.getRepository(), tagName);
+//            List<LockedFileVO> lockedFiles = new ArrayList<>();
+//            for (String file : files) {
+//                String holder = fileLockService.getHolder(file);
+//                if (holder != null && !holder.equals(username)) {
+//                    LockedFileVO vo = new LockedFileVO();
+//                    vo.setPath(file);
+//                    vo.setLockedBy(holder);
+//                    lockedFiles.add(vo);
+//                }
+//            }
+//            RollbackCheckVO vo = new RollbackCheckVO();
+//            vo.setLockedFiles(lockedFiles);
+//            return vo;
+//        } catch (IOException e) {
+//            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+//        }
+//    }
 
-    /**
-     * 发布级回滚。服务端将目标 tag 中所有文件的锁直接交给回滚者，回滚完成后锁归回滚者持有。
-     */
-    public String rollbackRelease(String tagName) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
-        String username = currentUsername();
-
-        // 抢锁必须在获取工作空间锁之前完成（锁顺序纪律：持有 workspaceLock 时不得操作文件锁，
-        // 否则与 save/delete/revert 的 path stripe → workspaceLock 顺序相反，会死锁）。
-        // 读 tag 文件列表是 Git 读操作，无需工作空间锁。
-        List<String> files;
-        try (Git git = Git.open(root.toFile())) {
-            files = listFilesInTag(git.getRepository(), tagName);
-        } catch (IOException e) {
-            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
-        }
-
-        // 设计决策：回滚者接管 tag 内所有文件的锁（软锁可强制抢占），回滚完成后锁保留在回滚者名下。
-        // 抢锁后、进入工作空间锁前存在他人再次强抢的极小窗口——强制接管后果自负，符合软锁语义
-        for (String file : files) {
-            fileLockService.acquire(file, username);
-        }
-
-        return withWorkspaceLock(() -> {
-            try (Git git = Git.open(root.toFile())) {
-                ObjectId tagCommit = git.getRepository().resolve(Constants.R_TAGS + tagName);
-                if (tagCommit == null) {
-                    throw new BusinessException(FileResultCode.ROLLBACK_TARGET_NOT_FOUND);
-                }
-
-                try (RevWalk walk = new RevWalk(git.getRepository())) {
-                    RevCommit commit = walk.parseCommit(tagCommit);
-                    for (String file : files) {
-                        String content = readFileFromCommit(git.getRepository(), commit, file);
-                        Path filePath = root.resolve(file);
-                        // tag 之后可能有目录被删除，写回前需确保父目录存在
-                        Files.createDirectories(filePath.getParent());
-                        Files.writeString(filePath, content, StandardCharsets.UTF_8);
-                    }
-                }
-                // 注意：只覆盖 tag 中存在的文件，tag 之后新建的文件不会被删除（设计如此，见 spec）
-                String hash = gitCommit(files, "revert to " + tagName);
-                // gitCommit 成功后再批量更新索引（恢复的文件可能已不存在于 DB，用 UPSERT）
-                fileIndexService.indexOnSaveBatch(files, root);
-                return hash;
-            } catch (IOException e) {
-                throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
-            }
-        });
-    }
+//    /**
+//     * 发布级回滚。服务端将目标 tag 中所有文件的锁直接交给回滚者，回滚完成后锁归回滚者持有。
+//     * 回滚成功后会基于本次回滚 commit 创建一个 revert tag，返回值为新的 revert tag 名称。
+//     */
+//    public PublishVO rollbackRelease(String tagName) {
+//        Path root = workspaceService.getDefaultWorkspaceRoot();
+//        String username = currentUser();
+//
+//        // 抢锁必须在获取工作空间锁之前完成（锁顺序纪律：持有 workspaceLock 时不得操作文件锁，
+//        // 否则与 save/delete/revert 的 path stripe → workspaceLock 顺序相反，会死锁）。
+//        // 读 tag 文件列表是 Git 读操作，无需工作空间锁。
+//        List<String> files;
+//        try (Git git = Git.open(root.toFile())) {
+//            files = listFilesInTag(git.getRepository(), tagName);
+//        } catch (IOException e) {
+//            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+//        }
+//
+//        // 设计决策：回滚者接管 tag 内所有文件的锁（软锁可强制抢占），回滚完成后锁保留在回滚者名下。
+//        // 抢锁后、进入工作空间锁前存在他人再次强抢的极小窗口——强制接管后果自负，符合软锁语义
+//        // FIXME：这里会有极小的窗口被其他人抢锁带来数据一致性问题
+//        for (String file : files) {
+//            fileLockService.acquire(file, username);
+//        }
+//
+//        return withWorkspaceLock(() -> {
+//            try (Git git = Git.open(root.toFile())) {
+//                ObjectId tagCommit = git.getRepository().resolve(Constants.R_TAGS + tagName);
+//                if (tagCommit == null) {
+//                    throw new BusinessException(FileResultCode.ROLLBACK_TARGET_NOT_FOUND);
+//                }
+//
+//                try (RevWalk walk = new RevWalk(git.getRepository())) {
+//                    RevCommit commit = walk.parseCommit(tagCommit);
+//                    for (String file : files) {
+//                        String content = readFileFromCommit(git.getRepository(), commit, file);
+//                        Path filePath = root.resolve(file);
+//                        // tag 之后可能有目录被删除，写回前需确保父目录存在
+//                        Files.createDirectories(filePath.getParent());
+//                        Files.writeString(filePath, content, StandardCharsets.UTF_8);
+//                    }
+//                }
+//                // 注意：只覆盖 tag 中存在的文件，tag 之后新建的文件不会被删除（设计如此，见 spec）
+//                String message = "revert to " + tagName;
+//                String displayName = "发布回滚（回滚到：" + tagName + "）";
+//                String commitHash = gitCommit(files, message);
+//                PublishVO publish = publish(commitHash, displayName, true, message);
+//                // gitCommit 成功后再批量更新索引（恢复的文件可能已不存在于 DB，用 UPSERT）
+//                fileIndexService.indexOnSaveBatch(files, root);
+//                return publish;
+//            } catch (IOException e) {
+//                throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+//            }
+//        });
+//    }
 
     // ==================== 发布 ====================
 
     /**
-     * 发布当前 HEAD。自动生成 release-yyyymmdd-xxx 格式 tag；当日序号超过 999 时报错。
+     * 发布当前 HEAD。自动生成 release-YYYYMMDDHHmmss-abcdef（时间戳 + 短 hash）。
      * <p>
      * commitHash 是 HEAD 的 SHA；磁盘上未提交的变更不影响发布内容（静默忽略，见 spec）。
      */
     public PublishVO publish(PublishDTO dto) {
+        return publish(Constants.HEAD, dto.getDisplayName(), false, null);
+    }
+
+    /**
+     *
+     * @param commitHash
+     * @param displayName
+     * @param oldTagName
+     * @return
+     */
+    public PublishVO publish(String commitHash, String displayName, boolean isRevertPub, String oldTagName) {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         return withWorkspaceLock(() -> {
             try (Git git = Git.open(root.toFile());
                  RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
+                ObjectId headId = git.getRepository().resolve(commitHash);
                 if (headId == null) {
                     throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, "HEAD 不存在");
                 }
                 RevCommit headCommit = walk.parseCommit(headId);
-                String tagName = generateTagName(git);
-                git.tag().setObjectId(headCommit).setName(tagName).setMessage("release: " + tagName).call();
+                String tagName = generateTagName(git, isRevertPub);
+                String message = isRevertPub ? "revert to: " + oldTagName : "release: " + tagName;
+                git.tag().setObjectId(headCommit).setName(tagName).setMessage(message).call();
                 PublishVO vo = new PublishVO();
                 vo.setTagName(tagName);
-                vo.setDisplayName(dto.getDisplayName());
+                vo.setDisplayName(displayName);
                 vo.setCommitHash(headId.getName());
                 vo.setTimestamp(System.currentTimeMillis());
                 return vo;
@@ -648,27 +706,33 @@ public class GitFileService {
     }
 
     /**
-     * 生成当日递增的 tag 名：release-YYYYMMDD-NNN。
+     * 生成 tag 名：release-YYYYMMDDHHmmss-abcdef。
      * <p>
-     * 以 Git 中已存在的 tag 为准递增序号（而非 DB），因此即使发布记录被软删除，
-     * tag 名也不会被复用，保证发布 ID 全局唯一。调用方需持有工作空间锁以避免并发取号冲突。
+     * 时间戳精确到秒 + 短 commit hash（前 6 位），天然唯一，无需递增序号。
+     * 即使同秒内并发（工作空间锁预防），不同 HEAD 产生不同 commit hash 也能区分。
+     * 调用方需持有工作空间锁。
      */
-    private String generateTagName(Git git) throws IOException, GitAPIException {
-        String prefix = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-        int seq = 1;
-        while (true) {
-            String tagName = "release-" + prefix + "-" + String.format("%03d", seq);
-            if (git.getRepository().resolve(Constants.R_TAGS + tagName) == null) {
-                return tagName;
-            }
-            seq++;
-            if (seq > 999) {
-                throw new BusinessException(FileResultCode.PUBLISH_TAG_EXISTS, "当日 tag 序号已耗尽");
-            }
-        }
+    private String generateTagName(Git git) throws IOException {
+        // 格式：release-20260704153012-abc3f1
+        // 时间戳到秒级保证基本唯一，短 commit hash 兜底极端并发冲突
+        return generateTagName(git, false);
     }
 
-    // ==================== 内部工具方法 ====================
+    private String generateTagName(Git git, boolean isRevertTag) throws IOException {
+        String prefix = isRevertTag ? "revert-" : "release-";
+
+        // 格式：release-20260704153012-abc3f1
+        // 时间戳到秒级保证基本唯一，短 commit hash 兜底极端并发冲突
+        String timestamp = LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        ObjectId headId = git.getRepository().resolve(Constants.HEAD);
+        String shortHash = headId != null
+                ? headId.abbreviate(6).name()
+                : "000000";
+        return prefix + timestamp + "-" + shortHash;
+    }
+
+// ==================== 内部工具方法 ====================
 
     /**
      * 提交指定路径到 Git。在工作空间锁内执行，可被已持锁方法嵌套调用（锁可重入）。
@@ -693,9 +757,11 @@ public class GitFileService {
                 }
                 update.call();
 
+                String username = currentUser();
+                String email = username + "@lanting.io";
                 RevCommit commit = git.commit()
                         .setMessage(message)
-                        .setAuthor(currentUsername(), currentUsername() + "@lanting.io")
+                        .setAuthor(username, email)
                         .call();
                 return commit.getName();
             } catch (IOException | GitAPIException e) {
@@ -792,12 +858,5 @@ public class GitFileService {
      */
     private String relativePath(Path path, Path root) {
         return root.toAbsolutePath().normalize().relativize(path.toAbsolutePath().normalize()).toString();
-    }
-
-    /**
-     * 从 Sa-Token 会话获取当前登录用户名，用作锁持有人与 Git author。
-     */
-    private String currentUsername() {
-        return StpUtil.getLoginIdAsString();
     }
 }

@@ -68,7 +68,7 @@ default/
 - 锁是"软锁"：不阻止他人强制抢锁，只记录当前持锁人。他人抢锁成功后，原持锁人再次编辑
   或自动保存会因锁失效而失败（返回 30709）。
 - 持锁期间才能进行编辑并触发自动保存；释放锁后停止自动保存，但已写磁盘内容保留。
-- 任何变更操作都必须先抢锁：编辑文件、回滚文件、发布级回滚涉及的文件。
+- 任何变更操作都必须先抢锁：编辑文件、回滚文件、删除文件。
 - 锁 = "我正在负责这个文件" 的语义。提交时只提交调用方已锁定的文件；被他人锁定的文件
   静默跳过，不阻断提交，通过返回值 skipped 告知调用方。
 - 锁只保证并发编辑安全，不保证提交状态，与 commit 完全解耦。
@@ -117,7 +117,7 @@ default/
 ### 发布
 
 - 发布 = 对当前仓库**已提交状态**打 Git Tag。
-- Tag 名即发布 ID，格式：`release-YYYYMMDD-NNN`（当日序号自增）。
+- Tag 名即发布 ID，格式：`release-YYYYMMDD-abcdef`（commit hash 前 6 位）。
 - 可填写可选的显示名/备注，用于前端展示。
 - 发布时磁盘上的未提交变更**不纳入**本次发布，静默忽略。
 - 发布不需要等待审批；社区版 CR 是轻量、可选的 review 标记。
@@ -125,9 +125,9 @@ default/
 ### 回滚
 
 - 文件级回滚：读取某个 commit 中该文件的内容，覆盖当前文件，只影响该文件。
-- 发布级回滚：读取某个发布 Tag 对应 commit 中所有文件内容，逐个覆盖当前文件。**注意：只覆盖 tag 中已存在的文件，tag 之后新建的文件不会被删除，回滚后的工作区不等于 tag 快照。**
 - 回滚前必须抢锁，回滚完成后磁盘内容已变更。
-- **回滚自动产生一个 commit**，避免磁盘内容与 Git 历史长期不一致。回滚操作者即为该 commit 的 author。
+- **回滚不自动产生 commit**：只覆盖磁盘文件内容，后续提交由用户自行操作。这样用户可以在回滚后检查内容、继续编辑，再统一提交。
+- **不做发布级回滚**：发布后如果需要回退，直接选择上一个 tag 重新部署即可，不需要回滚工作区文件。
 
 ### Review
 
@@ -169,11 +169,10 @@ default/
 - 服务端统一校验并拒绝以下非法路径：前导 `/`、反斜杠 `\`、空路径、纯 `.`、包含 `..`、连续斜杠等。
 - 路径规范在写入、读取、删除、提交、回滚等所有涉及文件路径的接口上统一生效。
 
-### 回滚的两种模式
+### 回滚模式
 
-- **文件级回滚**：精确、单文件、需要调用方先抢锁。适合"某个文件写坏了，恢复到之前的版本"的场景。
-- **发布级回滚**：快速、批量、用于事故恢复。服务端以回滚者身份强制为所有被覆盖的文件抢锁，回滚完成后这些文件归回滚者持有，不会自动释放，不需要前端逐个抢锁。由于影响面大，调用前建议先通过 `rollback-release/check` 预检被他人持锁的文件，确认后再执行。**注意：只覆盖 tag 中已存在的文件，tag 之后新建的文件不会被删除，回滚后的工作区不等于 tag 快照。**
-- 两种回滚都自动产生一个 commit，确保磁盘内容与 Git 历史一致。
+- **文件级回滚**：精确、单文件、需要调用方先抢锁。读取目标 commit 中该文件的内容覆盖当前文件，只影响该文件。适合"某个文件写坏了，恢复到之前的版本"的场景。
+- **不自动 commit**：回滚只覆盖磁盘内容，后续是否提交由用户自行决定。这样用户可以在回滚后检查内容、继续编辑，再统一提交。
 
 ---
 
@@ -319,36 +318,11 @@ sequenceDiagram
     F->>B: POST /api/files/revert {path, commitHash}
     B->>G: 读取目标 commit 中文件内容
     B->>D: 覆盖当前文件
-    B->>G: git add + git commit
-    B-->>F: {commitHash}
+    B-->>F: 回滚成功（磁盘内容已变更，不产生 commit）
     F->>B: POST /api/files/lock/release
 ```
 
-### 7. 发布级回滚（事故恢复）
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant B as Backend
-    participant G as Git
-    participant D as Disk
-
-    U->>F: 选择发布 tag
-    F->>B: POST /api/files/rollback-release/check {tagName}
-    B->>G: 读取 tag 对应文件清单
-    B->>B: 检查哪些文件被他人锁定
-    B-->>F: {lockedFiles: [...]}
-    F->>U: 展示被锁文件，确认继续
-    F->>B: POST /api/files/rollback-release {tagName}
-    B->>B: 以回滚者身份强制抢锁所有被覆盖文件
-    B->>G: 读取目标版本所有文件内容
-    B->>D: 逐个覆盖当前文件
-    B->>G: git add + git commit
-    B-->>F: {commitHash}
-```
-
-### 8. 删除文件/文件夹
+### 7. 删除文件/文件夹
 
 ```mermaid
 sequenceDiagram
@@ -376,7 +350,7 @@ sequenceDiagram
     end
 ```
 
-### 9. Review（社区版）
+### 8. Review（社区版）
 
 ```mermaid
 sequenceDiagram
@@ -412,12 +386,10 @@ sequenceDiagram
 | 提交（多文件） | 用户自定义；默认自动生成 `save: {path1}, {path2}, ...` |
 | 创建文件夹 | `mkdir: {path}` |
 | 删除 | `delete: {path}` |
-| 文件级回滚 | `revert: {path} to {commitHash}` |
-| 发布级回滚 | `revert to {tagName}` |
 
 **Tag 命名**：
 
-- Tag 名：`release-YYYYMMDD-NNN`
+- Tag 名：`release-YYYYMMDDHHmmss-abcdef`（时间戳到秒 + 短 commit hash 前 6 位）
 - 发布 ID = Tag 名
 - 可选显示名保存在发布记录中，不影响 Tag 名
 
@@ -430,9 +402,11 @@ sequenceDiagram
 应用启动时（`@PostConstruct`）对默认工作空间执行初始化：
 - 目录不存在则创建
 - 不是 Git 仓库则 `git init`
-- 确保 `ddl/`、`jobs/`、`docs/` 三个目录存在（目录结构由 DB 索引维护）
+- 确保 `ddl/`、`jobs/`、`docs/` 三个目录存在
 - 如果是新初始化的仓库，做一次初始 commit：`init: workspace initialized`，author 为 `system`
 - 不预置示例文件
+- **不在初始化时建立 DB 索引**：索引由后续写操作（save、createFolder 等）自然建立；
+  如需批量建立或修复索引，通过管理接口 `POST /api/admin/fs/reconcile` 手动触发。
 
 ---
 
@@ -482,8 +456,9 @@ POST   /api/files/commit
 
 GET    /api/files/history?path={path}&pageNum={pageNum}&pageSize={pageSize}
        返回：PageResult<FileHistoryVO>
-       说明：返回 commit 历史，path 为空时返回整个仓库历史。pageNum 从 1 开始，pageSize 默认 10，
-            最大 100，复用 PageQuery 基类。当前在内存中收集全部 commit 后手动分页。
+       说明：返回指定文件的 commit 历史。path 为必填参数。采用游标分页，`total` 与 `totalPages`
+            固定返回 -1，通过 `hasMore` 判断是否有下一页。pageNum 从 1 开始，pageSize 默认 10，
+            最大 100，复用 PageQuery 基类。
 
 GET    /api/files/diff?path={path}&from={hash}&to={hash}
        返回：unified diff 格式字符串
@@ -491,8 +466,8 @@ GET    /api/files/diff?path={path}&from={hash}&to={hash}
 
 POST   /api/files/revert
        body：{ path, commitHash }
-       说明：文件级回滚，读取指定 commit 中该文件内容覆盖当前文件；自动产生一个 commit。
-            服务端强制校验调用方持有该文件锁。
+       说明：文件级回滚，读取指定 commit 中该文件内容覆盖当前文件，不自动产生 commit；
+            后续由用户自行提交。服务端强制校验调用方持有该文件锁。
 ```
 
 ### 文件锁
@@ -512,7 +487,7 @@ POST   /api/files/lock/release
             `CommonResultCode.FORBIDDEN`（20002）。
 ```
 
-### 发布与回滚
+### 发布
 
 ```
 POST   /api/files/publish
@@ -526,19 +501,7 @@ GET    /api/files/publish?pageNum={pageNum}&pageSize={pageSize}
        说明：查询所有发布历史，按发布时间倒序排列。pageNum 从 1 开始，pageSize 默认 10，
             最大 100，复用 PageQuery 基类。
 
-POST   /api/files/rollback-release
-       body：{ tagName }
-       返回：{ commitHash }
-       说明：按发布 Tag 回滚所有文件到该版本。发布级回滚用于事故快速恢复，服务端以回滚者身份强制为
-            所有被覆盖的文件抢锁并覆盖内容，然后自动产生一个 commit；回滚完成后这些文件归回滚者持有，不会自动释放。
-            **注意：只覆盖 tag 中已存在的文件，tag 之后新建的文件不会被删除，回滚后的工作区不等于 tag 快照。**
-            调用前建议先调用 `rollback-release/check` 预检，确认哪些文件被他人持锁。
-
-POST   /api/files/rollback-release/check
-       body：{ tagName }
-       返回：Result<RollbackCheckVO>
-       说明：预检发布级回滚会被覆盖的文件中，哪些当前被他人持锁。返回列表为空时
-            可以安全执行 `rollback-release`。
+       说明：不做发布级回滚。发布后如需回退，直接选择上一个 tag 重新部署即可。
 ```
 
 ### Review
@@ -582,11 +545,12 @@ public class FileTreeNode {
     private String type;              // "file" 或 "folder"
     private String lockedBy;          // 当前持锁人 username，null 表示未被锁定
     private Long lockedAt;            // 抢锁时间戳（毫秒）
+    private Long mtime;               // 文件最后修改时间（毫秒），用于 mtime 排序
     private List<FileTreeNode> children;  // folder 时有值，file 时为 null
 }
 ```
 
-说明：文件树接口会实时查询内存中的锁状态，前端据此展示"正在被谁编辑"的协作状态。
+说明：文件树接口会查询 DB 索引获取节点列表，并实时查询内存中的锁状态，前端据此展示"正在被谁编辑"的协作状态。
 
 ### AcquireLockVO
 
@@ -652,21 +616,13 @@ public class LockedFileVO {
 }
 ```
 
-说明：被锁定文件的基础信息，被 `DeleteLockedVO` 和 `RollbackCheckVO` 复用。
+说明：被锁定文件的基础信息，被 `DeleteLockedVO` 复用。
 
 ### DeleteLockedVO
 
 ```java
 public class DeleteLockedVO {
     private List<LockedFileVO> lockedFiles;  // 被他人锁定的文件列表
-}
-```
-
-### RollbackCheckVO
-
-```java
-public class RollbackCheckVO {
-    private List<LockedFileVO> lockedFiles;  // 当前被他人锁定的文件列表
 }
 ```
 
@@ -678,7 +634,6 @@ public class CreateFolderDTO { private String path; }
 public class CommitFileDTO { private List<String> paths; private String message; }
 public class RevertFileDTO { private String path; private String commitHash; }
 public class PublishDTO { private String displayName; }
-public class RollbackReleaseDTO { private String tagName; }
 public class ReviewDTO { private String tagName; private String comment; }
 public class LockDTO { private String path; }
 ```
@@ -692,7 +647,8 @@ module/file/
 ├── entity/
 │   ├── WorkspaceEntity.java
 │   ├── PublishEntity.java
-│   └── ReviewEntity.java
+│   ├── ReviewEntity.java
+│   └── FileIndexEntity.java
 ├── vo/
 │   ├── FileTreeNode.java
 │   ├── AcquireLockVO.java
@@ -701,19 +657,18 @@ module/file/
 │   ├── PublishVO.java
 │   ├── ReviewVO.java
 │   ├── LockedFileVO.java
-│   ├── DeleteLockedVO.java
-│   └── RollbackCheckVO.java
+│   └── DeleteLockedVO.java
 ├── mapper/
 │   ├── WorkspaceMapper.java
 │   ├── PublishMapper.java
-│   └── ReviewMapper.java
+│   ├── ReviewMapper.java
+│   └── FileIndexMapper.java
 ├── dto/
 │   ├── SaveFileDTO.java
 │   ├── CreateFolderDTO.java
 │   ├── CommitFileDTO.java
 │   ├── RevertFileDTO.java
 │   ├── PublishDTO.java
-│   ├── RollbackReleaseDTO.java
 │   ├── ReviewDTO.java
 │   └── LockDTO.java
 ├── result/
@@ -722,18 +677,20 @@ module/file/
 │   ├── WorkspaceService.java
 │   ├── GitFileService.java
 │   ├── FileLockService.java
+│   ├── FileIndexService.java
 │   ├── PublishService.java
 │   └── ReviewService.java
 └── controller/
     ├── FileController.java
-    └── LantingConfigController.java
+    ├── WorkspaceController.java
+    └── FileSystemAdminController.java
 ```
 
 ---
 
 ## 数据库表
 
-需在 `V1__init.sql` 中补充以下两张表：
+需在 `V1__init.sql` 中补充以下表：
 
 ```sql
 -- 发布记录
@@ -759,6 +716,19 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
     create_time BIGINT       NOT NULL DEFAULT 0,
     update_time BIGINT       NOT NULL DEFAULT 0
 );
+
+-- 文件系统元数据索引表
+CREATE TABLE IF NOT EXISTS lanting_file_index (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    path        VARCHAR(1000) NOT NULL UNIQUE,
+    name        VARCHAR(200)  NOT NULL,
+    type        VARCHAR(10)   NOT NULL,             -- file / folder
+    parent_path VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
+    mtime       BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
+    create_time BIGINT        NOT NULL DEFAULT 0,
+    update_time BIGINT        NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_path);
 ```
 
 ---
@@ -788,7 +758,7 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 > 以下问题需要在实现前确认，暂不进入实现阶段。
 
 - [x] **是否允许提交被他人锁定的文件**：已确认——不允许直接提交。提交时只提交调用方已锁定的文件；被他人锁定的文件静默跳过，通过返回值 `skipped` 告知调用方。
-- [x] **回滚是否自动 commit**：已确认——回滚操作自动产生一个 commit。
+- [x] **回滚是否自动 commit**：已确认——回滚只覆盖文件内容，不自动产生 commit，后续由用户自行提交。
 - [x] **文件锁超时策略**：已确认——不需要心跳和后台定时任务。采用软锁：锁只记录当前持锁人，他人可随时强制抢锁；原持锁人再次编辑或自动保存会失败。
 - [x] **save 接口服务端锁校验**：已在接口说明中标注"服务端强制校验调用方持有该文件锁"，实现时需确保未持锁调用返回 30709。
 - [x] **文件树排序规则**：已确认——支持两种排序方式，前端通过参数选择：
@@ -796,7 +766,6 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
   2. 按文件更新时间倒序排序。
   不实现 `original`（原始顺序），因为文件系统目录遍历顺序不稳定，可靠实现成本高。
 - [x] **历史记录条数上限**：已确认——不设置硬上限，改用分页。接口 `GET /api/files/history` 支持 `pageNum` 和 `pageSize`，默认 10 条，最大 100 条，返回 `PageResult<FileHistoryVO>`。
-- [x] **发布级回滚的锁处理**：已确认——由服务端以回滚者身份自动为所有被覆盖文件抢锁，回滚完成后这些文件归回滚者持有，不会自动释放；不需要前端逐个抢锁。由于影响面大，调用前应先通过 `POST /api/files/rollback-release/check` 预检被他人持锁的文件，确认后再执行 `POST /api/files/rollback-release`。 
 - [x] **folder/delete 是否需要抢锁**：已确认——创建文件夹不需要锁；删除文件需要抢锁；删除文件夹不递归抢锁，但默认校验目录下是否有他人持锁文件，有则拒绝，可传 `force=true` 强制删除。
 ## FAQ
 
@@ -804,13 +773,17 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 
 ### Q：Git 写操作为什么要用工作空间级别锁？社区版怎么实现的？
 
-**A**：所有 Git 写操作（`commit`、`revert`、`rollback-release`、`publish` 等）都操作同一个本地仓库，并发执行会产生竞争甚至破坏仓库状态。因此需要在工作空间级别串行化。
+**A**：所有 Git 写操作（`commit`、`delete`、`publish`、`createFolder` 等）都操作同一个本地仓库，并发执行会产生竞争甚至破坏仓库状态。因此需要在工作空间级别串行化。
 
 社区版只支持一个默认工作空间，使用一个单例 `ReentrantLock` 即可；锁的可重入性保证同一线程内嵌套调用安全。
 
-### Q：文件树为什么直接从磁盘读取，而不是维护一份数据库镜像？
+### Q：文件树为什么从 DB 索引查询，而不是直接从磁盘读取？
 
-**A**：社区版文件数通常在几十到几百的量级，直接从 Git 工作区遍历磁盘成本可控。磁盘读取不依赖同步机制，能天然反映当前工作区状态（包括未提交的自动保存）。只有当文件数达到上千、目录层级很深或需要按发布 tag 展示历史目录结构时，才值得考虑在数据库中维护索引。
+**A**：虽然社区版文件数通常在几十到几百的量级，直接从磁盘遍历成本可控，但使用 DB 索引（`lanting_file_index` 表）有以下优势：
+- 支持按 mtime 排序，无需遍历后排序；
+- 节点可直接附带锁状态，避免额外的磁盘 IO；
+- 为后续扩展（如按发布 tag 展示历史目录结构）留出空间。
+所有写操作（save、createFolder、delete、revert）都会同步更新 DB 索引，通过 `reconcile` 接口可随时校验磁盘与索引的一致性。
 
 ### Q：用户偏好和工作空间配置为什么存在数据库，而不是 `.lanting/` 目录下的 JSON 文件？
 
@@ -824,13 +797,17 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 
 **A**：运行时从 `lanting_workspace.git_path` 读取。首次创建 `default` 工作空间时，基于配置项 `lanting.data.workspace-dir` 生成路径（默认 `./data/workspaces/default`），再持久化到表中。
 
-### Q：发布级回滚后，被覆盖文件的锁归谁？
-
-**A**：回滚由服务端以回滚者身份强制为所有被覆盖文件抢锁，回滚完成后这些文件归回滚者持有，**不会自动释放**。调用前建议先通过 `POST /api/files/rollback-release/check` 预检被他人持锁的文件，确认后再执行 `POST /api/files/rollback-release`。
-
 ### Q：`lanting_file_publish` 的 `tag_name` 为什么不用单列唯一，而是 `(tag_name, is_delete)` 联合唯一？
 
 **A**：项目统一使用软删除。如果 `tag_name` 单列唯一，删除一个发布后无法再创建同名发布；联合唯一允许删除后重新发布同名 tag，符合“回收站”语义。
+
+### Q：文件级回滚（revert）为什么只覆盖内容不产生 commit？
+
+**A**：revert 只覆盖磁盘文件内容，后续由用户自行提交。这样用户可以在回滚后检查内容是否正确、是否需要继续编辑，再统一提交。如果自动 commit，用户发现回滚结果不对时需要再回滚一次，反而麻烦。
+
+### Q：为什么不做发布级回滚（rollback-release）？
+
+**A**：发布后如果需要回退，直接选择上一个 tag 重新部署即可，不需要回滚工作区文件。发布级回滚的诉求本质上是"回到之前的已发布状态"，而 tag 本身就记录了那个状态，重新部署 tag 就是最直接的方式。
 
 ### Q：文件锁是硬锁吗？删除文件夹时他人锁怎么办？
 
@@ -842,7 +819,9 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 
 ### Q：`createdBy` 为什么统一用 username，而不是有的用 user id？
 
-**A**：file 模块中发布记录 (`lanting_file_publish`)、Review 记录 (`lanting_file_review`) 已经使用 username 表示操作人。`lanting_workspace.created_by` 最初是 `Long`（user id），为保持模块内语义一致，统一改为 username。后续新增模块的 `createdBy` 如无特殊原因也默认使用 username。
+**A**：file 模块中发布记录 (`lanting_file_publish`)、Review 记录 (`lanting_file_review`) 使用 username 表示操作人。`lanting_workspace.created_by` 代码中也写入 username 字符串。
+
+> **已知差异**：`V1__init.sql` 中 `lanting_workspace.created_by` 定义为 `INTEGER`，但代码中实际写入的是 username 字符串（如 `"admin"`）。SQLite 动态类型不会报错，但 schema 与使用不一致。建议后续将 DDL 改为 `VARCHAR(100)`。
 
 ### Q：`BusinessException(ResultCode, String)` 的自定义消息为什么前端看不到？如何修复？
 
@@ -854,7 +833,7 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 
 ### Q：`history` 接口的 `path` 参数为空时查什么？为什么默认 `pageSize` 是 10？
 
-**A**：`path` 为空时查询整个仓库的 commit 历史；传入具体路径时只查该路径历史。`pageSize` 随项目分页基类 `PageQuery` 统一为 10，避免各模块默认值不一致。
+**A**：`path` 为必填参数，传入具体文件路径只查该路径历史。`pageSize` 随项目分页基类 `PageQuery` 统一为 10，`history` 采用游标分页，`total` 与 `totalPages` 固定为 -1，前端通过 `hasMore` 判断是否有下一页。
 
 
 ## 自动保存（Auto-Save）时机设计（临时记录）

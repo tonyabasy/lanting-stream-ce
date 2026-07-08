@@ -28,9 +28,6 @@ public class WorkspaceService {
     @Autowired
     private WorkspaceMapper workspaceMapper;
 
-    @Autowired
-    private FileIndexService fileIndexService;
-
     @Value("${lanting.data.workspace-dir}")
     private String workspaceDir;
 
@@ -97,7 +94,7 @@ public class WorkspaceService {
      * @param workspace 工作空间
      */
     public void initializeWorkspace(WorkspaceEntity workspace) {
-        Path root = Path.of(workspace.getGitPath());
+        Path root = getDefaultWorkspaceRoot(); // 统一用这个，处理了相对路径
         try {
             Files.createDirectories(root);
 
@@ -107,21 +104,20 @@ public class WorkspaceService {
                 Files.createDirectories(dirPath);
             }
 
+            // 初始化 Git 仓库
             Path gitDir = root.resolve(".git");
             if (!Files.exists(gitDir)) {
-                Git git = Git.init().setDirectory(root.toFile()).call();
-                // 空目录无法产生有意义 commit，做空提交保证 HEAD 存在
-                git.commit()
-                        .setMessage("init: workspace initialized")
-                        .setAuthor("system", "system@lanting.io")
-                        .setAllowEmpty(true)
-                        .call();
-                git.close();
-                log.info("工作空间 Git 初始化完成：{}，workspaceId: {}", root, workspace.getId());
+                try (Git git = Git.init().setDirectory(root.toFile()).call()) {
+                    // 空目录无法产生有意义 commit，做空提交保证 HEAD 存在
+                    git.commit()
+                            .setMessage("init: workspace initialized")
+                            .setAuthor("system", "system@lanting.io")
+                            .setAllowEmpty(true)
+                            .call();
+                    log.info("工作空间 Git 初始化完成：{}，workspaceId: {}", root, workspace.getId());
+                }
             }
 
-            // 扫描磁盘建立文件索引
-            fileIndexService.scanAndIndex(root);
             log.info("工作空间索引初始化完成：{}，workspaceId: {}", root, workspace.getId());
         } catch (Exception e) {
             log.error("工作空间初始化失败：{}", root, e);

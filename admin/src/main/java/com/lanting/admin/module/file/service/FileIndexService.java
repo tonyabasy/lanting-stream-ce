@@ -13,12 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.zip.CRC32;
 
 /**
  * 文件系统元数据索引服务。
@@ -82,6 +78,7 @@ public class FileIndexService {
         entity.setType(type);
         entity.setParentPath(extractParentPath(path));
         entity.setMtime(mtime);
+        entity.setCrc32(0L);
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         fileIndexMapper.insert(entity);
@@ -105,18 +102,41 @@ public class FileIndexService {
     }
 
     /**
-     * 保存文件后更新索引。文件不存在时自动 INSERT，存在时 UPDATE mtime。
+     * 保存文件后更新索引。文件不存在时自动 INSERT，存在时 UPDATE mtime/crc32。
+     * <p>
+     * 不带 bytes 的重载会重新读取磁盘内容计算 CRC32；正常写路径建议调用带 bytes 版本避免重复读盘。
      *
      * @param path 文件相对路径
      * @param root 工作空间根目录
      */
     public void indexOnSave(String path, Path root) {
+        Path filePath = root.resolve(path);
+        byte[] bytes;
+        try {
+            bytes = Files.readAllBytes(filePath);
+        } catch (IOException e) {
+            log.warn("读取文件内容计算 CRC32 失败：{}，按空内容处理", filePath, e);
+            bytes = new byte[0];
+        }
+        indexOnSave(path, root, bytes);
+    }
+
+    /**
+     * 保存文件后更新索引。文件不存在时自动 INSERT，存在时 UPDATE mtime/crc32。
+     *
+     * @param path  文件相对路径
+     * @param root  工作空间根目录
+     * @param bytes 文件内容字节数组，用于直接计算 CRC32 避免重复读盘
+     */
+    public void indexOnSave(String path, Path root, byte[] bytes) {
         FileIndexEntity existing = getByPath(path);
         long mtime = lastModifiedTime(root.resolve(path));
+        long crc32 = crc32(bytes);
         long now = System.currentTimeMillis();
 
         if (existing != null) {
             existing.setMtime(mtime);
+            existing.setCrc32(crc32);
             existing.setUpdateTime(now);
             fileIndexMapper.updateById(existing);
             return;
@@ -128,29 +148,18 @@ public class FileIndexService {
         entity.setType("file");
         entity.setParentPath(extractParentPath(path));
         entity.setMtime(mtime);
+        entity.setCrc32(crc32);
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         fileIndexMapper.insert(entity);
     }
 
     /**
-     * 批量保存文件后更新索引。
-     *
-     * @param paths 文件相对路径列表
-     * @param root  工作空间根目录
-     */
-    public void indexOnSaveBatch(List<String> paths, Path root) {
-        for (String path : paths) {
-            indexOnSave(path, root);
-        }
-    }
-
-    /**
-     * 扫描磁盘并建立/重建索引。用于工作空间初始化或 reconcile。
+     * 扫描磁盘并建立/重建索引。
      *
      * @param root 工作空间根目录
      */
-    public void scanAndIndex(Path root) {
+    public void reloadIndex(Path root) {
         try {
             Files.walkFileTree(root, new SimpleFileVisitor<>() {
                 @Override
@@ -182,19 +191,27 @@ public class FileIndexService {
     /**
      * 一致性校验：扫描磁盘与 DB 索引对比，返回不一致报告（不自动修复/删除）。
      *
-     * @param root 工作空间根目录
+     * @param root  工作空间根目录
+     * @param scope 扫描范围，仅对该路径前缀下的文件和目录做对比；为 null 或空则扫描全局
      * @return 不一致报告
      */
-    public Map<String, Object> reconcile(Path root) {
-        List<String> orphanFiles = new ArrayList<>();
-        List<String> orphanFolders = new ArrayList<>();
-        List<String> missingFiles = new ArrayList<>();
-        List<String> missingFolders = new ArrayList<>();
-        List<String> mtimeMismatches = new ArrayList<>();
+    public Map<String, Object> reconcile(Path root, String scope) {
+        boolean hasScope = scope != null && !scope.isBlank();
 
-        // 加载 DB 中所有索引记录，按 path 建立 Map
+        List<String> unindexedFiles = new ArrayList<>();
+        List<String> unindexedFolders = new ArrayList<>();
+        List<String> staleFiles = new ArrayList<>();
+        List<String> staleFolders = new ArrayList<>();
+        List<String> mtimeMismatches = new ArrayList<>();
+        List<String> checksumMismatches = new ArrayList<>();
+
+        // 加载 DB 中索引记录，按 path 建立 Map
+        List<FileIndexEntity> allIndex = hasScope
+                ? fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
+                        .likeRight(FileIndexEntity::getPath, scope + "/")
+                        .or().eq(FileIndexEntity::getPath, scope))
+                : fileIndexMapper.selectList(null);
         Map<String, FileIndexEntity> indexMap = new HashMap<>();
-        List<FileIndexEntity> allIndex = fileIndexMapper.selectList(null);
         for (FileIndexEntity entity : allIndex) {
             indexMap.put(entity.getPath(), entity);
         }
@@ -210,12 +227,15 @@ public class FileIndexService {
                             || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
                         return FileVisitResult.CONTINUE;
                     }
+                    // scope 过滤：不在 scope 范围内的目录跳过
+                    if (hasScope && !relative.startsWith(scope)) {
+                        return FileVisitResult.CONTINUE;
+                    }
                     diskPaths.add(relative);
                     FileIndexEntity entity = indexMap.get(relative);
                     if (entity == null) {
-                        orphanFolders.add(relative);
+                        unindexedFolders.add(relative);
                     } else if (!"folder".equals(entity.getType())) {
-                        // 磁盘是目录但 DB 记录为文件
                         mtimeMismatches.add(relative);
                     }
                     return FileVisitResult.CONTINUE;
@@ -227,14 +247,24 @@ public class FileIndexService {
                     if (relative.isEmpty() || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
                         return FileVisitResult.CONTINUE;
                     }
+                    // scope 过滤：不在 scope 范围内的文件跳过
+                    if (hasScope && !relative.startsWith(scope + "/") && !relative.equals(scope)) {
+                        return FileVisitResult.CONTINUE;
+                    }
                     diskPaths.add(relative);
                     FileIndexEntity entity = indexMap.get(relative);
                     if (entity == null) {
-                        orphanFiles.add(relative);
+                        unindexedFiles.add(relative);
                     } else {
                         long diskMtime = lastModifiedTime(file);
                         if (diskMtime != entity.getMtime()) {
                             mtimeMismatches.add(relative);
+                        } else {
+                            // mtime 一致时才测 CRC32，检测“mtime 被还原但内容已改”的情况
+                            long diskCrc32 = crc32(file);
+                            if (diskCrc32 != (entity.getCrc32() != null ? entity.getCrc32() : 0L)) {
+                                checksumMismatches.add(relative);
+                            }
                         }
                     }
                     return FileVisitResult.CONTINUE;
@@ -250,21 +280,29 @@ public class FileIndexService {
             String path = entity.getPath();
             if (!diskPaths.contains(path)) {
                 if ("folder".equals(entity.getType())) {
-                    missingFolders.add(path);
+                    staleFolders.add(path);
                 } else {
-                    missingFiles.add(path);
+                    staleFiles.add(path);
                 }
             }
         }
 
         Map<String, Object> report = new HashMap<>();
         report.put("total", allIndex.size());
-        report.put("orphanFiles", orphanFiles);
-        report.put("orphanFolders", orphanFolders);
-        report.put("missingFiles", missingFiles);
-        report.put("missingFolders", missingFolders);
+        report.put("unindexedFiles", unindexedFiles);
+        report.put("unindexedFolders", unindexedFolders);
+        report.put("staleFiles", staleFiles);
+        report.put("staleFolders", staleFolders);
         report.put("mtimeMismatches", mtimeMismatches);
+        report.put("checksumMismatches", checksumMismatches);
         return report;
+    }
+
+    /**
+     * 全局扫描。等价于 {@link #reconcile(Path, String)} 且 scope 为 null。
+     */
+    public Map<String, Object> reconcile(Path root) {
+        return reconcile(root, null);
     }
 
     /**
@@ -277,6 +315,109 @@ public class FileIndexService {
         Map<String, Object> status = new HashMap<>();
         status.put("total", total);
         return status;
+    }
+
+    /**
+     * 修复模式。
+     */
+    public enum RepairMode {
+        DISK_WINS;
+
+        public static RepairMode of(String mode) {
+            if (mode == null || mode.isBlank()) {
+                return DISK_WINS;
+            }
+            if ("disk_wins".equalsIgnoreCase(mode)) {
+                return DISK_WINS;
+            }
+            throw new IllegalArgumentException("Unsupported repair mode: " + mode);
+        }
+    }
+
+    /**
+     * 以磁盘为准修复索引不一致。当前仅支持 DISK_WINS 模式：
+     * <ul>
+     *   <li>missing：删除 DB 中缺失的索引记录</li>
+     *   <li>orphan：按磁盘实际内容建立/更新索引</li>
+     *   <li>mismatch：重新读取磁盘内容并更新 mtime/crc32</li>
+     * </ul>
+     *
+     * @param root 工作空间根目录
+     * @param mode 修复模式
+     * @return 修复结果统计
+     */
+    public Map<String, Object> repair(Path root, RepairMode mode) {
+        return repair(root, mode, null);
+    }
+
+    /**
+     * 以磁盘为准修复索引不一致。
+     *
+     * @param root  工作空间根目录
+     * @param mode  修复模式
+     * @param scope 修复范围，仅对该路径前缀下的文件和目录做对比；为 null 或空则修复全局
+     * @return 修复结果统计
+     */
+    public Map<String, Object> repair(Path root, RepairMode mode, String scope) {
+        if (mode != RepairMode.DISK_WINS) {
+            throw new IllegalArgumentException("Unsupported repair mode: " + mode);
+        }
+
+        Map<String, Object> report = reconcile(root, scope);
+        @SuppressWarnings("unchecked")
+        List<String> unindexedFiles = (List<String>) report.get("unindexedFiles");
+        @SuppressWarnings("unchecked")
+        List<String> unindexedFolders = (List<String>) report.get("unindexedFolders");
+        @SuppressWarnings("unchecked")
+        List<String> staleFiles = (List<String>) report.get("staleFiles");
+        @SuppressWarnings("unchecked")
+        List<String> staleFolders = (List<String>) report.get("staleFolders");
+        @SuppressWarnings("unchecked")
+        List<String> checksumMismatches = (List<String>) report.get("checksumMismatches");
+        @SuppressWarnings("unchecked")
+        List<String> mtimeMismatches = (List<String>) report.get("mtimeMismatches");
+
+        // 修复 missing：从 DB 中删除记录
+        for (String path : staleFiles) {
+            indexOnDelete(path);
+        }
+        for (String path : staleFolders) {
+            indexOnDelete(path);
+        }
+
+        // 修复 orphan：按磁盘内容建立/更新索引
+        for (String path : unindexedFiles) {
+            try {
+                byte[] bytes = Files.readAllBytes(root.resolve(path));
+                indexOnSave(path, root, bytes);
+            } catch (IOException e) {
+                log.warn("修复 orphan 文件读取失败：{}，跳过", path, e);
+            }
+        }
+        for (String path : unindexedFolders) {
+            indexOnCreate(path, "folder", root);
+        }
+
+        // 修复 checksum/mtime mismatch：以磁盘为准重新计算
+        Set<String> toUpdate = new HashSet<>(checksumMismatches);
+        toUpdate.addAll(mtimeMismatches);
+        for (String path : toUpdate) {
+            try {
+                byte[] bytes = Files.readAllBytes(root.resolve(path));
+                indexOnSave(path, root, bytes);
+            } catch (IOException e) {
+                log.warn("修复 mismatch 文件读取失败：{}，跳过", path, e);
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("repairedstaleFiles", staleFiles);
+        result.put("repairedstaleFolders", staleFolders);
+        result.put("repairedunindexedFiles", unindexedFiles);
+        result.put("repairedunindexedFolders", unindexedFolders);
+        result.put("repairedChecksumMismatches", checksumMismatches);
+        result.put("repairedMtimeMismatches", mtimeMismatches);
+        return result;
     }
 
     private String relativePath(Path path, Path root) {
@@ -298,6 +439,30 @@ public class FileIndexService {
             return Files.getLastModifiedTime(path).toMillis();
         } catch (Exception e) {
             log.warn("读取文件修改时间失败：{}，使用 0", path, e);
+            return 0L;
+        }
+    }
+
+    /**
+     * 计算字节数组的 CRC32 校验和。
+     */
+    public static long crc32(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return 0L;
+        }
+        CRC32 crc32 = new CRC32();
+        crc32.update(bytes);
+        return crc32.getValue();
+    }
+
+    /**
+     * 计算文件内容的 CRC32 校验和。读取失败时返回 0。
+     */
+    public static long crc32(Path path) {
+        try {
+            return crc32(Files.readAllBytes(path));
+        } catch (IOException e) {
+            log.warn("读取文件计算 CRC32 失败：{}，返回 0", path, e);
             return 0L;
         }
     }

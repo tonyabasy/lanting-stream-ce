@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:sqlite:../.data/lanting-test.db
+    url: jdbc:sqlite:target/data/lanting.db
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -17,3 +17,8 @@ logging:
   level:
     com.lanting: WARN  # 测试时减少日志噪音
     org.flywaydb: WARN
+lanting:
+  data:
+    dir: target/data
+    workspace-dir: target/data/workspaces
+    udf-dir: target/data/udfs

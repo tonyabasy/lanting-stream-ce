@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS lanting_file_index (
     type        VARCHAR(10)   NOT NULL,             -- file / folder
     parent_path VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
     mtime       BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
+    crc32       BIGINT        NOT NULL DEFAULT 0,   -- 文件内容 CRC32 校验和，用于检测 mtime 不变但内容变化的情况；folder 固定为 0
     create_time BIGINT        NOT NULL DEFAULT 0,
     update_time BIGINT        NOT NULL DEFAULT 0
 );
@@ -108,8 +109,3 @@ CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_pa
 -- 密码为占位符，应用启动时由 AdminInitializer（CommandLineRunner）替换为真实的 BCrypt 哈希
 INSERT OR IGNORE INTO lanting_user (id, username, password, nickname, super_admin_flag, auth_source, create_time, update_time)
 VALUES (1, 'admin', '$2a$10$4hYkZrFf570NlpROFczaXumqy8gD1GEzn4CAq.bh8IT8obbXgZK8e', 'Administrator', 1, 'local', 0, 0);
-
--- 初始默认工作空间
--- created_by 引用 admin 用户 id=1，需在 admin 插入之后执行（SQLite 顺序执行保证）
-INSERT OR IGNORE INTO lanting_workspace (name, git_path, description, config, created_by, create_time, update_time)
-VALUES ('default', './data/workspaces/default', '默认工作空间', '{}', 'admin', 0, 0);

@@ -1,10 +1,12 @@
 package com.lanting.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lanting.admin.module.user.dto.CreateUserDTO;
 import com.lanting.admin.module.user.dto.LoginDTO;
 import com.lanting.admin.module.user.entity.UserEntity;
 import com.lanting.admin.module.user.mapper.UserMapper;
 import com.lanting.admin.module.user.service.UserService;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +17,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+
+import java.io.File;
 
 /**
  * Controller 集成测试基类。
@@ -42,6 +46,18 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected BCryptPasswordEncoder passwordEncoder;
+
+    @BeforeAll
+    static void initDataDirs() {
+        String dataDir = System.getenv("LANTING_DATA_DIR");
+        if (dataDir == null || dataDir.isBlank()) {
+            dataDir = "target/data";
+        }
+        // 需要与 application.yml 中 lanting.data.* 配置项保持一致
+        mkdirs(dataDir);
+        mkdirs(dataDir + "/workspaces");
+        mkdirs(dataDir + "/udfs");
+    }
 
     /**
      * 每个测试前重置 admin 密码为 "admin123"，保证登录测试的可重复性。
@@ -84,6 +100,18 @@ public abstract class BaseIntegrationTest {
     }
 
     /**
+     * 创建用户，用于模拟多用户操作
+     */
+    protected void createAnotherUser(String username) {
+        if (userService.getUserByName(username) == null) {
+            CreateUserDTO dto = new CreateUserDTO();
+            dto.setUsername(username);
+            dto.setPassword(username);
+            userService.createUser(dto);
+        }
+    }
+
+    /**
      * 构建带 token 的请求头。
      */
     protected HttpHeaders authHeaders(String token) {
@@ -109,5 +137,12 @@ public abstract class BaseIntegrationTest {
         user.setId(1L);
         user.setPassword(passwordEncoder.encode(rawPassword));
         return user;
+    }
+
+    private static void mkdirs(String path) {
+        File dir = new File(path);
+        if (!dir.exists() && !dir.mkdirs()) {
+            throw new IllegalStateException("无法创建数据目录: " + dir.getAbsolutePath());
+        }
     }
 }

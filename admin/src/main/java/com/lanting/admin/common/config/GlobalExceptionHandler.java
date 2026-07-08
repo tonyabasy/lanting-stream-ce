@@ -1,7 +1,9 @@
-package com.lanting.admin.common.exception;
+package com.lanting.admin.common.config;
 
 import cn.dev33.satoken.exception.NotLoginException;
 import cn.dev33.satoken.exception.NotPermissionException;
+import com.lanting.admin.common.exception.BusinessException;
+import com.lanting.admin.common.exception.ContentInconsistentException;
 import com.lanting.admin.common.result.CommonResultCode;
 import com.lanting.admin.common.result.Result;
 import com.lanting.admin.common.result.ResultCode;
@@ -85,6 +87,17 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 文件内容与索引不一致：携带磁盘真实内容返回给前端，由前端提示用户并继续展示内容。
+     */
+    @ExceptionHandler(ContentInconsistentException.class)
+    public Result<Object> handleContentInconsistentException(ContentInconsistentException e, HttpServletResponse response) {
+        ResultCode rc = e.getResultCode();
+        response.setStatus(rc.getHttpStatus());
+        log.warn("内容不一致: code={}, message={}", rc.getCode(), e.getCustomMessage());
+        return Result.error(rc, e.getCustomMessage(), e.getData());
+    }
+
+    /**
      * 参数校验异常：@RequestBody + @Valid 校验失败时抛出。
      * 将所有字段错误拼接成一条提示信息返回，HTTP 状态码 400。
      */
@@ -95,7 +108,7 @@ public class GlobalExceptionHandler {
                 .map(FieldError::getDefaultMessage)
                 .collect(Collectors.joining("; "));
         String message = resolveMessage(CommonResultCode.PARAM_INVALID) + ": " + fieldErrors;
-        log.warn("参数校验失败: {}", message);
+        log.warn(message);
         return Result.error(CommonResultCode.PARAM_INVALID, message);
     }
 

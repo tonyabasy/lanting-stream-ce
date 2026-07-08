@@ -1,12 +1,14 @@
 package com.lanting.admin.module.file.controller;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.lanting.admin.common.page.PageQuery;
 import com.lanting.admin.common.page.PageResult;
 import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.result.FileResultCode;
-import com.lanting.admin.module.file.service.*;
+import com.lanting.admin.module.file.service.FileLockService;
+import com.lanting.admin.module.file.service.GitFileService;
+import com.lanting.admin.module.file.service.PublishService;
+import com.lanting.admin.module.file.service.ReviewService;
 import com.lanting.admin.module.file.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +19,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
+import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 
 /**
  * 文件系统接口。
@@ -136,8 +140,9 @@ public class FileController {
      */
     @Operation(summary = "文件级回滚")
     @PostMapping("/revert")
-    public Result<String> revert(@Valid @RequestBody RevertFileDTO dto) {
-        return Result.success(gitFileService.revert(dto));
+    public Result<Void> revert(@Valid @RequestBody RevertFileDTO dto) {
+        gitFileService.revert(dto);
+        return Result.success();
     }
 
     // ==================== 文件锁 ====================
@@ -148,7 +153,7 @@ public class FileController {
     @Operation(summary = "抢锁")
     @PostMapping("/lock/acquire")
     public Result<AcquireLockVO> acquireLock(@Valid @RequestBody LockDTO dto) {
-        return Result.success(fileLockService.acquire(dto.getPath(), currentUsername()));
+        return Result.success(fileLockService.acquire(dto.getPath(), currentUser()));
     }
 
     /**
@@ -157,7 +162,7 @@ public class FileController {
     @Operation(summary = "释放锁")
     @PostMapping("/lock/release")
     public Result<Void> releaseLock(@Valid @RequestBody LockDTO dto) {
-        boolean released = fileLockService.release(dto.getPath(), currentUsername());
+        boolean released = fileLockService.release(dto.getPath(), currentUser());
         if (!released) {
             return Result.error(com.lanting.admin.common.result.CommonResultCode.FORBIDDEN);
         }
@@ -172,7 +177,7 @@ public class FileController {
     @Operation(summary = "发布")
     @PostMapping("/publish")
     public Result<PublishVO> publish(@Valid @RequestBody PublishDTO dto) {
-        return Result.success(publishService.publish(dto, currentUsername()));
+        return Result.success(publishService.publish(dto, currentUser()));
     }
 
     /**
@@ -184,23 +189,23 @@ public class FileController {
         return Result.success(publishService.list(query));
     }
 
-    /**
-     * 发布级回滚预检。列出目标 tag 中当前被他人锁定的文件，供前端二次确认。
-     */
-    @Operation(summary = "发布级回滚预检")
-    @PostMapping("/rollback-release/check")
-    public Result<RollbackCheckVO> rollbackCheck(@Valid @RequestBody RollbackReleaseDTO dto) {
-        return Result.success(gitFileService.rollbackCheck(dto.getTagName()));
-    }
-
-    /**
-     * 发布级回滚。将目标 tag 中所有文件覆盖回当前工作空间，并产生一次新 commit。
-     */
-    @Operation(summary = "发布级回滚")
-    @PostMapping("/rollback-release")
-    public Result<String> rollbackRelease(@Valid @RequestBody RollbackReleaseDTO dto) {
-        return Result.success(gitFileService.rollbackRelease(dto.getTagName()));
-    }
+//    /**
+//     * 发布级回滚预检。列出目标 tag 中当前被他人锁定的文件，供前端二次确认。
+//     */
+//    @Operation(summary = "发布级回滚预检")
+//    @PostMapping("/rollback-release/check")
+//    public Result<RollbackCheckVO> rollbackCheck(@Valid @RequestBody RollbackReleaseDTO dto) {
+//        return Result.success(gitFileService.rollbackCheck(dto.getTagName()));
+//    }
+//
+//    /**
+//     * 发布级回滚。将目标 tag 中所有文件覆盖回当前工作空间，并产生一次新 commit。
+//     */
+//    @Operation(summary = "发布级回滚")
+//    @PostMapping("/rollback-release")
+//    public Result<PublishVO> rollbackRelease(@Valid @RequestBody RollbackReleaseDTO dto) {
+//        return Result.success(gitFileService.rollbackRelease(dto.getTagName()));
+//    }
 
     // ==================== Review ====================
 
@@ -210,7 +215,7 @@ public class FileController {
     @Operation(summary = "添加 review")
     @PostMapping("/review")
     public Result<Void> review(@Valid @RequestBody ReviewDTO dto) {
-        reviewService.add(dto.getTagName(), dto.getComment(), currentUsername());
+        reviewService.add(dto.getTagName(), dto.getComment(), currentUser());
         return Result.success();
     }
 
@@ -221,9 +226,5 @@ public class FileController {
     @GetMapping("/review")
     public Result<List<ReviewVO>> reviewList(@RequestParam @NotBlank String tagName) {
         return Result.success(reviewService.list(tagName));
-    }
-
-    private String currentUsername() {
-        return StpUtil.getLoginIdAsString();
     }
 }

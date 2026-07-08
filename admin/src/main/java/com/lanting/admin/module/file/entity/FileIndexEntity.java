@@ -37,6 +37,9 @@ public class FileIndexEntity {
     @Schema(description = "磁盘文件最后修改时间（毫秒）")
     private Long mtime;
 
+    @Schema(description = "文件内容 CRC32 校验和，folder 固定为 0")
+    private Long crc32;
+
     @Schema(description = "创建时间（毫秒时间戳）")
     private Long createTime;
 
