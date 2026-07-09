@@ -12,8 +12,8 @@ import {
   ThunderboltOutlined,
   CloudServerOutlined,
 } from '@ant-design/icons';
-import type { LantingToken } from '@/themes/parseTheme';
-import {toAntdTheme} from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
+import {toAntdTheme} from '@/themes';
 import LanguageSwitch from '@/components/LanguageSwitch';
 
 const { Header, Content, Sider } = Layout;

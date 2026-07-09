@@ -2,7 +2,7 @@
 
 ## 概述
 
-主题系统分为三层：数据层（JSON）、解析层（parseTheme.ts）、应用层（ConfigProvider + useModel）。后端可下发主题配置覆盖前端默认值，前端始终有兜底。
+主题系统分为三层：数据层（JSON）、解析层（index.ts）、应用层（ConfigProvider + useModel）。后端可下发主题配置覆盖前端默认值，前端始终有兜底。
 
 ---
 
@@ -12,7 +12,7 @@
 src/
 ├── themes/
 │   ├── theme-default-light.json   ← 默认主题数据（打包进 bundle）
-│   └── parseTheme.ts              ← 类型定义 + 解析函数
+│   └── index.ts              ← 类型定义 + 解析函数
 ├── models/
 │   └── useTheme.ts                ← 合并远程主题与默认值
 └── layouts/
@@ -78,7 +78,7 @@ useTheme() → merge(DEFAULT_TOKEN, flattenTheme(remote))
 
 ---
 
-## 二、解析层：parseTheme.ts
+## 二、解析层：index.ts
 
 类型定义和解析函数放同一文件，因为强耦合，没有拆分必要。
 
@@ -222,7 +222,7 @@ export function toAntdTheme(t: LantingToken): ThemeConfig {
 ```ts
 import { useModel } from 'umi';
 import defaultRaw from '@/themes/theme-default-light.json';
-import { flattenTheme, type LantingToken, type RawTheme } from '@/themes/parseTheme';
+import { flattenTheme, type LantingToken, type RawTheme } from '@/themes';
 
 const DEFAULT_TOKEN: LantingToken = flattenTheme(defaultRaw);
 
@@ -280,7 +280,7 @@ const AppLayout: React.FC = () => {
 用静态默认主题，不依赖 useModel（此时 Model Provider 尚未就绪）：
 
 ```tsx
-import { toAntdTheme, flattenTheme } from '@/themes/parseTheme';
+import { toAntdTheme, flattenTheme } from '@/themes';
 import defaultRaw from '@/themes/theme-default-light.json';
 
 const staticTheme = toAntdTheme(flattenTheme(defaultRaw));

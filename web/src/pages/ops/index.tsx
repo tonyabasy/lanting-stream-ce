@@ -8,7 +8,7 @@ import {
   ClusterOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
-import type { LantingToken } from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
 
 /** 集群状态卡片 */
 const clusters = [

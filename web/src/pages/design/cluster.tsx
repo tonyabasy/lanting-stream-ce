@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useModel } from 'umi';
-import type { LantingToken } from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
 
 const ClusterPreview: React.FC = () => {
   const token = useModel('theme') as LantingToken;

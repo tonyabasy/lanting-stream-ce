@@ -1,6 +1,6 @@
 import React from 'react';
 import { useModel } from 'umi';
-import type { LantingToken } from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
 
 const LoginPreview: React.FC = () => {
   const token = useModel('theme') as LantingToken;

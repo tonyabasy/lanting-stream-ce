@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams, useModel } from 'umi';
 import { Button, Checkbox, ConfigProvider, Input, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import request, { setToken } from '@/utils/request';
-import { toAntdTheme } from '@/themes/parseTheme';
-import type { LantingToken } from '@/themes/parseTheme';
+import { toAntdTheme } from '@/themes';
+import type { LantingToken } from '@/themes';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');

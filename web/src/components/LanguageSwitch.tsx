@@ -1,6 +1,6 @@
 import React from 'react';
 import { setLocale, useIntl } from 'umi';
-import type { LantingToken } from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
 
 interface LanguageSwitchProps {
   token: LantingToken;

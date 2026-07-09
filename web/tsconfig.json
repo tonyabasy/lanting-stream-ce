@@ -19,5 +19,5 @@
       "umi": ["./node_modules/umi"]
     }
   },
-  "include": ["src/**/*", ".umirc.ts", "config/**/*"]
+  "include": ["src/**/*", "src/**/*.json", ".umirc.ts", "config/**/*"]
 }

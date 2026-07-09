@@ -18,7 +18,7 @@ import {
 } from '@/services/cluster';
 import { ApiError } from '@/utils/request';
 import type { ClusterVO, CreateClusterDTO, UpdateClusterDTO } from '@/types/cluster';
-import type { LantingToken } from '@/themes/parseTheme';
+import type { LantingToken } from '@/themes';
 
 type ModalMode = 'create' | 'edit';
 
