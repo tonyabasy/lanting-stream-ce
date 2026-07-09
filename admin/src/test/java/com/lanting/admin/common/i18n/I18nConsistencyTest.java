@@ -15,9 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 国际化资源文件一致性测试。
@@ -37,7 +35,6 @@ class I18nConsistencyTest {
     private static final String MESSAGES_DEFAULT = "i18n/messages.properties";
     private static final String MESSAGES_EN = "i18n/messages_en_US.properties";
 
-    @SuppressWarnings("unchecked")
     private static final List<Class<? extends ResultCode>> RESULT_CODE_ENUMS = List.of(
             CommonResultCode.class,
             UserResultCode.class,
@@ -92,7 +89,7 @@ class I18nConsistencyTest {
     private static Properties loadProperties(String path) throws IOException {
         Properties properties = new Properties();
         try (InputStream input = I18nConsistencyTest.class.getClassLoader().getResourceAsStream(path)) {
-            assertTrue(input != null, "资源文件不存在: " + path);
+            assertNotNull(input, "资源文件不存在: " + path);
             // 必须显式指定 UTF-8，Properties.load(InputStream) 默认使用 ISO-8859-1
             properties.load(new InputStreamReader(input, java.nio.charset.StandardCharsets.UTF_8));
         }

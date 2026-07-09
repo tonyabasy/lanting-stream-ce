@@ -5,7 +5,6 @@ import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.service.WorkspaceService;
 import com.lanting.admin.module.file.vo.PublishVO;
-import com.lanting.admin.module.user.service.UserService;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -27,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,8 +44,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
     @Autowired
     private WorkspaceService workspaceService;
-    @Autowired
-    private UserService userService;
     @Autowired
     private ApplicationContext applicationContext;
 
@@ -155,8 +153,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-            JsonNode data = response.getBody().path("data");
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+            JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
             assertThat(data.path("records").size()).isEqualTo(0);
             assertThat(data.path("hasMore").asBoolean()).isFalse();
         }
@@ -182,9 +180,9 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("data").path("records").size()).isEqualTo(1);
-            assertThat(response.getBody().path("data").path("hasMore").asBoolean()).isFalse();
-            assertThat(response.getBody().path("data").path("records")
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").path("records").size()).isEqualTo(1);
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").path("hasMore").asBoolean()).isFalse();
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").path("records")
                     .get(0).path("message").asText()).contains("add A");
         }
 
@@ -208,9 +206,9 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-            assertThat(response.getBody().path("data").path("records").size()).isEqualTo(2);
-            assertThat(response.getBody().path("data").path("hasMore").asBoolean()).isTrue();
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").path("records").size()).isEqualTo(2);
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").path("hasMore").asBoolean()).isTrue();
         }
     }
 
@@ -221,7 +219,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
         @Test
         @DisplayName("force 删除含他人锁的文件夹后，锁真正被清理")
-        void forcedDeleteShouldClearAllLocks() throws Exception {
+        void forcedDeleteShouldClearAllLocks() {
             createFolder(uniquePath);
             String fileA = uniquePath + "/lock-A.sql";
             String fileB = uniquePath + "/lock-B.sql";
@@ -237,7 +235,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(deleteResp.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(deleteResp.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 验证锁已被清理：重新抢锁时 previousHolder 为 null
             // （因为锁已被 forceRelease，getHolder 应返回 null）
@@ -268,7 +266,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30707);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30707);
         }
     }
 
@@ -287,7 +285,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30705);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
 
         @Test
@@ -299,7 +297,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30705);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
     }
 
@@ -326,7 +324,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30709);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30709);
         }
 
         @Test
@@ -350,7 +348,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/commit", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(anotherUserToken)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30713);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30713);
         }
 
         @Test
@@ -369,7 +367,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     "/api/files/revert", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(response.getStatusCode().value()).isEqualTo(400);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(10001);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(10001);
         }
     }
 
@@ -476,9 +474,9 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
 
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30712);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30712);
             // 验证返回了被锁文件列表
-            JsonNode lockedFiles = response.getBody().path("data").path("lockedFiles");
+            JsonNode lockedFiles = Objects.requireNonNull(response.getBody()).path("data").path("lockedFiles");
             assertThat(lockedFiles.isArray()).isTrue();
             assertThat(lockedFiles.size()).isGreaterThan(0);
             assertThat(lockedFiles.get(0).path("path").asText()).contains("locked.sql");
@@ -504,7 +502,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> treeResponse = restTemplate.exchange(
                     "/api/files/tree?parentPath=" + uniquePath,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            JsonNode tree = treeResponse.getBody().path("data");
+            JsonNode tree = Objects.requireNonNull(treeResponse.getBody()).path("data");
             assertThat(tree).hasSize(1);
             assertThat(tree.get(0).path("name").asText()).isEqualTo("test.sql");
             assertThat(tree.get(0).path("type").asText()).isEqualTo("file");
@@ -514,7 +512,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> contentResponse = restTemplate.exchange(
                     "/api/files/content?path=" + filePath,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(contentResponse.getBody().path("data").asText()).isEqualTo("SELECT 1");
+            assertThat(Objects.requireNonNull(contentResponse.getBody()).path("data").asText()).isEqualTo("SELECT 1");
 
             // 提交
             commit(List.of(filePath), "add test.sql");
@@ -552,12 +550,12 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert",
                     HttpMethod.POST, new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(revertResponse.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             ResponseEntity<JsonNode> contentResponse = restTemplate.exchange(
                     "/api/files/content?path=" + filePath,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(contentResponse.getBody().path("data").asText()).isEqualTo("v1");
+            assertThat(Objects.requireNonNull(contentResponse.getBody()).path("data").asText()).isEqualTo("v1");
         }
 
         @Test
@@ -576,8 +574,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/history?path=" + filePath + "&pageNum=1&pageSize=50",
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-            JsonNode records = response.getBody().path("data").path("records");
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+            JsonNode records = Objects.requireNonNull(response.getBody()).path("data").path("records");
             assertThat(records.size()).isGreaterThanOrEqualTo(11);
             String targetHash = records.get(10).path("commitHash").asText();
 
@@ -587,7 +585,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(revertResponse.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 第 11 条记录对应 v5（历史为倒序：v15, v14, ..., v1）
             assertThat(content(filePath)).isEqualTo("v5");
@@ -628,7 +626,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(tokenB)), JsonNode.class);
-            assertThat(revertResponse.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 4. 验证：工作区内容恢复为 A 的内容，HEAD 仍然是 c2
             assertThat(content(filePath, tokenB)).as("working content should be A's version").isEqualTo("A-content");
@@ -656,13 +654,13 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> deleteResponse = restTemplate.exchange(
                     "/api/files?path=" + folderPath + "&force=true",
                     HttpMethod.DELETE, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(deleteResponse.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(deleteResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 删除后文件树中不再存在
             ResponseEntity<JsonNode> treeResponse = restTemplate.exchange(
                     "/api/files/tree?parentPath=" + uniquePath,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            JsonNode tree = treeResponse.getBody().path("data");
+            JsonNode tree = Objects.requireNonNull(treeResponse.getBody()).path("data");
             assertThat(tree).isEmpty();
         }
     }
@@ -759,16 +757,16 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     "/api/files/content?path=" + path, HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(response.getStatusCode().value()).isEqualTo(200);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30714);
-            assertThat(response.getBody().path("data").asText()).isEqualTo(modified);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30714);
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").asText()).isEqualTo(modified);
 
             // 修复后再次读取，应恢复正常
             repairDiskWins();
             ResponseEntity<JsonNode> second = restTemplate.exchange(
                     "/api/files/content?path=" + path, HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(second.getBody().path("code").asInt()).isEqualTo(0);
-            assertThat(second.getBody().path("data").asText()).isEqualTo(modified);
+            assertThat(Objects.requireNonNull(second.getBody()).path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(second.getBody()).path("data").asText()).isEqualTo(modified);
         }
     }
 
@@ -816,7 +814,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         dto.setDisplayName(displayName);
         ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/publish", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-        JsonNode data = response.getBody().path("data");
+        JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
         PublishVO vo = new PublishVO();
         vo.setTagName(data.path("tagName").asText());
         vo.setCommitHash(data.path("commitHash").asText());
@@ -827,14 +825,14 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 "/api/files/history?path=" + uniquePath + "&pageNum=1&pageSize=1",
                 HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-        return response.getBody().path("data").path("records").get(0).path("commitHash").asText();
+        return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
     }
 
     private String content(String path) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 "/api/files/content?path=" + path,
                 HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-        return response.getBody().path("data").asText();
+        return Objects.requireNonNull(response.getBody()).path("data").asText();
     }
 
     // 多用户场景辅助方法（带 token）
@@ -867,7 +865,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         dto.setDisplayName(displayName);
         ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/publish", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
-        JsonNode data = response.getBody().path("data");
+        JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
         PublishVO vo = new PublishVO();
         vo.setTagName(data.path("tagName").asText());
         vo.setCommitHash(data.path("commitHash").asText());
@@ -878,22 +876,14 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 "/api/files/content?path=" + path,
                 HttpMethod.GET, new HttpEntity<>(authHeaders(userToken)), JsonNode.class);
-        return response.getBody().path("data").asText();
+        return Objects.requireNonNull(response.getBody()).path("data").asText();
     }
 
     private String lastCommitHash(String path, String userToken) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 "/api/files/history?path=" + path + "&pageNum=1&pageSize=1",
                 HttpMethod.GET, new HttpEntity<>(authHeaders(userToken)), JsonNode.class);
-        return response.getBody().path("data").path("records").get(0).path("commitHash").asText();
-    }
-
-    private void updateToken(String token) {
-        this.token = token;
-    }
-
-    private JsonNode reconcile() {
-        return reconcile(null);
+        return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
     }
 
     private JsonNode reconcile(String scope) {
@@ -905,8 +895,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                 url, HttpMethod.POST,
                 new HttpEntity<>(authHeaders(token)), JsonNode.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-        return response.getBody().path("data");
+        assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+        return Objects.requireNonNull(response.getBody()).path("data");
     }
 
     private JsonNode repairDiskWins() {
@@ -922,8 +912,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                 url, HttpMethod.POST,
                 new HttpEntity<>(authHeaders(token)), JsonNode.class);
         assertThat(response.getStatusCode().value()).isEqualTo(200);
-        assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-        return response.getBody().path("data");
+        assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+        return Objects.requireNonNull(response.getBody()).path("data");
     }
 
     private List<String> toPathList(JsonNode arrayNode) {

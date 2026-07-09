@@ -1,7 +1,6 @@
 package com.lanting.admin.module.user.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.module.user.dto.CreateUserDTO;
@@ -68,7 +67,7 @@ class UserControllerTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("未登录创建用户返回 401")
-    void createUser_shouldReturn401_whenNotLoggedIn() throws Exception {
+    void createUser_shouldReturn401_whenNotLoggedIn() {
         CreateUserDTO dto = buildCreateDTO();
 
         ResponseEntity<String> response = restTemplate.postForEntity(
@@ -196,7 +195,7 @@ class UserControllerTest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("超管重置密码返回 200 且新密码生效")
-    void resetPassword_shouldReturn200_whenSuperAdmin() throws Exception {
+    void resetPassword_shouldReturn200_whenSuperAdmin() {
         String adminToken = loginAsAdmin();
         createTestUser(adminToken);
 

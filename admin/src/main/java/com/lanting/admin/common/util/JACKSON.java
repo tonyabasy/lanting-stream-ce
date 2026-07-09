@@ -16,7 +16,7 @@ public class JACKSON {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     static {
-        MAPPER.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        MAPPER.setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
     }
 
     public static <T> String toJSONString(T object) {

@@ -25,7 +25,7 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -66,14 +66,11 @@ import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 @Service
 public class GitFileService {
 
-    @Autowired
-    private WorkspaceService workspaceService;
+    private final WorkspaceService workspaceService;
 
-    @Autowired
-    private FileLockService fileLockService;
+    private final FileLockService fileLockService;
 
-    @Autowired
-    private FileIndexService fileIndexService;
+    private final FileIndexService fileIndexService;
 
     /**
      * 允许的文件扩展名白名单，写入时校验（读取不限制，兼容历史遗留文件）
@@ -90,6 +87,12 @@ public class GitFileService {
      * 避免并发 commit 导致对象库状态不一致。
      */
     private final ReentrantLock gitWriteLock = new ReentrantLock();
+
+    public GitFileService(WorkspaceService workspaceService, FileLockService fileLockService, FileIndexService fileIndexService) {
+        this.workspaceService = workspaceService;
+        this.fileLockService = fileLockService;
+        this.fileIndexService = fileIndexService;
+    }
 
     /**
      * 在 Git 写锁内执行操作。所有 Git 写操作必须经过此方法串行化。
@@ -256,8 +259,6 @@ public class GitFileService {
             }
             Files.createDirectories(folderPath);
             fileIndexService.indexOnCreate(path, "folder", root);
-        } catch (BusinessException e) {
-            throw e;
         } catch (IOException e) {
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
         }
@@ -319,7 +320,8 @@ public class GitFileService {
         try {
             Files.walkFileTree(folder, new SimpleFileVisitor<>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                @NonNull
+                public FileVisitResult visitFile(@NonNull Path file, @NonNull BasicFileAttributes attrs) {
                     String relative = relativePath(file, root);
                     String holder = fileLockService.getHolder(relative);
                     if (holder != null && !holder.equals(username)) {
@@ -351,7 +353,8 @@ public class GitFileService {
                 if (Files.isDirectory(targetPath)) {
                     Files.walkFileTree(targetPath, new SimpleFileVisitor<>() {
                         @Override
-                        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        @NonNull
+                        public FileVisitResult visitFile(@NonNull Path file, @NonNull BasicFileAttributes attrs) throws IOException {
                             Files.delete(file);
                             String r = relativePath(file, root);
                             // force 删除可能涉及他人持有的锁，无条件清除，避免已删除文件的锁残留
@@ -360,7 +363,8 @@ public class GitFileService {
                         }
 
                         @Override
-                        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        @NonNull
+                        public FileVisitResult postVisitDirectory(@NonNull Path dir, IOException exc) throws IOException {
                             Files.delete(dir);
                             return FileVisitResult.CONTINUE;
                         }
@@ -443,22 +447,27 @@ public class GitFileService {
             }
 
             boolean hasMore = commits.size() > pageSize;
-            int limit = Math.min(pageSize, commits.size());
-            List<FileHistoryVO> list = new ArrayList<>(limit);
-            for (int i = 0; i < limit; i++) {
-                RevCommit commit = commits.get(i);
-                FileHistoryVO vo = new FileHistoryVO();
-                vo.setCommitHash(commit.getName());
-                vo.setMessage(commit.getFullMessage());
-                vo.setAuthor(commit.getAuthorIdent().getName());
-                // JGit 的 commitTime 是秒级时间戳，项目统一使用毫秒，需 *1000
-                vo.setTimestamp(commit.getCommitTime() * 1000L);
-                list.add(vo);
-            }
+            List<FileHistoryVO> list = getFileHistoryVOs(pageSize, commits);
             return PageResult.ofHasMore(list, page, pageSize, hasMore);
         } catch (IOException | GitAPIException e) {
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
         }
+    }
+
+    private static @NonNull List<FileHistoryVO> getFileHistoryVOs(int pageSize, List<RevCommit> commits) {
+        int limit = Math.min(pageSize, commits.size());
+        List<FileHistoryVO> list = new ArrayList<>(limit);
+        for (int i = 0; i < limit; i++) {
+            RevCommit commit = commits.get(i);
+            FileHistoryVO vo = new FileHistoryVO();
+            vo.setCommitHash(commit.getName());
+            vo.setMessage(commit.getFullMessage());
+            vo.setAuthor(commit.getAuthorIdent().getName());
+            // JGit 的 commitTime 是秒级时间戳，项目统一使用毫秒，需 *1000
+            vo.setTimestamp(commit.getCommitTime() * 1000L);
+            list.add(vo);
+        }
+        return list;
     }
 
     // ==================== Diff ====================
@@ -570,32 +579,21 @@ public class GitFileService {
      * commitHash 是 HEAD 的 SHA；磁盘上未提交的变更不影响发布内容（静默忽略，见 spec）。
      */
     public PublishVO publish(PublishDTO dto) {
-        return publish(Constants.HEAD, dto.getDisplayName(), false, null);
-    }
-
-    /**
-     *
-     * @param commitHash
-     * @param displayName
-     * @param oldTagName
-     * @return
-     */
-    public PublishVO publish(String commitHash, String displayName, boolean isRevertPub, String oldTagName) {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         return withWorkspaceLock(() -> {
             try (Git git = Git.open(root.toFile());
                  RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId headId = git.getRepository().resolve(commitHash);
+                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
                 if (headId == null) {
                     throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, "HEAD 不存在");
                 }
                 RevCommit headCommit = walk.parseCommit(headId);
-                String tagName = generateTagName(git, isRevertPub);
-                String message = isRevertPub ? "revert to: " + oldTagName : "release: " + tagName;
+                String tagName = generateTagName(git);
+                String message = "release: " + tagName;
                 git.tag().setObjectId(headCommit).setName(tagName).setMessage(message).call();
                 PublishVO vo = new PublishVO();
                 vo.setTagName(tagName);
-                vo.setDisplayName(displayName);
+                vo.setDisplayName(dto.getDisplayName());
                 vo.setCommitHash(headId.getName());
                 vo.setTimestamp(System.currentTimeMillis());
                 return vo;
@@ -629,13 +627,7 @@ public class GitFileService {
      * 调用方需持有工作空间锁。
      */
     private String generateTagName(Git git) throws IOException {
-        // 格式：release-20260704153012-abc3f1
-        // 时间戳到秒级保证基本唯一，短 commit hash 兜底极端并发冲突
-        return generateTagName(git, false);
-    }
-
-    private String generateTagName(Git git, boolean isRevertTag) throws IOException {
-        String prefix = isRevertTag ? "revert-" : "release-";
+        String prefix = "release-";
 
         // 格式：release-20260704153012-abc3f1
         // 时间戳到秒级保证基本唯一，短 commit hash 兜底极端并发冲突
@@ -648,7 +640,7 @@ public class GitFileService {
         return prefix + timestamp + "-" + shortHash;
     }
 
-// ==================== 内部工具方法 ====================
+    // ==================== 内部工具方法 ====================
 
     /**
      * 提交指定路径到 Git。在工作空间锁内执行，可被已持锁方法嵌套调用（锁可重入）。
@@ -698,29 +690,6 @@ public class GitFileService {
             ObjectLoader loader = repository.open(objectId);
             return new String(loader.getBytes(), StandardCharsets.UTF_8);
         }
-    }
-
-    /**
-     * 列出 tag 对应 commit 中的全部文件路径（递归）。
-     * tag 不存在时抛 30711 回滚目标不存在。
-     */
-    private List<String> listFilesInTag(Repository repository, String tagName) throws IOException {
-        ObjectId tagCommit = repository.resolve(Constants.R_TAGS + tagName);
-        if (tagCommit == null) {
-            throw new BusinessException(FileResultCode.ROLLBACK_TARGET_NOT_FOUND);
-        }
-        List<String> files = new ArrayList<>();
-        try (RevWalk walk = new RevWalk(repository)) {
-            RevCommit commit = walk.parseCommit(tagCommit);
-            try (TreeWalk treeWalk = new TreeWalk(repository)) {
-                treeWalk.addTree(commit.getTree());
-                treeWalk.setRecursive(true);
-                while (treeWalk.next()) {
-                    files.add(treeWalk.getPathString());
-                }
-            }
-        }
-        return files;
     }
 
     /**

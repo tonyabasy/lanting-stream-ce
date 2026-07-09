@@ -14,7 +14,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,17 +32,20 @@ import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 @RequestMapping("/api/files")
 public class FileController {
 
-    @Autowired
-    private GitFileService gitFileService;
+    private final GitFileService gitFileService;
 
-    @Autowired
-    private FileLockService fileLockService;
+    private final FileLockService fileLockService;
 
-    @Autowired
-    private PublishService publishService;
+    private final PublishService publishService;
 
-    @Autowired
-    private ReviewService reviewService;
+    private final ReviewService reviewService;
+
+    public FileController(GitFileService gitFileService, FileLockService fileLockService, PublishService publishService, ReviewService reviewService) {
+        this.gitFileService = gitFileService;
+        this.fileLockService = fileLockService;
+        this.publishService = publishService;
+        this.reviewService = reviewService;
+    }
 
     // ==================== 通用文件操作 ====================
 

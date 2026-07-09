@@ -101,8 +101,6 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             fileIndexService.indexOnSave(testFile, root);
             FileIndexEntity first = fileIndexService.getByPath(testFile);
             assertThat(first).isNotNull();
-            Long firstMtime = first.getMtime();
-
             // 修改文件
             try {
                 Thread.sleep(10); // 确保 mtime 变化

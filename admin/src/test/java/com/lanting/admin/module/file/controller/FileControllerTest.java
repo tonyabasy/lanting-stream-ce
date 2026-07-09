@@ -8,6 +8,7 @@ import org.springframework.http.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -38,7 +39,7 @@ class FileControllerTest extends BaseIntegrationTest {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
                 "/api/files/history?path=" + path + "&pageNum=1&pageSize=1",
                 HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-        return response.getBody().path("data").path("records").get(0).path("commitHash").asText();
+        return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
     }
 
     // ==================== review 添加与查询 ====================
@@ -51,7 +52,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("添加 review 并查询")
         void shouldAddAndListReview() {
             // 创建文件夹
-            var folderDTO = new CreateFolderDTO(); // placeholder, using map
+            // placeholder, using map
             var folderBody = new HashMap<String, String>();
             folderBody.put("path", uniquePath);
             restTemplate.exchange(
@@ -97,7 +98,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     HttpMethod.POST,
                     new HttpEntity<>(publishBody, authHeaders(token)),
                     JsonNode.class);
-            String tagName = publishResponse.getBody().path("data").path("tagName").asText();
+            String tagName = Objects.requireNonNull(publishResponse.getBody()).path("data").path("tagName").asText();
             assertThat(tagName).isNotBlank();
 
             // 添加 review
@@ -111,7 +112,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             assertThat(addResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-            assertThat(addResponse.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(addResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 查询 review 列表
             ResponseEntity<JsonNode> listResponse = restTemplate.exchange(
@@ -121,7 +122,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-            JsonNode data = listResponse.getBody().path("data");
+            JsonNode data = Objects.requireNonNull(listResponse.getBody()).path("data");
             assertThat(data.isArray()).isTrue();
             assertThat(data.size()).isGreaterThanOrEqualTo(1);
         }
@@ -171,7 +172,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     new HttpEntity<>(dto, authHeaders(token)),
                     JsonNode.class);
 
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30709);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30709);
         }
 
         @Test
@@ -183,7 +184,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
 
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30702);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30702);
         }
     }
 
@@ -202,7 +203,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30705);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
 
         @Test
@@ -214,7 +215,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30705);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
 
         @Test
@@ -226,7 +227,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30705);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
 
         @Test
@@ -238,7 +239,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30706);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30706);
         }
 
         @Test
@@ -250,7 +251,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30706);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30706);
         }
     }
 
@@ -281,7 +282,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30703);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
         }
 
         @Test
@@ -299,7 +300,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30703);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
         }
 
         @Test
@@ -319,7 +320,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
         }
 
         @Test
@@ -339,7 +340,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(30704);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30704);
         }
 
         @Test
@@ -357,7 +358,7 @@ class FileControllerTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
         }
     }
 
@@ -376,7 +377,7 @@ class FileControllerTest extends BaseIntegrationTest {
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
             assertThat(response.getStatusCode().value()).isEqualTo(400);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(10001);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(10001);
         }
 
         @Test
@@ -414,8 +415,8 @@ class FileControllerTest extends BaseIntegrationTest {
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
-            assertThat(response.getBody().path("code").asInt()).isEqualTo(0);
-            assertThat(response.getBody().path("data").asText()).isEmpty();
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+            assertThat(Objects.requireNonNull(response.getBody()).path("data").asText()).isEmpty();
         }
     }
 }
