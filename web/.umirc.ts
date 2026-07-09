@@ -23,7 +23,7 @@ export default defineConfig({
   routes: [
     { path: '/login', component: 'login', layout: false },
     { path: '/', component: 'index' },
-    { path: '/editor', component: 'editor/index' },
+    { path: '/editor', component: 'editor/index', layout: false },
     { path: '/datasource', component: 'index' },
     { path: '/cluster', component: 'cluster/index' },
     { path: '/users', component: 'index' },
