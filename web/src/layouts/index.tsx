@@ -74,8 +74,8 @@ const AppLayout: React.FC = () => {
             borderBottom: `0.5px solid ${token.colorBorder}`,
             display: 'flex',
             alignItems: 'center',
-            padding: `0 ${token.spacingLG}px`,
-            gap: token.spacingMD,
+            padding: `0 ${token.sizeLG}px`,
+            gap: token.sizeMD,
           }}
         >
           <div
@@ -147,17 +147,17 @@ const AppLayout: React.FC = () => {
                 style={{
                   flex: 1,
                   borderRight: 'none',
-                  padding: `${token.spacingMD}px 0`,
+                  padding: `${token.sizeMD}px 0`,
                 }}
               />
               {/* 用户区 */}
               <div
                 style={{
-                  padding: `${token.spacingMD}px ${token.spacingLG}px`,
+                  padding: `${token.sizeMD}px ${token.sizeLG}px`,
                   borderTop: `0.5px solid ${token.colorBorder}`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.spacingSM,
+                  gap: token.sizeSM,
                   fontSize: token.fontSizeCaption,
                   color: token.colorTextSecondary,
                 }}
@@ -187,7 +187,7 @@ const AppLayout: React.FC = () => {
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            padding: `${token.spacingXL}px ${token.spacing2XL}px`,
+            padding: `${token.sizeXL}px ${token.size2XL}px`,
             background: token.colorBgContainer,  // 白色，不用 colorBgLayout
           }}>
             <Outlet />

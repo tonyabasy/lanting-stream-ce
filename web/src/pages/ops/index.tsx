@@ -48,7 +48,7 @@ const OpsPage: React.FC = () => {
   return (
     <div>
       {/* 页头 */}
-      <div style={{ marginBottom: token.spacingXL }}>
+      <div style={{ marginBottom: token.sizeXL }}>
         <h2
           style={{
             fontFamily: 'Georgia, "Noto Serif SC", serif',
@@ -66,7 +66,7 @@ const OpsPage: React.FC = () => {
       </div>
 
       {/* 统计卡片 */}
-      <div style={{ display: 'flex', gap: token.spacingMD, marginBottom: token.spacingXL }}>
+      <div style={{ display: 'flex', gap: token.sizeMD, marginBottom: token.sizeXL }}>
         {jobStats.map((s) => {
           const { color } = colorPair(s.colorKey);
           return (
@@ -77,10 +77,10 @@ const OpsPage: React.FC = () => {
                 background: token.colorBgSubtle,
                 border: `0.5px solid ${token.colorBorder}`,
                 borderRadius: token.borderRadius,
-                padding: `${token.spacingMD}px ${token.spacingLG}px`,
+                padding: `${token.sizeMD}px ${token.sizeLG}px`,
                 display: 'flex',
                 alignItems: 'center',
-                gap: token.spacingMD,
+                gap: token.sizeMD,
               }}
             >
               <div
@@ -106,7 +106,7 @@ const OpsPage: React.FC = () => {
                 <div style={{ fontSize: token.fontSizeHeading, fontWeight: token.fontWeightMedium, color: token.colorText, lineHeight: 1 }}>
                   {s.value}
                 </div>
-                <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: token.spacingXS }}>
+                <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: token.sizeXS }}>
                   {s.label}
                 </div>
               </div>
@@ -121,26 +121,26 @@ const OpsPage: React.FC = () => {
           background: token.colorBgContainer,
           border: `0.5px solid ${token.colorBorder}`,
           borderRadius: token.borderRadius,
-          marginBottom: token.spacingXL,
+          marginBottom: token.sizeXL,
           overflow: 'hidden',
         }}
       >
         <div
           style={{
-            padding: `${token.spacingMD}px ${token.spacingLG}px`,
+            padding: `${token.sizeMD}px ${token.sizeLG}px`,
             borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
             fontWeight: token.fontWeightMedium,
             color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: token.spacingSM,
+            gap: token.sizeSM,
           }}
         >
           <ClusterOutlined style={{ color: token.colorPrimary }} />
           集群状态
         </div>
-        <div style={{ padding: `${token.spacingMD}px ${token.spacingLG}px` }}>
+        <div style={{ padding: `${token.sizeMD}px ${token.sizeLG}px` }}>
           {clusters.map((c) => {
             const isHealthy = c.status === 'healthy';
             return (
@@ -149,7 +149,7 @@ const OpsPage: React.FC = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.spacingMD,
+                  gap: token.sizeMD,
                   padding: '10px 0',
                   borderBottom: `0.5px solid ${token.colorBgMuted}`,
                   fontSize: token.fontSizeCaption,
@@ -165,7 +165,7 @@ const OpsPage: React.FC = () => {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: token.spacingXS,
+                    gap: token.sizeXS,
                     padding: '2px 8px',
                     borderRadius: token.borderRadiusSM,
                     fontSize: token.fontSizeCaption,
@@ -193,20 +193,20 @@ const OpsPage: React.FC = () => {
       >
         <div
           style={{
-            padding: `${token.spacingMD}px ${token.spacingLG}px`,
+            padding: `${token.sizeMD}px ${token.sizeLG}px`,
             borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
             fontWeight: token.fontWeightMedium,
             color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: token.spacingSM,
+            gap: token.sizeSM,
           }}
         >
           <CodeOutlined style={{ color: token.colorPrimary }} />
           近期作业
         </div>
-        <div style={{ padding: `${token.spacingMD}px ${token.spacingLG}px` }}>
+        <div style={{ padding: `${token.sizeMD}px ${token.sizeLG}px` }}>
           {recentJobs.map((j) => {
             const badge =
               j.status === 'running'
@@ -220,7 +220,7 @@ const OpsPage: React.FC = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.spacingMD,
+                  gap: token.sizeMD,
                   padding: '9px 0',
                   borderBottom: `0.5px solid ${token.colorBgMuted}`,
                   fontSize: token.fontSizeCaption,

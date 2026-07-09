@@ -174,7 +174,7 @@ const ClusterPage: React.FC = () => {
       {/* 页头 */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        marginBottom: token.spacingXL,
+        marginBottom: token.sizeXL,
       }}>
         <div>
           <h2 style={{
@@ -196,7 +196,7 @@ const ClusterPage: React.FC = () => {
       {/* 卡片网格 */}
       <Spin spinning={loading}>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: token.spacingLG,
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: token.sizeLG,
         }}>
           {clusters.map((c) => (
             <ClusterCard
@@ -214,10 +214,10 @@ const ClusterPage: React.FC = () => {
       {/* 空状态 */}
       {!loading && clusters.length === 0 && (
         <div style={{
-          textAlign: 'center', padding: `${token.spacing4XL}px 0`,
+          textAlign: 'center', padding: `${token.size4XL}px 0`,
           color: token.colorTextDescription, fontSize: token.fontSizeBody,
         }}>
-          <CloudServerOutlined style={{ fontSize: 32, marginBottom: token.spacingMD, display: 'block' }} />
+          <CloudServerOutlined style={{ fontSize: 32, marginBottom: token.sizeMD, display: 'block' }} />
           暂无集群，点击右上角「新建集群」开始
         </div>
       )}
@@ -232,7 +232,7 @@ const ClusterPage: React.FC = () => {
         destroyOnHidden
         width={420}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: token.spacingSM }}>
+        <Form form={form} layout="vertical" style={{ marginTop: token.sizeSM }}>
           <Form.Item
             name="name"
             label="集群名称"
@@ -256,7 +256,7 @@ const ClusterPage: React.FC = () => {
           {detectedVersion && (
             <div style={{
               fontSize: token.fontSizeCaption, color: token.colorSuccess,
-              marginTop: -token.spacingSM, marginBottom: token.spacingSM,
+              marginTop: -token.sizeSM, marginBottom: token.sizeSM,
             }}>
               ✓ 检测到 Flink {detectedVersion}
             </div>
@@ -303,18 +303,18 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
       background: token.colorBgContainer,
       border: `0.5px solid ${token.colorBorder}`,
       borderRadius: token.borderRadius,
-      padding: `${token.spacingLG}px`,
+      padding: `${token.sizeLG}px`,
       opacity: isActive ? 1 : 0.45,
       transition: 'opacity 0.2s',
       display: 'flex', flexDirection: 'column',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: token.spacingSM }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: token.sizeSM }}>
         <div style={{
           width: 36, height: 36, borderRadius: token.borderRadius,
           background: colors.bg, color: colors.text,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 11, fontWeight: 500, flexShrink: 0,
-          marginRight: token.spacingMD,
+          marginRight: token.sizeMD,
         }}>
           {resourceType.slice(0, 3)}
         </div>
@@ -331,7 +331,7 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
 
       <div style={{
         fontSize: token.fontSizeCaption, color: token.colorTextDescription,
-        paddingLeft: 48, marginBottom: token.spacingSM,
+        paddingLeft: 48, marginBottom: token.sizeSM,
       }}>
         Flink {cluster.flinkVersion || '未知'}
       </div>
@@ -340,7 +340,7 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
           fontSize: token.fontSizeCaption, color: token.colorTextDescription,
-          paddingLeft: 48, marginBottom: token.spacingMD,
+          paddingLeft: 48, marginBottom: token.sizeMD,
         }}>
           <MinusCircleOutlined style={{ fontSize: 7, color: token.colorTextDisabled }} />
           未知（未检测连通性）
@@ -349,7 +349,7 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
 
       <div style={{
         display: 'flex', borderTop: `0.5px solid ${token.colorBgMuted}`,
-        margin: `0 -${token.spacingLG}px -${token.spacingLG}px`,
+        margin: `0 -${token.sizeLG}px -${token.sizeLG}px`,
         marginTop: 'auto',
       }}>
         <button disabled={!isActive} onClick={onEdit} style={actionBtnStyle(token, isActive)}>

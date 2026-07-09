@@ -60,14 +60,14 @@
     "borderRadiusXL": 16
   },
   "spacing": {
-    "spacingXS": 4,
-    "spacingSM": 8,
-    "spacingMD": 12,
-    "spacingLG": 16,
-    "spacingXL": 20,
-    "spacing2XL": 24,
-    "spacing3XL": 32,
-    "spacing4XL": 48
+    "sizeXS": 4,
+    "sizeSM": 8,
+    "sizeMD": 12,
+    "sizeLG": 16,
+    "sizeXL": 20,
+    "size2XL": 24,
+    "size3XL": 32,
+    "size4XL": 48
   },
   "boxShadow": {
     "boxShadow": "0 2px 8px rgba(0,0,0,0.06)",

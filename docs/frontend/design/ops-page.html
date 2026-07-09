@@ -174,7 +174,7 @@ body {
     <div class="principle-card"><div class="principle-num">原则 04</div><div class="principle-title">状态即沟通</div><div class="principle-desc">运行中/异常/告警/已停止是四句不同的话。颜色、圆点、Badge 都是状态沟通的载体，不能含糊。</div></div>
     <div class="principle-card"><div class="principle-num">原则 05</div><div class="principle-title">焦点稳定</div><div class="principle-desc">作业名是用户的阅读焦点。状态变化只改圆点颜色和 Badge，不改作业名的颜色和字重。</div></div>
     <div class="principle-card"><div class="principle-num">原则 06</div><div class="principle-title">语义优先于形式</div><div class="principle-desc">红色=异常，黄色=告警，绿色=正常，灰色=已停止。颜色语义在全产品范围内一致，不混用。</div></div>
-    <div class="principle-card"><div class="principle-num">原则 07</div><div class="principle-title">用空间制造秩序</div><div class="principle-desc">stat 概览、作业列表、作业详情是三个独立的信息模块，每个都有独立的白色底板，靠间距隔离，不靠线。</div></div>
+    <div class="principle-card"><div class="principle-num">原则 07</div><div class="principle-title">用空间制造秩序</div><div class="principle-desc">stat 概览、作业列表、作业详情是三个独立的信息模块，每个都有独立的白色底板，靠尺寸隔离，不靠线。</div></div>
     <div class="principle-card"><div class="principle-num">原则 08</div><div class="principle-title">密度服务效率</div><div class="principle-desc">作业列表要密，一屏能看到尽量多的作业。运维人员需要同时监控多个作业，不能一屏只看到 5 个。</div></div>
     <div class="principle-card"><div class="principle-num">原则 09</div><div class="principle-title">一处改动，全局一致</div><div class="principle-desc">状态 Badge、状态圆点、日志颜色使用同一套语义色，不因场景不同而使用不同的颜色表达同一状态。</div></div>
     <div class="principle-card"><div class="principle-num">原则 10</div><div class="principle-title">去掉比加上更难，也更有价值</div><div class="principle-desc">stat 概览不加趋势图，不加环形进度条，不加迷你折线图。数字和状态点已经是最精准的表达。</div></div>
@@ -187,7 +187,7 @@ body {
   <div class="section-sub">从运维页面的核心任务推导出的具体规则</div>
   <div class="rules-list">
     <div class="rule-item"><div class="rule-num">R1</div><div><div class="rule-title">异常置顶</div><div class="rule-desc">作业列表里，异常和告警状态的作业永远排在最前面。用户打开页面第一眼就看到需要处理的作业。</div></div></div>
-    <div class="rule-item"><div class="rule-num">R2</div><div><div class="rule-title">每个信息模块独立底板</div><div class="rule-desc">stat 概览四个卡片各自独立，作业列表独立，作业详情独立。模块之间 6px 间距，靠背景色对比产生边界感。</div></div></div>
+    <div class="rule-item"><div class="rule-num">R2</div><div><div class="rule-title">每个信息模块独立底板</div><div class="rule-desc">stat 概览四个卡片各自独立，作业列表独立，作业详情独立。模块之间 6px 尺寸，靠背景色对比产生边界感。</div></div></div>
     <div class="rule-item"><div class="rule-num">R3</div><div><div class="rule-title">状态颜色语义固定</div><div class="rule-desc">运行中=colorSuccess，异常=colorError，告警=colorWarning，已停止=colorTextMuted。全产品一致，不允许例外。</div></div></div>
     <div class="rule-item"><div class="rule-num">R4</div><div><div class="rule-title">焦点稳定，文字不跳变</div><div class="rule-desc">作业名颜色和字重始终不变。状态信息通过圆点和 Badge 传达，不污染作业名本身。</div></div></div>
     <div class="rule-item"><div class="rule-num">R5</div><div><div class="rule-title">操作按钮语义明确</div><div class="rule-desc">停止：hover 才变危险色，不常驻红色（避免误操作恐惧）。编辑：主色填充（主操作）。重启：中性（次操作）。</div></div></div>
@@ -205,8 +205,8 @@ body {
   <div class="derivation">
     <div class="derivation-title">为什么 stat 概览是四个独立卡片而不是一个卡片内分隔</div>
     <div class="derive-row"><div class="derive-arrow">↓</div><div class="derive-label">原则7</div><div class="derive-content">用空间制造秩序，不用线</div></div>
-    <div class="derive-row"><div class="derive-arrow">↓</div><div class="derive-label">规则2</div><div class="derive-content">每个信息模块独立底板，模块之间靠间距隔离</div></div>
-    <div class="derive-row"><div class="derive-arrow">↓</div><div class="derive-label">规范</div><div class="derive-content">四个 stat 各自是独立的白色圆角底板，间距 6px，外壳背景自然形成隔离感</div></div>
+    <div class="derive-row"><div class="derive-arrow">↓</div><div class="derive-label">规则2</div><div class="derive-content">每个信息模块独立底板，模块之间靠尺寸隔离</div></div>
+    <div class="derive-row"><div class="derive-arrow">↓</div><div class="derive-label">规范</div><div class="derive-content">四个 stat 各自是独立的白色圆角底板，尺寸 6px，外壳背景自然形成隔离感</div></div>
   </div>
 
   <div class="derivation">
@@ -238,7 +238,7 @@ body {
   <table class="decision-table">
     <thead><tr><th>决策</th><th>推导依据</th></tr></thead>
     <tbody>
-      <tr><td>stat 四个独立底板</td><td>原则7：用空间制造秩序，每个信息模块有独立边界，靠间距隔离而非线条分隔</td></tr>
+      <tr><td>stat 四个独立底板</td><td>原则7：用空间制造秩序，每个信息模块有独立边界，靠尺寸隔离而非线条分隔</td></tr>
       <tr><td>异常作业置顶</td><td>原则1：让工作浮现，运维的工作是处理异常，异常应该自动浮出不需要用户寻找</td></tr>
       <tr><td>stat 不加图表趋势</td><td>原则10：去掉比加上更难，数字+状态点是最精准的表达，图表是多余装饰</td></tr>
       <tr><td>停止按钮 hover 才变红</td><td>原则2：以交互为原则，红色常驻会造成误操作恐惧，hover 才激活危险语义</td></tr>

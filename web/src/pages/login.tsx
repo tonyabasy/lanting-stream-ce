@@ -48,18 +48,18 @@ const LoginPage: React.FC = () => {
           background: token.colorBgContainer,
           borderRadius: token.borderRadiusXL,
           boxShadow: token.boxShadowCard,
-          padding: `${token.spacing4XL}px ${token.spacing3XL}px`,
+          padding: `${token.size4XL}px ${token.size3XL}px`,
         }}>
 
           {/* 品牌区：只有文字，Serif，无 Logo 图标 */}
-          <div style={{ textAlign: 'center', marginBottom: token.spacing4XL }}>
+          <div style={{ textAlign: 'center', marginBottom: token.size4XL }}>
             <div style={{
               fontFamily: 'var(--font-serif)',
               fontSize: token.fontSizeHeading,
               fontWeight: token.fontWeightRegular,
               color: token.colorText,
               letterSpacing: '0.02em',
-              marginBottom: token.spacingXS,
+              marginBottom: token.sizeXS,
             }}>
               Lanting Stream
             </div>
@@ -73,7 +73,7 @@ const LoginPage: React.FC = () => {
             value={username}
             onChange={e => setUsername(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.spacingLG, borderRadius: token.borderRadius }}
+            style={{ marginBottom: token.sizeLG, borderRadius: token.borderRadius }}
           />
           <Input.Password
             size="large"
@@ -82,10 +82,10 @@ const LoginPage: React.FC = () => {
             value={password}
             onChange={e => setPassword(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.spacingLG, borderRadius: token.borderRadius }}
+            style={{ marginBottom: token.sizeLG, borderRadius: token.borderRadius }}
           />
 
-          {/* <div style={{ marginBottom: token.spacingLG }}>
+          {/* <div style={{ marginBottom: token.sizeLG }}>
             <Checkbox
               checked={remember}
               onChange={e => setRemember(e.target.checked)}

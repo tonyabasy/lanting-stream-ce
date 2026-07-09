@@ -19,7 +19,7 @@ const LanguageSwitch: React.FC<LanguageSwitchProps> = ({ token }) => {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: token.spacingXS,
+        gap: token.sizeXS,
         fontSize: token.fontSizeCaption,
       }}
     >
@@ -31,7 +31,7 @@ const LanguageSwitch: React.FC<LanguageSwitchProps> = ({ token }) => {
             type="button"
             onClick={() => setLocale(value, false)}
             style={{
-              padding: `${token.spacingXS}px ${token.spacingSM}px`,
+              padding: `${token.sizeXS}px ${token.sizeSM}px`,
               borderRadius: token.borderRadius,
               border: 'none',
               background: active ? token.colorPrimary : 'transparent',
