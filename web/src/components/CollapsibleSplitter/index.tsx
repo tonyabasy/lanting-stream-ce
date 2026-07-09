@@ -17,9 +17,8 @@ export interface CollapsiblePanelProps {
 }
 
 export interface CollapsibleSplitterProps
-  extends Omit<React.ComponentProps<typeof Splitter>, 'children' | 'onResizeEnd'> {
+  extends Omit<React.ComponentProps<typeof Splitter>, 'children'> {
   children: React.ReactElement<CollapsiblePanelProps> | React.ReactElement<CollapsiblePanelProps>[];
-  onResizeEnd?: (sizes: number[]) => void;
 }
 
 type CollapsibleSplitterComponent = React.FC<CollapsibleSplitterProps> & {
@@ -39,6 +38,7 @@ export const CollapsiblePanel: React.FC<CollapsiblePanelProps> = () => null;
 
 export const CollapsibleSplitter: CollapsibleSplitterComponent = ({
   children,
+  onResize,
   onResizeEnd,
   ...splitterProps
 }) => {
@@ -76,8 +76,8 @@ export const CollapsibleSplitter: CollapsibleSplitterComponent = ({
     [panels],
   );
 
-  // 拖拽结束后同步尺寸
-  const handleResizeEnd = useCallback(
+  // 同步尺寸到状态
+  const syncSizes = useCallback(
     (sizes: number[]) => {
       setSizeMap((prev) => {
         const next = { ...prev };
@@ -90,13 +90,30 @@ export const CollapsibleSplitter: CollapsibleSplitterComponent = ({
         });
         return next;
       });
+    },
+    [visiblePanels],
+  );
+
+  // 拖拽过程中同步尺寸（受控面板必须有这个才能实时跟随鼠标）
+  const handleResize = useCallback(
+    (sizes: number[]) => {
+      syncSizes(sizes);
+      onResize?.(sizes);
+    },
+    [syncSizes, onResize],
+  );
+
+  // 拖拽结束后同步尺寸
+  const handleResizeEnd = useCallback(
+    (sizes: number[]) => {
+      syncSizes(sizes);
       onResizeEnd?.(sizes);
     },
-    [visiblePanels, onResizeEnd],
+    [syncSizes, onResizeEnd],
   );
 
   return (
-    <Splitter {...splitterProps} onResizeEnd={handleResizeEnd}>
+    <Splitter {...splitterProps} onResize={handleResize} onResizeEnd={handleResizeEnd}>
       {visiblePanels.map((panel) => {
         const {
           panelKey,
