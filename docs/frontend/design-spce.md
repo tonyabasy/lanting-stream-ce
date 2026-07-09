@@ -23,7 +23,7 @@ const token = useModel('theme');
 
 ## 二、LantingToken 完整接口定义
 
-参考 `parseThemes.ts`
+参考 `src/themes/index.ts`
 
 ---
 
