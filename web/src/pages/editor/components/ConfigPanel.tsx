@@ -1,25 +1,15 @@
-import React from 'react';
-import { useModel } from 'umi';
-import type { LantingToken } from '@/themes';
+import '../index.css';
 
-const ConfigPanel: React.FC = () => {
-  const t = useModel('theme') as LantingToken;
+interface ConfigPanelProps {
+  active: 'config' | 'ai' | null;
+}
 
-  return (
-    <div
-      style={{
-        height: '100%',
-        background: t.colorBgContainer,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: t.fontSizeBody,
-        color: t.colorTextDescription,
-      }}
-    >
-      ConfigPanel（配置区）
-    </div>
-  );
-};
+const ConfigPanel: React.FC<ConfigPanelProps> = ({ active }) => (
+  <div className="lt-panel-base">
+    {active === 'config' && 'ConfigPanel（配置区）'}
+    {active === 'ai' && 'AIPanel（AI 区）'}
+    {active === null && 'ConfigPanel（已关闭）'}
+  </div>
+);
 
 export default ConfigPanel;

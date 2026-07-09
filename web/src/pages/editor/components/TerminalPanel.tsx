@@ -1,25 +1,15 @@
-import React from 'react';
-import { useModel } from 'umi';
-import type { LantingToken } from '@/themes';
+import '../index.css';
 
-const TerminalPanel: React.FC = () => {
-  const t = useModel('theme') as LantingToken;
+interface TerminalPanelProps {
+  active: 'terminal' | 'git' | null;
+}
 
-  return (
-    <div
-      style={{
-        height: '100%',
-        background: t.colorBgContainer,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: t.fontSizeBody,
-        color: t.colorTextDescription,
-      }}
-    >
-      TerminalPanel（终端区）
-    </div>
-  );
-};
+const TerminalPanel: React.FC<TerminalPanelProps> = ({ active }) => (
+  <div className="lt-panel-base">
+    {active === 'terminal' && 'TerminalPanel（终端区）'}
+    {active === 'git' && 'GitPanel（Git 区）'}
+    {active === null && 'TerminalPanel（已关闭）'}
+  </div>
+);
 
 export default TerminalPanel;

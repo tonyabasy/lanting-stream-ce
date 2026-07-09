@@ -16,7 +16,7 @@ const TopBar: React.FC = () => {
         color: t.colorText,
       }}
     >
-      TopBar (40px)
+      TopBar
     </div>
   );
 };

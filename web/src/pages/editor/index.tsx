@@ -1,79 +1,93 @@
 import React from 'react';
-import { Flex, Splitter } from 'antd';
+import { Flex } from 'antd';
 import { ConfigProvider } from 'antd';
 import { useModel } from 'umi';
 import { toAntdTheme } from '@/themes';
 import type { LantingToken } from '@/themes';
+import CollapsibleSplitter from '@/components/CollapsibleSplitter';
 import TopBar from './components/TopBar';
 import LeftSidebar from './components/LeftSidebar';
 import ProjectPanel from './components/ProjectPanel';
 import EditorPanel from './components/EditorPanel';
 import ConfigPanel from './components/ConfigPanel';
-import TerminalPanel from './/components/TerminalPanel';
+import TerminalPanel from './components/TerminalPanel';
 import RightSidebar from './components/RightSidebar';
 import StatusBar from './components/StatusBar';
+import { useEditorPanels } from './hooks/useEditorPanels';
 
 const EditorPage: React.FC = () => {
-  const t = useModel('theme') as LantingToken;
+  const token = useModel('theme') as LantingToken;
+  const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useEditorPanels();
 
   return (
-    <ConfigProvider theme={toAntdTheme(t)}>
+    <ConfigProvider theme={toAntdTheme(token)}>
       <Flex
         vertical
         style={{
           height: '100%',
-          background: t.colorBgSubtle,
+          background: token.colorBgLayout,
           overflow: 'auto',
         }}
       >
-        {/* 顶部工具栏 */}
         <TopBar />
 
-        {/* 中间工作区 */}
         <Flex flex={1}>
-          {/* 左侧边栏 */}
-          <LeftSidebar />
+          <LeftSidebar
+            activeTop={leftTop}
+            activeBottom={leftBottom}
+            onToggleTop={toggleLeftTop}
+            onToggleBottom={toggleLeftBottom}
+          />
 
-          {/* Body：ProjectPanel / EditorPanel / ConfigPanel / TerminalPanel */}
-          <Splitter
-            vertical
-            style={{ flex: 1 }}
-          >
-            {/* 上半区：横向 ProjectPanel / EditorPanel / ConfigPanel */}
-            <Splitter.Panel defaultSize="80%" min="4%">
-              <Splitter style={{ height: '100%' }}>
+          <CollapsibleSplitter vertical style={{ flex: 1 }}>
+            <CollapsibleSplitter.Panel panelKey="main" defaultSize="auto" min={24}>
+              <CollapsibleSplitter style={{ height: '100%' }}>
+                <CollapsibleSplitter.Panel
+                  panelKey="project"
+                  collapsed={!leftTop}
+                  defaultSize="20%"
+                  min={24}
+                  style={{ paddingRight: token.sizeXS, paddingBottom: token.sizeXS }}
+                >
+                  <ProjectPanel active={leftTop} />
+                </CollapsibleSplitter.Panel>
 
-                {/* 目录区 */}
-                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingRight: t.sizeXS, paddingBottom: t.sizeXS }}>
-                  <ProjectPanel />
-                </Splitter.Panel>
-
-                {/* 编辑区 */}
-                <Splitter.Panel defaultSize="70%" min="2%" style={{ paddingLeft: t.sizeXS,paddingRight: t.sizeXS, paddingBottom: t.sizeXS }}>
+                <CollapsibleSplitter.Panel
+                  panelKey="editor"
+                  defaultSize="auto"
+                  style={{ paddingLeft: token.sizeXS, paddingRight: token.sizeXS, paddingBottom: token.sizeXS }}
+                >
                   <EditorPanel />
-                </Splitter.Panel>
+                </CollapsibleSplitter.Panel>
 
-                {/* 配置区 */}
-                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingLeft: t.sizeXS, paddingBottom: t.sizeXS }}>
-                  <ConfigPanel />
-                </Splitter.Panel>
+                <CollapsibleSplitter.Panel
+                  panelKey="config"
+                  collapsed={!right}
+                  defaultSize={240}
+                  min={24}
+                  style={{ paddingLeft: token.sizeXS, paddingBottom: token.sizeXS }}
+                >
+                  <ConfigPanel active={right} />
+                </CollapsibleSplitter.Panel>
+              </CollapsibleSplitter>
+            </CollapsibleSplitter.Panel>
 
-              </Splitter>
-            </Splitter.Panel>
+            <CollapsibleSplitter.Panel
+              panelKey="terminal"
+              collapsed={!leftBottom}
+              defaultSize="20%"
+              min={24}
+              style={{ paddingTop: token.sizeXS }}
+            >
+              <TerminalPanel active={leftBottom} />
+            </CollapsibleSplitter.Panel>
+          </CollapsibleSplitter>
 
-            {/* 下半区：终端区 */}
-            <Splitter.Panel defaultSize="20%" min="4%" style={{ paddingTop: t.sizeXS }}>
-              <TerminalPanel />
-            </Splitter.Panel>
-          </Splitter>
-
-          {/* 右侧边栏 */}
-          <RightSidebar />
+          <RightSidebar active={right} onToggle={toggleRight} />
         </Flex>
 
-        {/* 底部状态栏 */}
         <StatusBar />
-        
+
       </Flex>
     </ConfigProvider>
   );

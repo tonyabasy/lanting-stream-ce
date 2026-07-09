@@ -1,25 +1,15 @@
-import React from 'react';
-import { useModel } from 'umi';
-import type { LantingToken } from '@/themes';
+import '../index.css';
 
-const ProjectPanel: React.FC = () => {
-  const t = useModel('theme') as LantingToken;
+interface ProjectPanelProps {
+  active: 'folder' | 'changes' | null;
+}
 
-  return (
-    <div
-      style={{
-        height: '100%',
-        background: t.colorBgContainer,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: t.fontSizeBody,
-        color: t.colorTextDescription,
-      }}
-    >
-      ProjectPanel（目录区）
-    </div>
-  );
-};
+const ProjectPanel: React.FC<ProjectPanelProps> = ({ active }) => (
+  <div className="lt-panel-base">
+    {active === 'folder' && 'ProjectPanel（目录区）'}
+    {active === 'changes' && 'ChangesPanel（变更区）'}
+    {active === null && 'ProjectPanel（已关闭）'}
+  </div>
+);
 
 export default ProjectPanel;
