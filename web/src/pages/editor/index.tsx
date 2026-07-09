@@ -44,17 +44,17 @@ const EditorPage: React.FC = () => {
               <Splitter style={{ height: '100%' }}>
 
                 {/* 目录区 */}
-                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingRight: t.spacingXS, paddingBottom: t.spacingXS }}>
+                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingRight: t.sizeXS, paddingBottom: t.sizeXS }}>
                   <ProjectPanel />
                 </Splitter.Panel>
 
                 {/* 编辑区 */}
-                <Splitter.Panel defaultSize="70%" min="2%" style={{ paddingLeft: t.spacingXS,paddingRight: t.spacingXS, paddingBottom: t.spacingXS }}>
+                <Splitter.Panel defaultSize="70%" min="2%" style={{ paddingLeft: t.sizeXS,paddingRight: t.sizeXS, paddingBottom: t.sizeXS }}>
                   <EditorPanel />
                 </Splitter.Panel>
 
                 {/* 配置区 */}
-                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingLeft: t.spacingXS, paddingBottom: t.spacingXS }}>
+                <Splitter.Panel defaultSize="15%" min="2%" style={{ paddingLeft: t.sizeXS, paddingBottom: t.sizeXS }}>
                   <ConfigPanel />
                 </Splitter.Panel>
 
@@ -62,7 +62,7 @@ const EditorPage: React.FC = () => {
             </Splitter.Panel>
 
             {/* 下半区：终端区 */}
-            <Splitter.Panel defaultSize="20%" min="4%" style={{ paddingTop: t.spacingXS }}>
+            <Splitter.Panel defaultSize="20%" min="4%" style={{ paddingTop: t.sizeXS }}>
               <TerminalPanel />
             </Splitter.Panel>
           </Splitter>

@@ -14,7 +14,7 @@ export function onRouteChange({ location }: { location: { pathname: string } }) 
 }
 
 /**
- * 全局初始状态：登录后存储当前用户信息，供所有页面通过 useModel('@@initialState') 访问。
+ * 全局初始状态
  */
 export async function getInitialState() {
   const token = getToken();
