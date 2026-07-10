@@ -8,12 +8,10 @@ const TopBar: React.FC = () => {
   return (
     <div
       style={{
-        height: 32,
+        height: 40,
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
-        fontSize: t.fontSizeBody,
-        color: t.colorText,
       }}
     >
       TopBar

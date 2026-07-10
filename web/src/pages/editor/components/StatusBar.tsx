@@ -8,13 +8,13 @@ const StatusBar: React.FC = () => {
   return (
     <div
       style={{
-        height: 22,
+        height: 32,
         display: 'flex',
         alignItems: 'center',
         flexShrink: 0,
         fontSize: 10,
         color: t.colorTextDescription,
-        padding: `0 10px`,
+        padding: "0 8px",
       }}
     >
       StatusBar (22px 通栏)

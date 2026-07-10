@@ -21,8 +21,8 @@ export interface EditorPanelState {
  */
 export function useEditorPanels() {
   const [leftTop, setLeftTop] = useState<LeftTopTab>('folder');
-  const [right, setRight] = useState<RightTab>('config');
-  const [leftBottom, setLeftBottom] = useState<LeftBottomTab>('terminal');
+  const [right, setRight] = useState<RightTab>(null);
+  const [leftBottom, setLeftBottom] = useState<LeftBottomTab>(null);
 
   const toggleLeftTop = (key: NonNullable<LeftTopTab>) => {
     setLeftTop((prev) => (prev === key ? null : key));
