@@ -15,6 +15,6 @@ public class CreateFolderDTO {
 
     /** 文件夹相对路径 */
     @NotBlank(message = "文件夹路径不能为空")
-    @Schema(description = "文件夹相对路径", example = "jobs/2026")
+    @Schema(description = "文件夹相对路径", example = "sql/2026")
     private String path;
 }

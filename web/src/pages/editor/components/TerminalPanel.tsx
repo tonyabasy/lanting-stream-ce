@@ -1,7 +1,8 @@
+import type { LeftBottomTab } from '../hooks/useEditorPanels';
 import '../index.css';
 
 interface TerminalPanelProps {
-  active: 'terminal' | 'git' | null;
+  active: LeftBottomTab;
 }
 
 const TerminalPanel: React.FC<TerminalPanelProps> = ({ active }) => (

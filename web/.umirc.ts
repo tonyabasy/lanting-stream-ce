@@ -1,6 +1,7 @@
 import { defineConfig } from 'umi';
 
 export default defineConfig({
+  mock: false,
   plugins: [
     '@umijs/plugins/dist/antd',
     '@umijs/plugins/dist/initial-state',

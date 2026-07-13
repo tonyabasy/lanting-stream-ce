@@ -1,0 +1,24 @@
+{
+  "name": "lanting-stream-ce",
+  "version": "1.0.0",
+  "description": "实时数仓 Flink 项目",
+  "flink": {
+    "version": "1.17",
+    "parallelism": 4
+  },
+  "hudi": {
+    "version": "0.14.1",
+    "tableType": "COPY_ON_WRITE"
+  },
+  "connectors": {
+    "source": {
+      "type": "kafka",
+      "brokers": "kafka:9092",
+      "consumerGroup": "lanting_ods_group"
+    },
+    "sink": {
+      "type": "clickhouse",
+      "jdbcUrl": "jdbc:clickhouse://clickhouse:8123/default"
+    }
+  }
+}

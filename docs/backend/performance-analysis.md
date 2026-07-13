@@ -46,8 +46,8 @@ GET /api/files/tree
 ```bash
 # 构造测试数据：在工作空间下创建 N 个 .sql 文件
 for i in $(seq 1 500); do
-  mkdir -p ./data/workspaces/default/jobs/dir_$((i % 20))
-  echo "SELECT $i" > ./data/workspaces/default/jobs/dir_$((i % 20))/query_$i.sql
+  mkdir -p ./data/workspaces/default/sql/dir_$((i % 20))
+  echo "SELECT $i" > ./data/workspaces/default/sql/dir_$((i % 20))/query_$i.sql
 done
 
 # 测量单次 tree 接口响应时间

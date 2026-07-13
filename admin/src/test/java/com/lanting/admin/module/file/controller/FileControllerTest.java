@@ -27,7 +27,7 @@ class FileControllerTest extends BaseIntegrationTest {
     @BeforeEach
     void setUp() {
         token = loginAsAdmin();
-        uniquePath = "jobs/controller-" + UUID.randomUUID().toString().substring(0, 8);
+        uniquePath = "sql/controller-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     @AfterEach
@@ -198,7 +198,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("path 含 '..' → PATH_ILLEGAL（30705）")
         void shouldRejectPathWithDotDot() {
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath("jobs/../../../etc/passwd");
+            dto.setPath("sql/../../../etc/passwd");
             dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
@@ -222,7 +222,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("反斜杠路径 → PATH_ILLEGAL（30705）")
         void shouldRejectBackslashPath() {
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath("jobs\\a.sql");
+            dto.setPath("sql\\a.sql");
             dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
@@ -372,7 +372,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("非法 commit SHA → 400 + PARAM_INVALID（10001）")
         void shouldReturn400ForInvalidSha() {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/diff?path=jobs/a.sql&from=invalid-sha&to=deadbeef1234567890",
+                    "/api/files/diff?path=sql/a.sql&from=invalid-sha&to=deadbeef1234567890",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);

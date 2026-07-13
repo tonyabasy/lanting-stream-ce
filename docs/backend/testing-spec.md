@@ -60,16 +60,16 @@ class FileLockServiceTest {
 
     @Test
     void doIfHolder_shouldExecuteAction_whenCallerIsHolder() {
-        lockService.acquire("jobs/a.sql", "alice");
-        String result = lockService.doIfHolder("jobs/a.sql", "alice", () -> "executed");
+        lockService.acquire("sql/a.sql", "alice");
+        String result = lockService.doIfHolder("sql/a.sql", "alice", () -> "executed");
         assertEquals("executed", result);
     }
 
     @Test
     void doIfHolder_shouldThrow_whenCallerIsNotHolder() {
-        lockService.acquire("jobs/a.sql", "alice");
+        lockService.acquire("sql/a.sql", "alice");
         assertThrows(BusinessException.class,
-            () -> lockService.doIfHolder("jobs/a.sql", "bob", () -> "executed"));
+            () -> lockService.doIfHolder("sql/a.sql", "bob", () -> "executed"));
     }
 }
 ```
@@ -109,16 +109,16 @@ class GitFileServiceIntegrationTest {
     @Test
     void delete_shouldBeTrackedInGit_afterCommit() throws Exception {
         // 创建文件 → 提交 → 删除 → 提交 → 验证 HEAD tree 中不含该文件
-        gitFileService.save(new SaveFileDTO("jobs/a.sql", "SELECT 1"));
-        gitFileService.commit(new CommitFileDTO(List.of("jobs/a.sql"), "add"));
-        gitFileService.delete("jobs/a.sql", false);
+        gitFileService.save(new SaveFileDTO("sql/a.sql", "SELECT 1"));
+        gitFileService.commit(new CommitFileDTO(List.of("sql/a.sql"), "add"));
+        gitFileService.delete("sql/a.sql", false);
 
         // 用 JGit 验证 HEAD tree 中文件已不存在
         try (Git git = Git.open(tempDir.toFile());
              RevWalk walk = new RevWalk(git.getRepository())) {
             RevCommit head = walk.parseCommit(git.getRepository().resolve("HEAD"));
             try (TreeWalk treeWalk = TreeWalk.forPath(
-                    git.getRepository(), "jobs/a.sql", head.getTree())) {
+                    git.getRepository(), "sql/a.sql", head.getTree())) {
                 assertNull(treeWalk, "删除后文件应从 Git tree 中移除");
             }
         }
@@ -147,7 +147,7 @@ class FileControllerTest extends BaseIntegrationTest {
     void save_shouldReturn401_whenNotLoggedIn() {
         ResponseEntity<String> response = restTemplate.postForEntity(
             "/api/files/save",
-            new HttpEntity<>(new SaveFileDTO("jobs/a.sql", "SELECT 1"), jsonHeaders()),
+            new HttpEntity<>(new SaveFileDTO("sql/a.sql", "SELECT 1"), jsonHeaders()),
             String.class);
         assertEquals(HttpStatus.UNAUTHORIZED, response.getStatusCode());
     }

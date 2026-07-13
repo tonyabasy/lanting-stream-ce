@@ -53,7 +53,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     @BeforeEach
     void setUp() {
         token = loginAsAdmin();
-        uniquePath = "jobs/test-" + UUID.randomUUID().toString().substring(0, 8);
+        uniquePath = "sql/test-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     @AfterEach

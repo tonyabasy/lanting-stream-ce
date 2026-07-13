@@ -25,8 +25,7 @@ import java.util.List;
 @Service
 public class WorkspaceService {
 
-    @Autowired
-    private WorkspaceMapper workspaceMapper;
+    private final WorkspaceMapper workspaceMapper;
 
     @Value("${lanting.data.workspace-dir}")
     private String workspaceDir;
@@ -39,7 +38,11 @@ public class WorkspaceService {
     /**
      * 默认子目录。
      */
-    private static final List<String> DEFAULT_DIRS = List.of("ddl", "jobs", "docs");
+    private static final List<String> DEFAULT_DIRS = List.of("ddl", "sql", "docs");
+
+    public WorkspaceService(WorkspaceMapper workspaceMapper) {
+        this.workspaceMapper = workspaceMapper;
+    }
 
     /**
      * 应用启动时初始化默认工作空间。
@@ -117,8 +120,6 @@ public class WorkspaceService {
                     log.info("工作空间 Git 初始化完成：{}，workspaceId: {}", root, workspace.getId());
                 }
             }
-
-            log.info("工作空间索引初始化完成：{}，workspaceId: {}", root, workspace.getId());
         } catch (Exception e) {
             log.error("工作空间初始化失败：{}", root, e);
             throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());

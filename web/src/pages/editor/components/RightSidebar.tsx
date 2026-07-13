@@ -1,10 +1,11 @@
 import { IconAdjustments, IconFlower } from '@tabler/icons-react';
 import { Button, Tooltip } from 'antd';
+import type { RightTab, RightKey } from '../hooks/useEditorPanels';
 import '../index.css';
 
 interface RightSidebarProps {
-  active: 'config' | 'ai' | null;
-  onToggle: (key: 'config' | 'ai') => void;
+  active: RightTab;
+  onToggle: (key: RightKey) => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({ active, onToggle }) => (

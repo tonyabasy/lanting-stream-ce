@@ -40,9 +40,9 @@ lanting:
     max-users: 3
     max-clusters: 2
   data:
-    dir: ${LANTING_DATA_DIR:./data}
-    workspace-dir: ${LANTING_DATA_DIR:./data}/workspaces
-    udf-dir: ${LANTING_DATA_DIR:./data}/udfs
+    dir: ${LANTING_DATA_DIR:./.data}
+    workspace-dir: ${LANTING_DATA_DIR:./.data}/workspaces
+    udf-dir: ${LANTING_DATA_DIR:./.data}/udfs
 
 logging:
   level:

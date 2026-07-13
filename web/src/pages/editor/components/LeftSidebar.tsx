@@ -1,12 +1,13 @@
-import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch } from '@tabler/icons-react';
+import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch, IconTable } from '@tabler/icons-react';
 import { Button, Tooltip } from 'antd';
+import type { LeftTopKey, LeftBottomKey, LeftTopTab, LeftBottomTab } from '../hooks/useEditorPanels';
 import '../index.css';
 
 interface LeftSidebarProps {
-  activeTop: 'folder' | 'changes' | null;
-  activeBottom: 'terminal' | 'git' | null;
-  onToggleTop: (key: 'folder' | 'changes') => void;
-  onToggleBottom: (key: 'terminal' | 'git') => void;
+  activeTop: LeftTopTab;
+  activeBottom: LeftBottomTab;
+  onToggleTop: (key: LeftTopKey) => void;
+  onToggleBottom: (key: LeftBottomKey) => void;
 }
 
 const LeftSidebar: React.FC<LeftSidebarProps> = ({
@@ -17,13 +18,22 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => (
   <div className="lt-sidebar">
     <div className="lt-sidebar-group">
-      <Tooltip title="项目" placement="right">
+      <Tooltip title="SQL文件" placement="right">
         <Button
           className="lt-sidebar-btn"
           type="text"
-          data-active={activeTop === 'folder'}
+          data-active={activeTop === 'files'}
           icon={<IconFolder className="lt-sidebar-icon" />}
-          onClick={() => onToggleTop('folder')}
+          onClick={() => onToggleTop('files')}
+        />
+      </Tooltip>
+      <Tooltip title="表模型" placement="right">
+        <Button
+          className="lt-sidebar-btn"
+          type="text"
+          data-active={activeTop === 'tables'}
+          icon={<IconTable className="lt-sidebar-icon" />}
+          onClick={() => onToggleTop('tables')}
         />
       </Tooltip>
       <Tooltip title="变更" placement="right">

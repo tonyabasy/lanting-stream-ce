@@ -1,7 +1,8 @@
+import type { RightTab } from '../hooks/useEditorPanels';
 import '../index.css';
 
 interface ConfigPanelProps {
-  active: 'config' | 'ai' | null;
+  active: RightTab;
 }
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({ active }) => (

@@ -1,23 +1,21 @@
 import React from 'react';
 import { useModel } from 'umi';
-import type { LantingToken } from '@/themes';
+import '../index.css';
 
 const StatusBar: React.FC = () => {
-  const t = useModel('theme') as LantingToken;
+  const { selectedNode } = useModel('fileTree');
+  const segments = selectedNode ? selectedNode.path.split('/') : [];
 
   return (
-    <div
-      style={{
-        height: 32,
-        display: 'flex',
-        alignItems: 'center',
-        flexShrink: 0,
-        fontSize: 10,
-        color: t.colorTextDescription,
-        padding: "0 8px",
-      }}
-    >
-      StatusBar (22px 通栏)
+    <div className="lt-statusbar">
+      {segments.map((segment, index) => (
+        <React.Fragment key={index}>
+          {index > 0 && <span>/</span>}
+          <span className={index === segments.length - 1 ? 'lt-statusbar-current' : undefined}>
+            {segment}
+          </span>
+        </React.Fragment>
+      ))}
     </div>
   );
 };

@@ -15,7 +15,7 @@ public class SaveFileDTO {
 
     /** 文件相对路径 */
     @NotBlank(message = "文件路径不能为空")
-    @Schema(description = "文件相对路径", example = "jobs/user_count.sql")
+    @Schema(description = "文件相对路径", example = "sql/user_count.sql")
     private String path;
 
     /** 文件内容 */

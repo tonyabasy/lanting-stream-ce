@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>业务需求</title></head>
+<body>
+<h1>实时数仓业务需求</h1>
+<ul>
+  <li><strong>R1 - 订单实时看板</strong>：展示当日订单数、GMV、客单价，延迟 &lt; 30s</li>
+  <li><strong>R2 - 用户留存分析</strong>：按日计算次日/7日/30日留存</li>
+  <li><strong>R3 - 异常检测</strong>：订单量环比波动超过 20% 时触发告警</li>
+  <li><strong>R4 - 即席查询</strong>：分析师可通过 ClickHouse 直接查询 ADS 层数据</li>
+</ul>
+
+<h2>数据量估算</h2>
+<table border="1">
+<tr><th>层级</th><th>日增量</th><th>查询 QPS</th></tr>
+<tr><td>ODS</td><td>~20 亿条</td><td>--</td></tr>
+<tr><td>DWD</td><td>~15 亿条</td><td>--</td></tr>
+<tr><td>DWS</td><td>~500 万条</td><td>100+</td></tr>
+<tr><td>ADS</td><td>~50 万条</td><td>500+</td></tr>
+</table>
+</body>
+</html>

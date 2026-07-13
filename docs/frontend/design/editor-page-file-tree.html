@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件目录区设计总结 · Lanting Stream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+:root {
+  --primary: #4A8A6A;
+  --primary-bg: rgba(74,138,106,0.10);
+  --bg: #FFFFFF;
+  --bg-shell: #F4F1EC;
+  --bg-muted: #EAE6DF;
+  --active: #E5E2DC;
+  --sep: rgba(0,0,0,0.06);
+  --border: #E8E4DC;
+  --text: #1A1815;
+  --text-s: #6B6560;
+  --text-m: #9C9488;
+  --warning: #A07A3A;
+  --error: #7A3A32;
+  --font-serif: 'Playfair Display', Georgia, serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #F0EDE8;
+  color: var(--text);
+  padding: 48px 40px;
+  line-height: 1.6;
+}
+
+.doc-title { font-family: var(--font-serif); font-size: 28px; font-weight: 400; color: var(--text); margin-bottom: 6px; }
+.doc-sub { font-size: 14px; color: var(--text-m); margin-bottom: 56px; }
+.section { margin-bottom: 64px; }
+.section-title { font-family: var(--font-serif); font-size: 18px; font-weight: 400; color: var(--text); padding-bottom: 12px; margin-bottom: 4px; border-bottom: 0.5px solid var(--border); }
+.section-sub { font-size: 12px; color: var(--text-m); margin-bottom: 24px; margin-top: 4px; }
+
+/* 规范卡片 */
+.spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.spec-card { background: var(--bg); border-radius: 8px; padding: 16px 18px; border: 0.5px solid var(--border); }
+.spec-card-title { font-size: 11px; font-weight: 500; color: var(--text-m); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 12px; }
+.spec-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.spec-table td { padding: 5px 0; border-bottom: 0.5px solid var(--sep); vertical-align: top; }
+.spec-table td:first-child { color: var(--text-m); width: 40%; padding-right: 12px; }
+.spec-table td:last-child { color: var(--text-s); font-family: 'SF Mono', Consolas, monospace; font-size: 11px; }
+.spec-table tr:last-child td { border-bottom: none; }
+
+/* 规则列表 */
+.rules-list { display: flex; flex-direction: column; gap: 8px; }
+.rule-item { background: var(--bg); border-radius: 6px; padding: 12px 16px; border: 0.5px solid var(--border); display: flex; gap: 12px; }
+.rule-num { font-size: 11px; font-weight: 500; color: var(--text-m); flex-shrink: 0; width: 24px; padding-top: 1px; }
+.rule-title { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.rule-desc { font-size: 12px; color: var(--text-s); }
+
+/* 搜索规范 */
+.search-spec { background: var(--bg); border-radius: 8px; border: 0.5px solid var(--border); overflow: hidden; }
+.search-spec-row { display: flex; align-items: center; padding: 10px 16px; border-bottom: 0.5px solid var(--sep); font-size: 12px; gap: 12px; }
+.search-spec-row:last-child { border-bottom: none; }
+.search-cmd { font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--primary); background: var(--primary-bg); padding: 2px 8px; border-radius: 4px; flex-shrink: 0; width: 100px; }
+.search-desc { color: var(--text-s); }
+
+/* 设计稿面板 */
+.mockup-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.mockup-label { font-size: 11px; color: var(--text-m); letter-spacing: 0.04em; margin-bottom: 8px; }
+
+.panel {
+  width: 220px;
+  background: var(--bg);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  position: relative;
+}
+.header {
+  height: 32px; display: flex; align-items: center;
+  padding: 0 8px 0 10px; flex-shrink: 0; gap: 2px;
+}
+.header-title { font-size: 11px; color: var(--text-m); font-weight: 500; letter-spacing: 0.04em; flex: 1; }
+.hbtn {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; cursor: pointer;
+  font-size: 13px; color: var(--text-m);
+}
+.hbtn:hover { background: var(--bg-muted); color: var(--text-s); }
+.hbtn.active-btn { background: var(--active); color: var(--text-s); }
+
+.search-wrap { padding: 0 6px 4px; flex-shrink: 0; }
+.search-box {
+  height: 26px; background: var(--bg-shell);
+  border-radius: 5px; display: flex;
+  align-items: center; gap: 5px; padding: 0 8px;
+}
+.search-box i { font-size: 12px; color: var(--text-m); }
+.search-box input {
+  border: none; outline: none; background: transparent;
+  font-size: 11px; color: var(--text-s); width: 100%;
+  font-family: system-ui;
+}
+.search-box input::placeholder { color: var(--text-m); }
+.search-box.active-search { background: var(--active); }
+.search-box.active-search i { color: var(--primary); }
+.search-box.active-search input { color: var(--primary); font-weight: 500; }
+
+.divider { height: 0.5px; background: var(--sep); flex-shrink: 0; }
+
+.tree { overflow-y: auto; padding: 4px 0; }
+
+.node {
+  display: flex; align-items: center; gap: 4px;
+  margin: 0 4px; padding: 0 6px;
+  height: 24px; border-radius: 4px;
+  font-size: 12px; color: var(--text-s);
+  cursor: pointer; position: relative;
+}
+.node:hover { background: var(--active); }
+.node:hover .node-actions { opacity: 1; }
+.node.active { background: var(--active); }
+.node i.type { font-size: 11px; color: var(--text-m); flex-shrink: 0; }
+.node-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-lock { font-size: 11px; color: var(--primary); flex-shrink: 0; }
+.node-actions { opacity: 0; display: flex; gap: 1px; transition: opacity 0.1s; }
+.node-actions i { font-size: 12px; color: var(--text-m); width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border-radius: 3px; }
+.node-actions i:hover { background: var(--bg-muted); }
+.l0 { padding-left: 6px; }
+.l1 { padding-left: 18px; }
+
+.inline-input-row {
+  display: flex; align-items: center; gap: 4px;
+  margin: 0 4px; padding: 0 6px;
+  height: 24px; border-radius: 4px;
+  background: var(--active);
+}
+.inline-input-row i { font-size: 11px; color: var(--text-m); flex-shrink: 0; }
+.inline-input {
+  border: none; outline: none; background: transparent;
+  font-size: 12px; color: var(--text); width: 100%;
+  font-family: 'SF Mono', Consolas, monospace;
+}
+
+/* 下拉菜单 */
+.dropdown {
+  position: absolute;
+  top: 30px; right: 6px;
+  background: var(--bg);
+  border: 0.5px solid var(--bg-muted);
+  border-radius: 6px;
+  padding: 3px;
+  min-width: 120px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  z-index: 10;
+}
+.dd-item {
+  height: 28px; padding: 0 10px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-s);
+  border-radius: 4px; cursor: pointer;
+}
+.dd-item:hover { background: var(--active); }
+.dd-item i { font-size: 13px; color: var(--text-m); }
+
+/* 右键菜单 */
+.ctx-menu {
+  background: var(--bg);
+  border: 0.5px solid var(--bg-muted);
+  border-radius: 6px;
+  padding: 3px;
+  min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.ctx-item {
+  height: 26px; padding: 0 8px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--text-s);
+  border-radius: 4px; cursor: pointer;
+}
+.ctx-item:hover { background: var(--active); }
+.ctx-item i { font-size: 13px; color: var(--text-m); }
+.ctx-item.danger { color: var(--warning); }
+.ctx-item.danger i { color: var(--warning); }
+.ctx-sep { height: 0.5px; background: var(--sep); margin: 3px 0; }
+
+/* 搜索结果提示 */
+.search-hint { padding: 6px 10px; font-size: 10px; color: var(--text-m); }
+</style>
+</head>
+<body>
+
+<div class="doc-title">文件目录区设计总结</div>
+<div class="doc-sub">Lanting Stream Editor · 从原则到规范的完整推导 · 2026</div>
+
+<!-- 设计规则 -->
+<div class="section">
+  <div class="section-title">一、设计规则</div>
+  <div class="section-sub">从原则推导，规范从规则推导</div>
+  <div class="rules-list">
+    <div class="rule-item">
+      <div class="rule-num">R1</div>
+      <div>
+        <div class="rule-title">目录区只做一件事：帮用户找到文件</div>
+        <div class="rule-desc">操作按钮、搜索、锁状态都服务于这一目标。任何不帮助用户找到文件的元素都不应该出现。</div>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">R2</div>
+      <div>
+        <div class="rule-title">常驻操作区只放高频操作</div>
+        <div class="rule-desc">顶部常驻：新增、定位、收起全部、收起面板。低频操作（重命名、删除、复制路径）放右键菜单，不占常驻空间。</div>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">R3</div>
+      <div>
+        <div class="rule-title">锁状态只展示当前用户是否持有</div>
+        <div class="rule-desc">持有锁：节点右侧 colorPrimary 小锁图标。未持有：不展示任何图标，不占空间。不展示是谁持有，避免信息噪音。</div>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">R4</div>
+      <div>
+        <div class="rule-title">内联创建，不弹 Modal</div>
+        <div class="rule-desc">点击新增后展示下拉选择文件类型，选择后在当前目录下插入内联输入框。回车确认，ESC 或失焦取消。</div>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">R5</div>
+      <div>
+        <div class="rule-title">搜索支持 @ 指令快速过滤</div>
+        <div class="rule-desc">普通输入按文件名模糊过滤，@ 指令按元数据过滤。过滤结果展示匹配数量提示，搜索框激活态用主色区分。</div>
+      </div>
+    </div>
+    <div class="rule-item">
+      <div class="rule-num">R6</div>
+      <div>
+        <div class="rule-title">节点 hover 才显示操作按钮</div>
+        <div class="rule-desc">操作按钮（···）默认不可见，hover 才出现，减少视觉噪音。节点激活态用 colorBgActive，文字不变（焦点稳定原则）。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 规范速查 -->
+<div class="section">
+  <div class="section-title">二、规范速查</div>
+  <div class="section-sub">所有具体数值，组件实现的唯一参考</div>
+  <div class="spec-grid">
+    <div class="spec-card">
+      <div class="spec-card-title">顶部操作区</div>
+      <table class="spec-table">
+        <tr><td>高度</td><td>32px</td></tr>
+        <tr><td>Title 字号</td><td>11px · colorTextMuted · weight 500 · letter-spacing 0.04em</td></tr>
+        <tr><td>操作按钮</td><td>22×22px · 圆角 4px · 图标 13px · hover 才有背景</td></tr>
+        <tr><td>按钮顺序</td><td>新增 · 定位 · 收起全部 · 收起面板</td></tr>
+        <tr><td>新增下拉</td><td>点击展示下拉菜单 · SQL 文件 / 文件夹</td></tr>
+      </table>
+    </div>
+    <div class="spec-card">
+      <div class="spec-card-title">搜索框</div>
+      <table class="spec-table">
+        <tr><td>高度</td><td>26px</td></tr>
+        <tr><td>背景</td><td>默认 colorBgShell · 激活 colorBgActive</td></tr>
+        <tr><td>圆角</td><td>5px</td></tr>
+        <tr><td>图标</td><td>默认 colorTextMuted · 激活 colorPrimary</td></tr>
+        <tr><td>文字</td><td>默认 colorTextSecondary · 激活 colorPrimary weight 500</td></tr>
+        <tr><td>placeholder</td><td>搜索文件名，或 @me @today @20250607</td></tr>
+      </table>
+    </div>
+    <div class="spec-card">
+      <div class="spec-card-title">树节点</div>
+      <table class="spec-table">
+        <tr><td>高度</td><td>24px</td></tr>
+        <tr><td>左右 margin</td><td>4px（背景不铺满）</td></tr>
+        <tr><td>圆角</td><td>4px</td></tr>
+        <tr><td>字号</td><td>12px · colorTextSecondary</td></tr>
+        <tr><td>图标</td><td>11px · colorTextMuted</td></tr>
+        <tr><td>缩进</td><td>12px / 级</td></tr>
+        <tr><td>激活态</td><td>colorBgActive · 文字不变</td></tr>
+        <tr><td>持锁图标</td><td>右侧 · colorPrimary · 11px</td></tr>
+        <tr><td>hover 操作</td><td>··· 按钮 · 18×18px</td></tr>
+      </table>
+    </div>
+    <div class="spec-card">
+      <div class="spec-card-title">内联输入框</div>
+      <table class="spec-table">
+        <tr><td>高度</td><td>24px（和节点一致）</td></tr>
+        <tr><td>背景</td><td>colorBgActive</td></tr>
+        <tr><td>字体</td><td>fontFamilyCode · 12px</td></tr>
+        <tr><td>位置</td><td>当前激活目录下，插入在最后</td></tr>
+        <tr><td>确认</td><td>回车</td></tr>
+        <tr><td>取消</td><td>ESC 或失焦</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 搜索指令规范 -->
+  <div class="spec-card" style="margin-bottom:0;">
+    <div class="spec-card-title">搜索 @ 指令</div>
+    <div class="search-spec">
+      <div class="search-spec-row">
+        <span class="search-cmd">普通文本</span>
+        <span class="search-desc">按文件名模糊过滤，匹配文件名中任意位置</span>
+      </div>
+      <div class="search-spec-row">
+        <span class="search-cmd">@me</span>
+        <span class="search-desc">最后修改人是当前登录用户的文件</span>
+      </div>
+      <div class="search-spec-row">
+        <span class="search-cmd">@today</span>
+        <span class="search-desc">今天修改过的文件（按 mtime 过滤）</span>
+      </div>
+      <div class="search-spec-row">
+        <span class="search-cmd">@20250607</span>
+        <span class="search-desc">指定日期修改过的文件，精确匹配那一天</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 右键菜单规范 -->
+<div class="section">
+  <div class="section-title">三、右键菜单</div>
+  <div class="section-sub">低频操作收入右键菜单，不占常驻空间</div>
+  <div style="display:flex;gap:24px;align-items:flex-start;">
+    <div class="ctx-menu" style="position:relative;">
+      <div class="ctx-item"><i class="ti ti-file-code"></i>新建文件</div>
+      <div class="ctx-item"><i class="ti ti-folder-plus"></i>新建文件夹</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item"><i class="ti ti-cursor-text"></i>重命名</div>
+      <div class="ctx-item"><i class="ti ti-copy"></i>复制路径</div>
+      <div class="ctx-sep"></div>
+      <div class="ctx-item danger"><i class="ti ti-trash"></i>删除</div>
+    </div>
+    <div style="font-size:12px;color:var(--text-s);line-height:2;max-width:320px;padding-top:4px;">
+      <div>菜单宽度：140px · 圆角 6px · 内边距 3px</div>
+      <div>菜单项高度：26px · 圆角 4px</div>
+      <div>图标：13px · colorTextMuted</div>
+      <div>删除项：hover 变 colorWarning（避免误操作恐惧，不常驻红色）</div>
+      <div>分组用 colorSeparator 分隔线</div>
+    </div>
+  </div>
+</div>
+
+<!-- 设计稿 -->
+<div class="section">
+  <div class="section-title">四、设计稿</div>
+  <div class="section-sub">四种状态完整展示</div>
+
+  <div class="mockup-row">
+
+    <!-- 状态1：默认 -->
+    <div>
+      <div class="mockup-label">默认状态</div>
+      <div class="panel" style="height:360px;">
+        <div class="header">
+          <span class="header-title">SQL 文件</span>
+          <div class="hbtn"><i class="ti ti-plus"></i></div>
+          <div class="hbtn"><i class="ti ti-focus-centered"></i></div>
+          <div class="hbtn"><i class="ti ti-arrows-minimize"></i></div>
+          <div class="hbtn"><i class="ti ti-layout-sidebar-left-collapse"></i></div>
+        </div>
+        <div class="search-wrap">
+          <div class="search-box">
+            <i class="ti ti-search"></i>
+            <input placeholder="搜索文件名，或 @me @today @20250607" />
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="tree">
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">dws</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+          <div class="node l1 active">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_user_funnel.sql</span>
+            <i class="ti ti-lock node-lock"></i>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_gmv_realtime.sql</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">ods</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">ods_user_event.sql</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">ods_order_sync.sql</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+          <div class="node l0">
+            <i class="ti ti-chevron-right type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">dwd</span>
+            <div class="node-actions"><i class="ti ti-dots"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 状态2：点击新增后 -->
+    <div>
+      <div class="mockup-label">点击 + 新增</div>
+      <div class="panel" style="height:360px;">
+        <div class="header">
+          <span class="header-title">SQL 文件</span>
+          <div class="hbtn active-btn"><i class="ti ti-plus"></i></div>
+          <div class="hbtn"><i class="ti ti-focus-centered"></i></div>
+          <div class="hbtn"><i class="ti ti-arrows-minimize"></i></div>
+          <div class="hbtn"><i class="ti ti-layout-sidebar-left-collapse"></i></div>
+        </div>
+        <div class="dropdown">
+          <div class="dd-item"><i class="ti ti-file-code"></i>SQL 文件</div>
+          <div class="dd-item"><i class="ti ti-folder-plus"></i>文件夹</div>
+        </div>
+        <div class="search-wrap">
+          <div class="search-box">
+            <i class="ti ti-search"></i>
+            <input placeholder="搜索文件名，或 @me @today @20250607" />
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="tree">
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">dws</span>
+          </div>
+          <div class="node l1 active">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_user_funnel.sql</span>
+            <i class="ti ti-lock node-lock"></i>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_gmv_realtime.sql</span>
+          </div>
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">ods</span>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">ods_user_event.sql</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 状态3：内联创建输入框 -->
+    <div>
+      <div class="mockup-label">选择 SQL 文件后</div>
+      <div class="panel" style="height:360px;">
+        <div class="header">
+          <span class="header-title">SQL 文件</span>
+          <div class="hbtn"><i class="ti ti-plus"></i></div>
+          <div class="hbtn"><i class="ti ti-focus-centered"></i></div>
+          <div class="hbtn"><i class="ti ti-arrows-minimize"></i></div>
+          <div class="hbtn"><i class="ti ti-layout-sidebar-left-collapse"></i></div>
+        </div>
+        <div class="search-wrap">
+          <div class="search-box">
+            <i class="ti ti-search"></i>
+            <input placeholder="搜索文件名，或 @me @today @20250607" />
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="tree">
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">dws</span>
+          </div>
+          <div class="node l1 active">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_user_funnel.sql</span>
+            <i class="ti ti-lock node-lock"></i>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_gmv_realtime.sql</span>
+          </div>
+          <div class="inline-input-row l1" style="margin-left:8px;">
+            <i class="ti ti-file"></i>
+            <input class="inline-input" placeholder="文件名.sql" />
+          </div>
+          <div class="node l0">
+            <i class="ti ti-chevron-down type"></i>
+            <i class="ti ti-folder type"></i>
+            <span class="node-name">ods</span>
+          </div>
+          <div class="node l1">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">ods_user_event.sql</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 状态4：@me 搜索过滤 -->
+    <div>
+      <div class="mockup-label">@me 过滤后</div>
+      <div class="panel" style="height:360px;">
+        <div class="header">
+          <span class="header-title">SQL 文件</span>
+          <div class="hbtn"><i class="ti ti-plus"></i></div>
+          <div class="hbtn"><i class="ti ti-focus-centered"></i></div>
+          <div class="hbtn"><i class="ti ti-arrows-minimize"></i></div>
+          <div class="hbtn"><i class="ti ti-layout-sidebar-left-collapse"></i></div>
+        </div>
+        <div class="search-wrap">
+          <div class="search-box active-search">
+            <i class="ti ti-search"></i>
+            <input value="@me" style="color:var(--primary);font-weight:500;" />
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="tree">
+          <div class="search-hint">3 个结果 · 最后由我修改</div>
+          <div class="node l0 active">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_user_funnel.sql</span>
+            <i class="ti ti-lock node-lock"></i>
+          </div>
+          <div class="node l0">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">dws_gmv_realtime.sql</span>
+          </div>
+          <div class="node l0">
+            <i class="ti ti-file type"></i>
+            <span class="node-name">ods_order_sync.sql</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,8 +1,12 @@
 import { useState } from 'react';
 
-type LeftTopTab = 'folder' | 'changes' | null;
-type RightTab = 'config' | 'ai' | null;
-type LeftBottomTab = 'terminal' | 'git' | null;
+export type LeftTopTab = 'files' | 'tables' | 'changes' | null;
+export type RightTab = 'config' | 'ai' | null;
+export type LeftBottomTab = 'terminal' | 'git' | null;
+
+export type LeftTopKey = NonNullable<LeftTopTab>;
+export type RightKey = NonNullable<RightTab>;
+export type LeftBottomKey = NonNullable<LeftBottomTab>;
 
 export interface EditorPanelState {
   leftTop: LeftTopTab;
@@ -20,7 +24,7 @@ export interface EditorPanelState {
  * 点击已激活图标会关闭对应面板，点击未激活图标会打开并切换内容。
  */
 export function useEditorPanels() {
-  const [leftTop, setLeftTop] = useState<LeftTopTab>('folder');
+  const [leftTop, setLeftTop] = useState<LeftTopTab>('files');
   const [right, setRight] = useState<RightTab>(null);
   const [leftBottom, setLeftBottom] = useState<LeftBottomTab>(null);
 

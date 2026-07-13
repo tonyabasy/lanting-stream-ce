@@ -25,7 +25,7 @@ const EditorPage: React.FC = () => {
         vertical
         style={{
           height: '100%',
-          background: token.colorBgLayout,
+          background: token.colorBgSubtle,
           overflow: 'auto',
         }}
       >

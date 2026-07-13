@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>数据模型设计</title></head>
+<body>
+<h1>数据模型设计文档</h1>
+
+<h2>实体关系总览</h2>
+<pre>
+User (1) ――→ Event (N)
+Order (1) ――→ OrderItem (N)
+User (1) ――→ Order (N)
+</pre>
+
+<h2>核心表定义</h2>
+
+<h3>ODS 层</h3>
+<table border="1" cellpadding="6">
+<tr><th>表名</th><th>描述</th><th>分区</th></tr>
+<tr><td>ods_user_log</td><td>用户行为日志</td><td>dt (yyyy-MM-dd)</td></tr>
+<tr><td>ods_order</td><td>订单流水</td><td>dt</td></tr>
+</table>
+
+<h3>DWD 层</h3>
+<table border="1" cellpadding="6">
+<tr><th>表名</th><th>描述</th><th>分区</th></tr>
+<tr><td>dwd_user_event</td><td>用户事件明细（含维度）</td><td>dt</td></tr>
+<tr><td>dwd_order_detail</td><td>订单明细（含 SKU 信息）</td><td>dt</td></tr>
+</table>
+
+<h3>DWS 层</h3>
+<table border="1" cellpadding="6">
+<tr><th>表名</th><th>描述</th><th>分区</th></tr>
+<tr><td>dws_order_summary</td><td>订单日汇总</td><td>dt</td></tr>
+</table>
+
+<h3>ADS 层（ClickHouse）</h3>
+<table border="1" cellpadding="6">
+<tr><th>表名</th><th>描述</th></tr>
+<tr><td>ads_order_report</td><td>订单实时报表</td></tr>
+<tr><td>ads_user_retention</td><td>用户留存分析</td></tr>
+</table>
+</body>
+</html>

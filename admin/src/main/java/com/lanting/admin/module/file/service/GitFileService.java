@@ -75,7 +75,7 @@ public class GitFileService {
     /**
      * 允许的文件扩展名白名单，写入时校验（读取不限制，兼容历史遗留文件）
      */
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("sql", "md", "html");
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("sql", "md", "html", "json", "ddl");
 
     /**
      * 单文件大小上限；文本文件超过此值基本可判定为误传或恶意请求
