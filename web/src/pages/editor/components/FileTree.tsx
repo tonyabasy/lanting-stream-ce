@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Tree, Button, Tooltip, Input } from 'antd';
+import { Tree, Button, Tooltip, Input, Dropdown } from 'antd';
+import type { MenuProps } from 'antd';
 import type { DataNode, TreeProps } from 'antd/es/tree';
 import { useModel } from 'umi';
 import {
@@ -17,6 +18,11 @@ import {
   IconSearch,
   IconChevronDown,
   IconLock,
+  IconFileCode,
+  IconFolderPlus,
+  IconCursorText,
+  IconCopy,
+  IconTrash,
 } from '@tabler/icons-react';
 import type { FileTreeNode } from '../types/file';
 import '../index.css';
@@ -52,6 +58,21 @@ const toTreeDataNode = (node: FileTreeNode, currentUsername?: string): DataNode 
     children: node.children?.map((child) => toTreeDataNode(child, currentUsername)),
   };
 };
+
+const CTX_ICON_SIZE = 14;
+
+/** 右键菜单（所有节点统一） */
+const menuItems: MenuProps['items'] = [
+  { key: 'lock', label: '抢锁', icon: <IconLock size={CTX_ICON_SIZE} /> },
+  { type: 'divider' },
+  { key: 'new-file', label: '新建文件', icon: <IconFileCode size={CTX_ICON_SIZE} /> },
+  { key: 'new-folder', label: '新建文件夹', icon: <IconFolderPlus size={CTX_ICON_SIZE} /> },
+  { type: 'divider' },
+  { key: 'rename', label: '重命名', icon: <IconCursorText size={CTX_ICON_SIZE} /> },
+  { key: 'duplicate', label: '创建副本', icon: <IconCopy size={CTX_ICON_SIZE} /> },
+  { type: 'divider' },
+  { key: 'delete', label: '删除', icon: <IconTrash size={CTX_ICON_SIZE} />, danger: true },
+];
 
 /**
  * 文件树组件。
@@ -141,19 +162,39 @@ const FileTreeContent: React.FC = () => {
     selectNode(found ?? null);
   };
 
+  const titleRender = (treeNode: DataNode) => {
+    const path = String(treeNode.key);
+
+    return (
+      <Dropdown
+        menu={{
+          items: menuItems,
+          onClick: (info) => console.log(info.key, path),
+          rootClassName: 'lt-filetree-ctxmenu',
+        }}
+        trigger={['contextMenu']}
+      >
+        <span>{treeNode.title as React.ReactNode}</span>
+      </Dropdown>
+    );
+  };
+
   return (
-    <div className="lt-filetree-body">
-      <Tree
-        treeData={treeData.map((node) => toTreeDataNode(node, currentUsername))}
-        loadData={onLoadData}
-        showIcon
-        switcherIcon={<IconChevronDown size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}
-        expandedKeys={expandedKeys}
-        selectedKeys={selectedKeys}
-        onExpand={onExpand}
-        onSelect={onSelect}
-      />
-    </div>
+    <Dropdown menu={{ items: menuItems, rootClassName: 'lt-filetree-ctxmenu' }} trigger={['contextMenu']}>
+      <div className="lt-filetree-body">
+        <Tree
+          treeData={treeData.map((node) => toTreeDataNode(node, currentUsername))}
+          loadData={onLoadData}
+          showIcon
+          switcherIcon={<IconChevronDown size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}
+          expandedKeys={expandedKeys}
+          selectedKeys={selectedKeys}
+          onExpand={onExpand}
+          onSelect={onSelect}
+          titleRender={titleRender}
+        />
+      </div>
+    </Dropdown>
   );
 };
 

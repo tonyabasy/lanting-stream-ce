@@ -196,6 +196,36 @@
   flex-shrink: 0;
 }
 
+/* ── 右键菜单 ── */
+.lt-filetree-ctxmenu .ant-dropdown-menu {
+  min-width: 140px;
+  border-radius: 6px;
+  padding: 3px;
+}
+.lt-filetree-ctxmenu .ant-dropdown-menu-item {
+  height: 26px;
+  line-height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  color: var(--lt-color-text-secondary);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lt-filetree-ctxmenu .ant-dropdown-menu-item .ant-dropdown-menu-title-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lt-filetree-ctxmenu .ant-dropdown-menu-item-icon {
+  font-size: 13px;
+  color: var(--lt-color-text-description);
+}
+.lt-filetree-ctxmenu .ant-dropdown-menu-item-divider {
+  margin: 3px 0;
+}
+
 /* ── 底部状态栏：高 22px ── */
 .lt-statusbar {
   height: 22px;
