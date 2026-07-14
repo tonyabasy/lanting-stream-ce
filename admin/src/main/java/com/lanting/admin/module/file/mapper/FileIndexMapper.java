@@ -15,14 +15,31 @@ import java.util.List;
 public interface FileIndexMapper extends BaseMapper<FileIndexEntity> {
 
     /**
-     * 按父路径查询直接子节点。
+     * 按主键查询索引记录。
      *
-     * @param parentPath 父路径
-     * @return 子节点列表
+     * @param id 主键 ID
+     * @return 索引记录
      */
-    @Select("SELECT * FROM lanting_file_index WHERE parent_path = #{parentPath} ORDER BY name ASC")
-    List<FileIndexEntity> selectByParentPath(@Param("parentPath") String parentPath);
+    @Select("SELECT * FROM lanting_file_index WHERE id = #{id}")
+    FileIndexEntity selectById(@Param("id") Long id);
 
+    /**
+     * 文件夹重命名：批量更新 path 和 parent_path 的前缀。
+     * <p>
+     * 注意：被重命名文件夹自身的 parent_path 不属于 oldPrefix 前缀，应保持不变；
+     * 只有子节点的 parent_path 才需要替换。
+     *
+     * @param oldPrefix 原文件夹路径
+     * @param newPrefix 新文件夹路径
+     */
+    @Update("UPDATE lanting_file_index SET " +
+            "path = CASE WHEN path = #{oldPrefix} THEN #{newPrefix} " +
+            "ELSE #{newPrefix} || SUBSTR(path, LENGTH(#{oldPrefix}) + 1) END, " +
+            "parent_path = CASE WHEN parent_path = #{oldPrefix} THEN #{newPrefix} " +
+            "WHEN parent_path LIKE #{oldPrefix} || '/%' THEN #{newPrefix} || SUBSTR(parent_path, LENGTH(#{oldPrefix}) + 1) " +
+            "ELSE parent_path END " +
+            "WHERE path = #{oldPrefix} OR path LIKE #{oldPrefix} || '/%'")
+    void updatePathsByPrefix(@Param("oldPrefix") String oldPrefix, @Param("newPrefix") String newPrefix);
     /**
      * 批量按路径查询索引记录。
      *

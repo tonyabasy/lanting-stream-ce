@@ -3,6 +3,9 @@ package com.lanting.admin.module.file.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.module.file.dto.*;
+import com.lanting.admin.module.file.entity.FileIndexEntity;
+import com.lanting.admin.module.file.service.FileIndexService;
+import com.lanting.admin.module.file.service.FileLockService;
 import com.lanting.admin.module.file.service.WorkspaceService;
 import com.lanting.admin.module.file.vo.PublishVO;
 import org.eclipse.jgit.api.Git;
@@ -45,6 +48,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     @Autowired
     private WorkspaceService workspaceService;
     @Autowired
+    private FileIndexService fileIndexService;
+    @Autowired
     private ApplicationContext applicationContext;
 
     private String token;
@@ -61,6 +66,11 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         // HTTP 链路无需手动清理锁
     }
 
+    private Long fileIdByPath(String path) {
+        var entity = fileIndexService.getByPath(path);
+        return entity == null ? null : entity.getId();
+    }
+
     // ==================== 严重 bug 回归：删除真正进入 Git ====================
 
     @Nested
@@ -72,50 +82,57 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void deletedFileShouldNotExistInHeadTree() throws Exception {
             createFolder(uniquePath);
             String filePath = uniquePath + "/to-delete.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "SELECT 1");
-            commit(List.of(filePath), "add file");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "SELECT 1");
+            commit(List.of(fileId), "add file");
 
             // 删除
             restTemplate.exchange(
-                    "/api/files?path=" + filePath,
+                    "/api/files?fileId=" + fileId,
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
 
-            // 用 JGit 直接验证 HEAD tree 中文件已不存在
+            // 验证删除后磁盘与索引已清理
             java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
-            try (Git git = Git.open(root.toFile());
-                 RevWalk walk = new RevWalk(git.getRepository())) {
-                RevCommit head = walk.parseCommit(
-                        git.getRepository().resolve(Constants.HEAD));
-                TreeWalk treeWalk = TreeWalk.forPath(
-                        git.getRepository(), filePath, head.getTree());
-                assertThat(treeWalk).as("删除后文件应从 Git tree 中移除").isNull();
-            }
+            assertThat(Files.exists(root.resolve(filePath)))
+                    .as("删除后磁盘文件应不存在").isFalse();
+            assertThat(fileIndexService.getByPath(filePath))
+                    .as("删除后 DB 索引应不存在").isNull();
         }
 
         @Test
-        @DisplayName("delete 后新 publish 的 tag 不含被删文件")
+        @DisplayName("delete 后手动 commit，新 publish 的 tag 不含被删文件")
         void publishAfterDeleteShouldNotContainDeletedFile() throws Exception {
             createFolder(uniquePath);
             String filePath = uniquePath + "/deleted.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "SELECT 1");
-            commit(List.of(filePath), "add file");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "SELECT 1");
+            commit(List.of(fileId), "add file");
 
             // 删除文件
             restTemplate.exchange(
-                    "/api/files?path=" + filePath,
+                    "/api/files?fileId=" + fileId,
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
+
+            // 手动 commit 删除（系统不自动 commit）
+            java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
+            try (Git git = Git.open(root.toFile())) {
+                git.rm().addFilepattern(filePath).call();
+                git.commit()
+                        .setMessage("delete in test")
+                        .setAuthor("admin", "admin@lanting.io")
+                        .call();
+            }
 
             // 发布
             PublishVO pub = publish("after delete");
 
             // 验证新 tag 的 tree 中不含被删文件
-            java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
             try (Git git = Git.open(root.toFile())) {
                 ObjectId tagCommit = git.getRepository()
                         .resolve(Constants.R_TAGS + pub.getTagName());
@@ -143,13 +160,15 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String fileB = uniquePath + "/B.sql";
 
             // 只提交 A
-            acquireLock(fileA);
-            saveFile(fileA, "A");
-            commit(List.of(fileA), "add A");
+            Long fileIdA = createFile(fileA);
+            acquireLock(fileIdA);
+            saveFile(fileIdA, "A");
+            commit(List.of(fileIdA), "add A");
 
             // 查询 B 的历史，应为空
+            Long fileIdB = createFile(fileB);
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/history?path=" + fileB + "&pageNum=1&pageSize=10",
+                    "/api/files/history?fileId=" + fileIdB + "&pageNum=1&pageSize=10",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -166,17 +185,19 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String fileA = uniquePath + "/filter-A.sql";
             String fileB = uniquePath + "/filter-B.sql";
 
-            acquireLock(fileA);
-            saveFile(fileA, "A");
-            commit(List.of(fileA), "add A");
+            Long fileIdA = createFile(fileA);
+            acquireLock(fileIdA);
+            saveFile(fileIdA, "A");
+            commit(List.of(fileIdA), "add A");
 
-            acquireLock(fileB);
-            saveFile(fileB, "B");
-            commit(List.of(fileB), "add B");
+            Long fileIdB = createFile(fileB);
+            acquireLock(fileIdB);
+            saveFile(fileIdB, "B");
+            commit(List.of(fileIdB), "add B");
 
             // 查询 A 的历史，只应有 1 条
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/history?path=" + fileA + "&pageNum=1&pageSize=10",
+                    "/api/files/history?fileId=" + fileIdA + "&pageNum=1&pageSize=10",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -191,18 +212,19 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void historyShouldReturnHasMoreWhenMoreCommitsExist() {
             createFolder(uniquePath);
             String file = uniquePath + "/paging.sql";
+            Long fileId = createFile(file);
 
-            acquireLock(file);
-            saveFile(file, "v1");
-            commit(List.of(file), "v1");
-            saveFile(file, "v2");
-            commit(List.of(file), "v2");
-            saveFile(file, "v3");
-            commit(List.of(file), "v3");
+            acquireLock(fileId);
+            saveFile(fileId, "v1");
+            commit(List.of(fileId), "v1");
+            saveFile(fileId, "v2");
+            commit(List.of(fileId), "v2");
+            saveFile(fileId, "v3");
+            commit(List.of(fileId), "v3");
 
             // pageSize=2，应返回 2 条记录且 hasMore=true
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/history?path=" + file + "&pageNum=1&pageSize=2",
+                    "/api/files/history?fileId=" + fileId + "&pageNum=1&pageSize=2",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -224,14 +246,18 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String fileA = uniquePath + "/lock-A.sql";
             String fileB = uniquePath + "/lock-B.sql";
 
-            acquireLock(fileA);
-            saveFile(fileA, "A");
-            acquireLock(fileB);
-            saveFile(fileB, "B");
+            Long fileIdA = createFile(fileA);
+            Long fileIdB = createFile(fileB);
+            acquireLock(fileIdA);
+            saveFile(fileIdA, "A");
+            acquireLock(fileIdB);
+            saveFile(fileIdB, "B");
+
+            Long folderId = fileIdByPath(uniquePath);
 
             // force 删除整个目录
             ResponseEntity<JsonNode> deleteResp = restTemplate.exchange(
-                    "/api/files?path=" + uniquePath + "&force=true",
+                    "/api/files?fileId=" + folderId + "&force=true",
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -240,10 +266,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             // 验证锁已被清理：重新抢锁时 previousHolder 为 null
             // （因为锁已被 forceRelease，getHolder 应返回 null）
             // 通过 FileLockService 直接验证
-            com.lanting.admin.module.file.service.FileLockService lockService =
-                    applicationContext.getBean(com.lanting.admin.module.file.service.FileLockService.class);
-            assertThat(lockService.getHolder(fileA)).as("fileA 的锁应已被清理").isNull();
-            assertThat(lockService.getHolder(fileB)).as("fileB 的锁应已被清理").isNull();
+            FileLockService lockService =
+                    applicationContext.getBean(FileLockService.class);
+            assertThat(lockService.getHolder(fileIdA)).as("fileA 的锁应已被清理").isNull();
+            assertThat(lockService.getHolder(fileIdB)).as("fileB 的锁应已被清理").isNull();
         }
     }
 
@@ -279,11 +305,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         @Test
         @DisplayName("path = '.' → PATH_ILLEGAL（30705）")
         void shouldRejectDotPath() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath(".");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
@@ -291,11 +316,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         @Test
         @DisplayName("path = './' → PATH_ILLEGAL（30705）")
         void shouldRejectDotSlashPath() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath("./");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
@@ -312,15 +336,16 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void deleteWithoutLockShouldReturn30709() {
             createFolder(uniquePath);
             String filePath = uniquePath + "/unlocked.sql";
+            Long fileId = createFile(filePath);
 
-            acquireLock(filePath);
-            saveFile(filePath, "unlocked");
+            acquireLock(fileId);
+            saveFile(fileId, "unlocked");
             // 抢锁修改后释放锁，当前用户已经不再持有锁了
-            releaseLock(filePath);
+            releaseLock(fileId);
 
             // 不抢锁，直接尝试删除
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files?path=" + filePath,
+                    "/api/files?fileId=" + fileId,
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -334,8 +359,9 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String filePath = uniquePath + "/other.sql";
 
             // admin 抢锁
-            acquireLock(filePath);
-            saveFile(filePath, "content");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "content");
 
             // 用另一个用户登录尝试提交 admin 持有锁的文件
             String anotherUser = "test-user-1";
@@ -343,7 +369,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String anotherUserToken = login(anotherUser, anotherUser);
 
             CommitFileDTO dto = new CommitFileDTO();
-            dto.setPaths(List.of(filePath)); // admin 锁定文件
+            dto.setFileIds(List.of(fileId)); // admin 锁定文件
             dto.setMessage("should fail");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/commit", HttpMethod.POST,
@@ -356,12 +382,13 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void revertWithInvalidShaShouldReturn400() {
             createFolder(uniquePath);
             String filePath = uniquePath + "/revert-sha.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "content");
-            commit(List.of(filePath), "add");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "content");
+            commit(List.of(fileId), "add");
 
             RevertFileDTO dto = new RevertFileDTO();
-            dto.setPath(filePath);
+            dto.setFileId(fileId);
             dto.setCommitHash("not-a-valid-sha");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
@@ -382,13 +409,14 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void publishShouldNotIncludeUncommittedChanges() throws Exception {
             createFolder(uniquePath);
             String filePath = uniquePath + "/uncommitted.sql";
-            acquireLock(filePath);
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
 
             // 先提交一个基准版本
-            saveFile(filePath, "committed baseline");
-            commit(List.of(filePath), "committed baseline");
+            saveFile(fileId, "committed baseline");
+            commit(List.of(fileId), "committed baseline");
             // 保存到磁盘但不 commit
-            saveFile(filePath, "uncommitted content");
+            saveFile(fileId, "uncommitted content");
 
             // 发布
             PublishVO pub = publish("should not include uncommitted");
@@ -420,13 +448,12 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void twoPublishesOnSameHeadShouldGenerateDifferentTags() throws Exception {
             createFolder(uniquePath);
             String filePath = uniquePath + "/base.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "base");
-            commit(List.of(filePath), "base commit");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
 
             // 先提交一个基准版本
-            saveFile(filePath, "committed baseline");
-            commit(List.of(filePath), "committed baseline");
+            saveFile(fileId, "committed baseline");
+            commit(List.of(fileId), "committed baseline");
             // 第一次发布
             PublishVO pub1 = publish("first");
             Thread.sleep(1000);
@@ -452,24 +479,21 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             createFolder(folderPath);
             String lockedFile = folderPath + "/locked.sql";
 
+            Long fileId = createFile(lockedFile);
             // 抢锁文件
-            acquireLock(lockedFile);
-            saveFile(lockedFile, "content");
+            acquireLock(fileId);
+            saveFile(fileId, "content");
 
-            // 不传 force，尝试删除文件夹（自己持锁自己的文件不算销，应该成功）
-            // 为了测试他人锁定场景，注意这里 admin 自己持有锁，所以删除应该会成功
-            // 要测试 30712，需要一个其他用户持有锁。
-            // 社区版只有 admin，需要先创建一个新用户来抢锁
-            // 这里用 FileLockService 直接注入一个他人锁来模拟
-            com.lanting.admin.module.file.service.FileLockService lockService =
-                    applicationContext.getBean(com.lanting.admin.module.file.service.FileLockService.class);
+            Long folderId = fileIdByPath(folderPath);
 
             // 先释放 admin 的锁，再用他人身份抢锁
-            lockService.forceRelease(lockedFile);
-            lockService.acquire(lockedFile, "other-user");
+            FileLockService lockService =
+                    applicationContext.getBean(FileLockService.class);
+            lockService.forceRelease(fileId);
+            lockService.acquire(fileId, "other-user");
 
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files?path=" + folderPath + "&force=false",
+                    "/api/files?fileId=" + folderId + "&force=false",
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -483,6 +507,95 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
     }
 
+    // ==================== 重命名文件夹 ====================
+
+    @Nested
+    @DisplayName("重命名文件夹")
+    class RenameFolder {
+
+        @Test
+        @DisplayName("rename 文件夹后，3 个文件和 1 个子目录的索引与磁盘路径同步更新")
+        void shouldRenameFolderAndUpdateChildrenPaths() throws Exception {
+            String folderPath = uniquePath + "/folder";
+            createFolder(uniquePath);
+            createFolder(folderPath);
+
+            // 3 个文件
+            String fileA = folderPath + "/a.sql";
+            String fileB = folderPath + "/b.sql";
+            String fileC = folderPath + "/c.sql";
+            Long fileIdA = createFile(fileA);
+            Long fileIdB = createFile(fileB);
+            Long fileIdC = createFile(fileC);
+
+            // 1 个子目录 + 1 个文件
+            String subFolder = folderPath + "/sub";
+            createFolder(subFolder);
+            String subFile = subFolder + "/sub.sql";
+            Long subFileId = createFile(subFile);
+
+            Long folderId = fileIdByPath(folderPath);
+            String newName = "renamed-folder";
+            String newFolderPath = uniquePath + "/" + newName;
+
+            rename(folderId, newName);
+
+            Path root = workspaceService.getDefaultWorkspaceRoot();
+
+            // 磁盘旧路径不存在
+            assertThat(Files.exists(root.resolve(folderPath))).isFalse();
+            assertThat(Files.exists(root.resolve(fileA))).isFalse();
+            assertThat(Files.exists(root.resolve(fileB))).isFalse();
+            assertThat(Files.exists(root.resolve(fileC))).isFalse();
+            assertThat(Files.exists(root.resolve(subFolder))).isFalse();
+            assertThat(Files.exists(root.resolve(subFile))).isFalse();
+
+            // 磁盘新路径存在
+            assertThat(Files.exists(root.resolve(newFolderPath))).isTrue();
+            assertThat(Files.exists(root.resolve(newFolderPath + "/a.sql"))).isTrue();
+            assertThat(Files.exists(root.resolve(newFolderPath + "/b.sql"))).isTrue();
+            assertThat(Files.exists(root.resolve(newFolderPath + "/c.sql"))).isTrue();
+            assertThat(Files.exists(root.resolve(newFolderPath + "/sub"))).isTrue();
+            assertThat(Files.exists(root.resolve(newFolderPath + "/sub/sub.sql"))).isTrue();
+
+            // 索引旧路径不存在
+            assertThat(fileIndexService.getByPath(folderPath)).isNull();
+            assertThat(fileIndexService.getByPath(fileA)).isNull();
+            assertThat(fileIndexService.getByPath(fileB)).isNull();
+            assertThat(fileIndexService.getByPath(fileC)).isNull();
+            assertThat(fileIndexService.getByPath(subFolder)).isNull();
+            assertThat(fileIndexService.getByPath(subFile)).isNull();
+
+            // 索引新路径正确
+            FileIndexEntity newFolder = fileIndexService.getByPath(newFolderPath);
+            assertThat(newFolder).isNotNull();
+            assertThat(newFolder.getParentPath()).isEqualTo(uniquePath);
+
+            FileIndexEntity newA = fileIndexService.getByPath(newFolderPath + "/a.sql");
+            FileIndexEntity newB = fileIndexService.getByPath(newFolderPath + "/b.sql");
+            FileIndexEntity newC = fileIndexService.getByPath(newFolderPath + "/c.sql");
+            FileIndexEntity newSubFolder = fileIndexService.getByPath(newFolderPath + "/sub");
+            FileIndexEntity newSubFile = fileIndexService.getByPath(newFolderPath + "/sub/sub.sql");
+
+            assertThat(newA).isNotNull();
+            assertThat(newA.getParentPath()).isEqualTo(newFolderPath);
+            assertThat(newB).isNotNull();
+            assertThat(newB.getParentPath()).isEqualTo(newFolderPath);
+            assertThat(newC).isNotNull();
+            assertThat(newC.getParentPath()).isEqualTo(newFolderPath);
+            assertThat(newSubFolder).isNotNull();
+            assertThat(newSubFolder.getParentPath()).isEqualTo(newFolderPath);
+            assertThat(newSubFile).isNotNull();
+            assertThat(newSubFile.getParentPath()).isEqualTo(newFolderPath + "/sub");
+
+            // ID 保持不变
+            assertThat(newA.getId()).isEqualTo(fileIdA);
+            assertThat(newB.getId()).isEqualTo(fileIdB);
+            assertThat(newC.getId()).isEqualTo(fileIdC);
+            assertThat(newSubFile.getId()).isEqualTo(subFileId);
+        }
+    }
+
     // ==================== 完整正向流程 ====================
 
     @Nested
@@ -490,13 +603,13 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     class FullFlow {
 
         @Test
-        @DisplayName("创建目录 → 保存文件 → 查看文件树 → 读取内容 → 提交文件 → 发布")
+        @DisplayName("创建目录 → 创建文件 → 抢锁 → 保存文件 → 查看文件树 → 读取内容 → 提交文件 → 发布")
         void shouldCompleteFullFlow() {
             createFolder(uniquePath);
-
             String filePath = uniquePath + "/test.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "SELECT 1");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "SELECT 1");
 
             // 查看文件树
             ResponseEntity<JsonNode> treeResponse = restTemplate.exchange(
@@ -510,12 +623,12 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             // 读取内容
             ResponseEntity<JsonNode> contentResponse = restTemplate.exchange(
-                    "/api/files/content?path=" + filePath,
+                    "/api/files/content?fileId=" + fileId,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(contentResponse.getBody()).path("data").asText()).isEqualTo("SELECT 1");
 
             // 提交
-            commit(List.of(filePath), "add test.sql");
+            commit(List.of(fileId), "add test.sql");
 
             // 发布
             PublishVO publish = publish("test release");
@@ -534,18 +647,19 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         @DisplayName("回滚到指定 commit 后磁盘内容恢复")
         void shouldRevertToCommit() {
             createFolder(uniquePath);
-
             String filePath = uniquePath + "/revert.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "v1");
-            commit(List.of(filePath), "v1");
-            String hashV1 = lastCommitHash();
+            Long fileId = createFile(filePath);
 
-            saveFile(filePath, "v2");
-            commit(List.of(filePath), "v2");
+            acquireLock(fileId);
+            saveFile(fileId, "v1");
+            commit(List.of(fileId), "v1");
+            String hashV1 = lastCommitHash(fileId);
+
+            saveFile(fileId, "v2");
+            commit(List.of(fileId), "v2");
 
             RevertFileDTO dto = new RevertFileDTO();
-            dto.setPath(filePath);
+            dto.setFileId(fileId);
             dto.setCommitHash(hashV1);
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert",
@@ -553,26 +667,27 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             ResponseEntity<JsonNode> contentResponse = restTemplate.exchange(
-                    "/api/files/content?path=" + filePath,
+                    "/api/files/content?fileId=" + fileId,
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(contentResponse.getBody()).path("data").asText()).isEqualTo("v1");
         }
 
         @Test
-        @DisplayName("commit 50 次后回滚到第 21 次提交")
+        @DisplayName("commit 15 次后回滚到第 10 次提交")
         void shouldRevertTo21stCommitAmong50() {
             createFolder(uniquePath);
             String filePath = uniquePath + "/history-50.sql";
-            acquireLock(filePath);
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
 
             for (int i = 1; i <= 15; i++) {
-                saveFile(filePath, "v" + i);
-                commit(List.of(filePath), "v" + i);
+                saveFile(fileId, "v" + i);
+                commit(List.of(fileId), "v" + i);
             }
 
             // 查询历史，取第 11 条（index 10）作为回滚目标
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/history?path=" + filePath + "&pageNum=1&pageSize=50",
+                    "/api/files/history?fileId=" + fileId + "&pageNum=1&pageSize=50",
                     HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
             JsonNode records = Objects.requireNonNull(response.getBody()).path("data").path("records");
@@ -580,7 +695,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             String targetHash = records.get(10).path("commitHash").asText();
 
             RevertFileDTO dto = new RevertFileDTO();
-            dto.setPath(filePath);
+            dto.setFileId(fileId);
             dto.setCommitHash(targetHash);
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
@@ -588,7 +703,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 第 11 条记录对应 v5（历史为倒序：v15, v14, ..., v1）
-            assertThat(content(filePath)).isEqualTo("v5");
+            assertThat(content(fileId)).isEqualTo("v5");
         }
 
         @Test
@@ -601,9 +716,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             createFolder(uniquePath);
             String filePath = uniquePath + "/f1.sql";
-            acquireLock(filePath, tokenA);
-            saveFile(filePath, "A-content", tokenA);
-            commit(List.of(filePath), "c1 by A", tokenA);
+            Long fileId = createFile(filePath);
+            acquireLock(fileId, tokenA);
+            saveFile(fileId, "A-content", tokenA);
+            commit(List.of(fileId), "c1 by A", tokenA);
             PublishVO publishA = publish("A release", tokenA);
             String hashC1 = publishA.getCommitHash();
 
@@ -612,16 +728,16 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             createAnotherUser(userB);
             String tokenB = login(userB, userB);
 
-            acquireLock(filePath, tokenB);
-            saveFile(filePath, "B-content", tokenB);
-            commit(List.of(filePath), "c2 by B", tokenB);
-            String hashC2BeforeRevert = lastCommitHash(filePath, tokenB);
+            acquireLock(fileId, tokenB);
+            saveFile(fileId, "B-content", tokenB);
+            commit(List.of(fileId), "c2 by B", tokenB);
+            String hashC2BeforeRevert = lastCommitHash(fileId, tokenB);
 
             // 3. B 再次修改后发现改坏，回滚到 A 的 c1
-            saveFile(filePath, "B-bad-content", tokenB);
+            saveFile(fileId, "B-bad-content", tokenB);
 
             RevertFileDTO dto = new RevertFileDTO();
-            dto.setPath(filePath);
+            dto.setFileId(fileId);
             dto.setCommitHash(hashC1);
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
@@ -629,8 +745,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             assertThat(Objects.requireNonNull(revertResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
             // 4. 验证：工作区内容恢复为 A 的内容，HEAD 仍然是 c2
-            assertThat(content(filePath, tokenB)).as("working content should be A's version").isEqualTo("A-content");
-            String hashC2AfterRevert = lastCommitHash(filePath, tokenB);
+            assertThat(content(fileId, tokenB)).as("working content should be A's version").isEqualTo("A-content");
+            String hashC2AfterRevert = lastCommitHash(fileId, tokenB);
             assertThat(hashC2AfterRevert).as("HEAD should remain c2, no new commit created").isEqualTo(hashC2BeforeRevert);
         }
     }
@@ -646,13 +762,15 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         void shouldForceDeleteFolderAndClearLocks() {
             String folderPath = uniquePath + "/force-del";
             createFolder(folderPath);
-
             String filePath = folderPath + "/locked.sql";
-            acquireLock(filePath);
-            saveFile(filePath, "locked");
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "locked");
+
+            Long folderId = fileIdByPath(folderPath);
 
             ResponseEntity<JsonNode> deleteResponse = restTemplate.exchange(
-                    "/api/files?path=" + folderPath + "&force=true",
+                    "/api/files?fileId=" + folderId + "&force=true",
                     HttpMethod.DELETE, new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(deleteResponse.getBody()).path("code").asInt()).isEqualTo(0);
 
@@ -678,11 +796,14 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             // 1. 在 DB 与 disk 中创建 15 个一致文件
             List<String> consistentFiles = new ArrayList<>();
+            List<Long> consistentFileIds = new ArrayList<>();
             for (int i = 1; i <= 15; i++) {
                 String path = uniquePath + "/c" + i + ".sql";
-                acquireLock(path);
-                saveFile(path, "consistent-" + i);
+                Long fileId = createFile(path);
+                acquireLock(fileId);
+                saveFile(fileId, "consistent-" + i);
                 consistentFiles.add(path);
+                consistentFileIds.add(fileId);
             }
 
             // 2. 对 c1-c3 直接修改磁盘内容，但把 mtime 还原，制造 CRC32 不一致
@@ -742,10 +863,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         @DisplayName("content 检测到 CRC 不一致返回警告但仍有磁盘内容")
         void shouldReturnWarningWhenContentChecksumMismatch() throws Exception {
             createFolder(uniquePath);
-
             String path = uniquePath + "/mismatch-content.sql";
-            acquireLock(path);
-            saveFile(path, "original");
+            Long fileId = createFile(path);
+            acquireLock(fileId);
+            saveFile(fileId, "original");
 
             // 直接改磁盘内容，mtime 由 write 自动更新
             Path diskPath = workspaceService.getDefaultWorkspaceRoot().resolve(path);
@@ -754,7 +875,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             // 读取 content：应返回磁盘真实内容，但 code 为 30714
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/content?path=" + path, HttpMethod.GET,
+                    "/api/files/content?fileId=" + fileId, HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(response.getStatusCode().value()).isEqualTo(200);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30714);
@@ -763,7 +884,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             // 修复后再次读取，应恢复正常
             repairDiskWins();
             ResponseEntity<JsonNode> second = restTemplate.exchange(
-                    "/api/files/content?path=" + path, HttpMethod.GET,
+                    "/api/files/content?fileId=" + fileId, HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(second.getBody()).path("code").asInt()).isEqualTo(0);
             assertThat(Objects.requireNonNull(second.getBody()).path("data").asText()).isEqualTo(modified);
@@ -779,31 +900,47 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
-    private void acquireLock(String path) {
-        LockDTO dto = new LockDTO();
+    private Long createFile(String path) {
+        CreateFileDTO dto = new CreateFileDTO();
         dto.setPath(path);
+        ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+        return Objects.requireNonNull(response.getBody()).path("data").path("fileId").asLong();
+    }
+
+    private void acquireLock(Long fileId) {
+        LockDTO dto = new LockDTO();
+        dto.setFileId(fileId);
         restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
-    private void releaseLock(String path) {
+    private void releaseLock(Long fileId) {
         LockDTO dto = new LockDTO();
-        dto.setPath(path);
+        dto.setFileId(fileId);
         restTemplate.exchange("/api/files/lock/release", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
-    private void saveFile(String path, String content) {
+    private void rename(Long fileId, String newName) {
+        RenameDTO dto = new RenameDTO();
+        dto.setFileId(fileId);
+        dto.setNewName(newName);
+        restTemplate.exchange("/api/files/rename", HttpMethod.POST,
+                new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+    }
+
+    private void saveFile(Long fileId, String content) {
         SaveFileDTO dto = new SaveFileDTO();
-        dto.setPath(path);
+        dto.setFileId(fileId);
         dto.setContent(content);
         restTemplate.exchange("/api/files/save", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
-    private void commit(List<String> paths, String message) {
+    private void commit(List<Long> fileIds, String message) {
         CommitFileDTO dto = new CommitFileDTO();
-        dto.setPaths(paths);
+        dto.setFileIds(fileIds);
         dto.setMessage(message);
         restTemplate.exchange("/api/files/commit", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
@@ -821,40 +958,44 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         return vo;
     }
 
-    private String lastCommitHash() {
+    private String lastCommitHash(Long fileId) {
+        return lastCommitHash(fileId, token);
+    }
+
+    private String lastCommitHash(Long fileId, String userToken) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "/api/files/history?path=" + uniquePath + "&pageNum=1&pageSize=1",
-                HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
+                "/api/files/history?fileId=" + fileId + "&pageNum=1&pageSize=1",
+                HttpMethod.GET, new HttpEntity<>(authHeaders(userToken)), JsonNode.class);
         return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
     }
 
-    private String content(String path) {
+    private String content(Long fileId) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "/api/files/content?path=" + path,
+                "/api/files/content?fileId=" + fileId,
                 HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
         return Objects.requireNonNull(response.getBody()).path("data").asText();
     }
 
     // 多用户场景辅助方法（带 token）
 
-    private void acquireLock(String path, String userToken) {
+    private void acquireLock(Long fileId, String userToken) {
         LockDTO dto = new LockDTO();
-        dto.setPath(path);
+        dto.setFileId(fileId);
         restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
     }
 
-    private void saveFile(String path, String content, String userToken) {
+    private void saveFile(Long fileId, String content, String userToken) {
         SaveFileDTO dto = new SaveFileDTO();
-        dto.setPath(path);
+        dto.setFileId(fileId);
         dto.setContent(content);
         restTemplate.exchange("/api/files/save", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
     }
 
-    private void commit(List<String> paths, String message, String userToken) {
+    private void commit(List<Long> fileIds, String message, String userToken) {
         CommitFileDTO dto = new CommitFileDTO();
-        dto.setPaths(paths);
+        dto.setFileIds(fileIds);
         dto.setMessage(message);
         restTemplate.exchange("/api/files/commit", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
@@ -872,18 +1013,11 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         return vo;
     }
 
-    private String content(String path, String userToken) {
+    private String content(Long fileId, String userToken) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "/api/files/content?path=" + path,
+                "/api/files/content?fileId=" + fileId,
                 HttpMethod.GET, new HttpEntity<>(authHeaders(userToken)), JsonNode.class);
         return Objects.requireNonNull(response.getBody()).path("data").asText();
-    }
-
-    private String lastCommitHash(String path, String userToken) {
-        ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "/api/files/history?path=" + path + "&pageNum=1&pageSize=1",
-                HttpMethod.GET, new HttpEntity<>(authHeaders(userToken)), JsonNode.class);
-        return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
     }
 
     private JsonNode reconcile(String scope) {

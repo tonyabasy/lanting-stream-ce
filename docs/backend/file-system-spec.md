@@ -41,7 +41,7 @@ default/
 
 | 约束项 | 规则 |
 |---|---|
-| 允许的文件类型 | `.sql`、`.md`、`.html` |
+| 允许的文件类型 | `.sql`、`.md`、`.html`、`.json`、`.ddl` |
 | 文件大小上限 | 1MB |
 | 路径安全 | 拒绝非法路径，具体规则见「路径规范」设计原则 |
 | 禁止操作的路径 | `.lanting/` 目录及其所有子路径 |
@@ -68,6 +68,7 @@ default/
 - 锁是"软锁"：不阻止他人强制抢锁，只记录当前持锁人。他人抢锁成功后，原持锁人再次编辑
   或自动保存会因锁失效而失败（返回 30709）。
 - 持锁期间才能进行编辑并触发自动保存；释放锁后停止自动保存，但已写磁盘内容保留。
+- 创建文件（`POST /api/files/create`）成功后自动为创建者持锁，符合"谁创建，谁持有"的语义。
 - 任何变更操作都必须先抢锁：编辑文件、回滚文件、删除文件。
 - 锁 = "我正在负责这个文件" 的语义。提交时只提交调用方已锁定的文件；被他人锁定的文件
   静默跳过，不阻断提交，通过返回值 skipped 告知调用方。
@@ -110,9 +111,10 @@ default/
 
 | 操作 | 是否需要锁 | 规则 |
 |---|---|---|
+| 创建文件 | 不需要（自动持锁） | `POST /api/files/create` 成功后自动为创建者持锁 |
 | 创建文件夹 | 不需要 | 新路径，无并发冲突风险 |
-| 删除文件 | 需要 | 必须持有该文件锁才能删除；被他人锁定时可强制抢锁 |
-| 删除文件夹 | 不递归抢锁 | 默认校验目录下是否有他人持锁文件，有则拒绝并返回列表；传 `force=true` 可强制删除 |
+| 删除文件 | 需要 | 必须持有该文件锁才能删除；`force=true` 时强制释放锁并删除 |
+| 删除文件夹 | 不递归抢锁 | 默认校验目录下是否有他人持锁文件，有则拒绝并返回列表；传 `force=true` 可强制删除并释放所有子文件锁 |
 
 ### 发布
 
@@ -191,22 +193,25 @@ sequenceDiagram
     participant G as Git
 
     U->>F: 输入文件名
-    F->>B: POST /api/files/lock/acquire {path}
-    B-->>F: AcquireLockVO {acquired}
-    F->>B: POST /api/files/save {path, content}
+    F->>B: POST /api/files/create {path}
+    B->>D: 创建空文件
+    B->>B: 自动为创建者持锁
+    B-->>F: FileCreatedVO {fileId, path}
+    U->>F: 编辑内容
+    F->>B: POST /api/files/save {fileId, content}
     B->>D: 写入磁盘
     B-->>F: 保存成功
     U->>F: 继续编辑
-    F->>B: POST /api/files/save
+    F->>B: POST /api/files/save {fileId, content}
     B->>D: 覆盖磁盘
     B-->>F: 保存成功
     U->>F: 填写 commit message，提交
-    F->>B: POST /api/files/commit {paths, message}
+    F->>B: POST /api/files/commit {fileIds, message}
     B->>G: git add path
     B->>G: git commit
     B-->>F: {commitHash, committed, skipped}
     U->>F: 释放锁
-    F->>B: POST /api/files/lock/release {path}
+    F->>B: POST /api/files/lock/release {fileId}
 ```
 
 ### 2. 编辑已有文件
@@ -219,20 +224,20 @@ sequenceDiagram
     participant D as Disk
 
     U->>F: 点击文件
-    F->>B: GET /api/files/content?path=xxx
+    F->>B: GET /api/files/content?fileId=xxx
     B->>D: 读取磁盘
     B-->>F: 当前内容
-    F->>B: POST /api/files/lock/acquire {path}
+    F->>B: POST /api/files/lock/acquire {fileId}
     B-->>F: {acquired}
     U->>F: 编辑内容
-    F->>B: POST /api/files/save
+    F->>B: POST /api/files/save {fileId, content}
     B->>D: 自动保存到磁盘
     B-->>F: 保存成功
     U->>F: 提交
-    F->>B: POST /api/files/commit
+    F->>B: POST /api/files/commit {fileIds, message}
     B-->>F: {commitHash, committed, skipped}
     U->>F: 释放锁
-    F->>B: POST /api/files/lock/release
+    F->>B: POST /api/files/lock/release {fileId}
 ```
 
 ### 3. 他人抢锁（协作场景）
@@ -245,22 +250,22 @@ sequenceDiagram
     participant S as Backend
 
     A->>F: 编辑 sql/a.sql
-    F->>S: lock/acquire
+    F->>S: lock/acquire {fileId}
     S-->>F: A 持锁成功
     A->>F: 自动保存
-    F->>S: save
+    F->>S: save {fileId, content}
     S->>S: 校验 A 持锁
     S-->>F: 成功
     B->>F: 打开 sql/a.sql
-    F->>S: lock/acquire
+    F->>S: lock/acquire {fileId}
     S-->>F: 强制抢锁成功，previousHolder=A
-    F->>S: GET /api/files/content
+    F->>S: GET /api/files/content?fileId=xxx
     S-->>F: 返回当前磁盘内容（A 的半成品）
     B->>F: 编辑并保存
-    F->>S: save
+    F->>S: save {fileId, content}
     S-->>F: 成功（B 持锁）
     A->>F: 继续编辑并自动保存
-    F->>S: save
+    F->>S: save {fileId, content}
     S-->>F: 30709 锁已失效
     F->>A: 提示"锁已被他人接管"
 ```
@@ -275,8 +280,8 @@ sequenceDiagram
     participant G as Git
 
     U->>F: 选择多个文件
-    F->>B: POST /api/files/commit {paths, message}
-    B->>B: 遍历 paths
+    F->>B: POST /api/files/commit {fileIds, message}
+    B->>B: 遍历 fileIds
     B->>B: 检查每份文件的持锁人
     B->>G: git add 自己锁定的文件
     B->>G: git commit
@@ -311,15 +316,15 @@ sequenceDiagram
     participant D as Disk
 
     U->>F: 查看历史，选择目标 commit
-    F->>B: GET /api/files/history
+    F->>B: GET /api/files/history?fileId=xxx
     B-->>F: 历史列表
-    F->>B: POST /api/files/lock/acquire {path}
+    F->>B: POST /api/files/lock/acquire {fileId}
     B-->>F: {acquired}
-    F->>B: POST /api/files/revert {path, commitHash}
+    F->>B: POST /api/files/revert {fileId, commitHash}
     B->>G: 读取目标 commit 中文件内容
     B->>D: 覆盖当前文件
     B-->>F: 回滚成功（磁盘内容已变更，不产生 commit）
-    F->>B: POST /api/files/lock/release
+    F->>B: POST /api/files/lock/release {fileId}
 ```
 
 ### 7. 删除文件/文件夹
@@ -333,20 +338,24 @@ sequenceDiagram
 
     alt 删除文件
         U->>F: 选择文件
-        F->>B: POST /api/files/lock/acquire {path}
+        F->>B: POST /api/files/lock/acquire {fileId}
         B-->>F: {acquired}
-        F->>B: DELETE /api/files?path=xxx
-        B->>G: git add + git commit
-        B-->>F: 删除成功
+        F->>B: DELETE /api/files?fileId=xxx
+        B->>B: 标记索引为已删除，删除磁盘文件，释放锁
+        B-->>F: 删除成功（不产生 commit）
+        U->>F: 提交删除
+        F->>B: POST /api/files/commit {fileIds, message}
+        B->>G: git rm path + git commit
+        B-->>F: commit 成功
     else 删除文件夹
         U->>F: 选择文件夹
-        F->>B: DELETE /api/files?path=xxx&force=false
+        F->>B: DELETE /api/files?fileId=xxx&force=false
         B->>B: 检查目录下他人锁
         B-->>F: 30712 {lockedFiles}
         F->>U: 展示被锁文件，确认强制删除
-        F->>B: DELETE /api/files?path=xxx&force=true
-        B->>G: git add + git commit
-        B-->>F: 删除成功
+        F->>B: DELETE /api/files?fileId=xxx&force=true
+        B->>B: 递归标记索引为已删除，删除磁盘目录，释放所有子文件锁
+        B-->>F: 删除成功（不产生 commit）
     end
 ```
 
@@ -385,7 +394,7 @@ sequenceDiagram
 | 初始化工作空间 | `init: workspace initialized` |
 | 提交（多文件） | 用户自定义；默认自动生成 `save: {path1}, {path2}, ...` |
 | 创建文件夹 | `mkdir: {path}` |
-| 删除 | `delete: {path}` |
+| 提交删除 | `delete: {path}`（用户手动 commit 已删除文件时生成）|
 
 **Tag 命名**：
 
@@ -422,50 +431,57 @@ GET    /api/files/tree?parentPath={path}&sort={name|mtime}
             表示根层级，展开文件夹时传入文件夹路径获取子层级，前端按需懒加载。
             sort 参数可选：name（字母顺序）、mtime（索引表 mtime 倒序），默认为 name。
 
-GET    /api/files/content?path={path}
+GET    /api/files/content?fileId={fileId}
        返回：文件内容字符串
        说明：读取磁盘上当前文件内容（包含自动保存但未 commit 的变更）。**读取不需要持锁**，
-            任何登录用户都可查看。path 为相对于工作空间根目录的路径，如 "sql/user_count.sql"。
+            任何登录用户都可查看。fileId 为 DB 索引中的文件 ID。
             读取 Git 中某个历史版本的内容应通过 `GET /api/files/history` 的 diff 信息或文件级 diff 接口。
 
+POST   /api/files/create
+       body：{ path }
+       返回：FileCreatedVO { fileId, path }
+       说明：创建空文件，只写磁盘空文件 + DB INSERT，不产生 commit。创建成功后自动为
+            当前用户持锁，符合"谁创建，谁持有"语义。
+
 POST   /api/files/save
-       body：{ path, content }
-       说明：自动保存，只写磁盘，不 commit；服务端强制校验调用方持有该文件锁。创建新文件
-            时，先对目标路径调用 `lock/acquire` 抢锁，再调用 save 写入内容。路径校验拒绝
-            前导 `/`、反斜杠、空路径、纯 `.` 和 `..` 等非法路径。
+       body：{ fileId, content }
+       说明：自动保存，只写磁盘，不 commit；服务端强制校验调用方持有该文件锁。
+            路径校验拒绝前导 `/`、反斜杠、空路径、纯 `.` 和 `..` 等非法路径。
 
 POST   /api/files/folder
        body：{ path }
        说明：创建文件夹，目录结构写入 DB 索引，不产生 git commit（空目录 Git 不追踪）。
             创建新路径，不需要抢锁。
 
-DELETE /api/files?path={path}&force={false}
+DELETE /api/files?fileId={fileId}&force={false}
        返回：无 / 错误时返回 Result<DeleteLockedVO>
        说明：删除文件或文件夹（递归）。删除文件时必须持有该文件锁；删除文件夹时默认校验
             目录下是否有他人持锁文件，有则拒绝（错误码 30712）并返回被锁文件列表，可传
-            `force=true` 强制删除。删除完成后自动 git commit。
+            `force=true` 强制删除。删除操作**不产生 git commit**；删除的提交由用户后续
+            通过 `/api/files/commit` 手动触发。
 
 POST   /api/files/commit
-       body：{ paths: List<String>, message }
+       body：{ fileIds: List<Long>, message }
        返回：Result<CommitResultVO>
        说明：批量提交选中的文件。只提交当前调用方已锁定的文件；被他人锁定的文件
             静默跳过，不阻断本次提交。返回值中 committed 为实际提交的文件，skipped
             为被跳过的文件，commitHash 为本次产生的 commit SHA（committed 为空时为空）。
-            如果 `paths` 为空或所有文件都被跳过导致 `committed` 为空，返回错误码 30713
+            对于已软删除的文件，commit 会执行 `git rm` 将删除写入 Git。
+            如果 `fileIds` 为空或所有文件都被跳过导致 `committed` 为空，返回错误码 30713
             （无可提交的文件），前端可提示用户"没有你持有的文件可以提交"。
 
-GET    /api/files/history?path={path}&pageNum={pageNum}&pageSize={pageSize}
+GET    /api/files/history?fileId={fileId}&pageNum={pageNum}&pageSize={pageSize}
        返回：PageResult<FileHistoryVO>
-       说明：返回指定文件的 commit 历史。path 为必填参数。采用游标分页，`total` 与 `totalPages`
+       说明：返回指定文件的 commit 历史。fileId 为必填参数。采用游标分页，`total` 与 `totalPages`
             固定返回 -1，通过 `hasMore` 判断是否有下一页。pageNum 从 1 开始，pageSize 默认 10，
             最大 100，复用 PageQuery 基类。
 
-GET    /api/files/diff?path={path}&from={hash}&to={hash}
+GET    /api/files/diff?fileId={fileId}&from={hash}&to={hash}
        返回：unified diff 格式字符串
        说明：对比文件在两个 commit 之间的差异。`from` 和 `to` 均为必填，任一缺失返回 400。
 
 POST   /api/files/revert
-       body：{ path, commitHash }
+       body：{ fileId, commitHash }
        说明：文件级回滚，读取指定 commit 中该文件内容覆盖当前文件，不自动产生 commit；
             后续由用户自行提交。服务端强制校验调用方持有该文件锁。
 ```
@@ -474,7 +490,7 @@ POST   /api/files/revert
 
 ```
 POST   /api/files/lock/acquire
-       body：{ path }
+       body：{ fileId }
        返回：AcquireLockVO { acquired: true, previousHolder?: String, previousHolderAt?: Long }
        说明：抢锁。锁是软锁，即使当前有人持锁也可强制抢锁成功。返回 previousHolder
             告知前端上一个持锁人信息，前端可提示"此文件之前由 xxx 编辑，已接管"。
@@ -482,7 +498,7 @@ POST   /api/files/lock/acquire
             自动保存会返回 30709。
 
 POST   /api/files/lock/release
-       body：{ path }
+       body：{ fileId }
        说明：释放锁，不触发 commit。只有当前持锁人自己可以释放；他人调用返回
             `CommonResultCode.FORBIDDEN`（20002）。
 ```
@@ -629,13 +645,14 @@ public class DeleteLockedVO {
 ### DTO
 
 ```java
-public class SaveFileDTO { private String path; private String content; }
+public class CreateFileDTO { private String path; }
+public class SaveFileDTO { private Long fileId; private String content; }
 public class CreateFolderDTO { private String path; }
-public class CommitFileDTO { private List<String> paths; private String message; }
-public class RevertFileDTO { private String path; private String commitHash; }
+public class CommitFileDTO { private List<Long> fileIds; private String message; }
+public class RevertFileDTO { private Long fileId; private String commitHash; }
 public class PublishDTO { private String displayName; }
 public class ReviewDTO { private String tagName; private String comment; }
-public class LockDTO { private String path; }
+public class LockDTO { private Long fileId; }
 ```
 
 ---
@@ -720,13 +737,16 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 -- 文件系统元数据索引表
 CREATE TABLE IF NOT EXISTS lanting_file_index (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    path        VARCHAR(1000) NOT NULL UNIQUE,
+    path        VARCHAR(1000) NOT NULL,
     name        VARCHAR(200)  NOT NULL,
     type        VARCHAR(10)   NOT NULL,             -- file / folder
     parent_path VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
     mtime       BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
+    crc32       BIGINT        NOT NULL DEFAULT 0,   -- 文件内容 CRC32 校验和；folder 固定为 0
+    deleted_at  BIGINT        NOT NULL DEFAULT 0,   -- 删除时间戳（毫秒），0 表示未删除
     create_time BIGINT        NOT NULL DEFAULT 0,
-    update_time BIGINT        NOT NULL DEFAULT 0
+    update_time BIGINT        NOT NULL DEFAULT 0,
+    UNIQUE (path, deleted_at)
 );
 CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_path);
 ```
@@ -750,6 +770,7 @@ CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_pa
 | 30711 | 回滚目标不存在 | 404 |
 | 30712 | 回滚或删除文件夹时部分文件被锁定 | 423 |
 | 30713 | 无可提交的文件 | 400 |
+| 30714 | 文件内容与索引不一致 | 200 |
 
 ---
 
@@ -814,8 +835,8 @@ CREATE INDEX IF NOT EXISTS idx_file_index_parent ON lanting_file_index(parent_pa
 **A**：是**软锁**：不阻止他人强制抢锁，只记录当前持锁人。持锁人再次编辑或自动保存时校验归属，被抢锁后操作失败（返回 30709）。
 
 删除文件夹时：
-- 默认校验目录下是否有他人持锁文件，有则拒绝；
-- 传 `force=true` 时服务端无条件释放目录下所有锁并删除。
+- 默认校验目录下是否有他人持锁文件，有则拒绝（错误码 30712）；
+- 传 `force=true` 时服务端无条件释放目录下所有子文件锁并删除。
 
 ### Q：`createdBy` 为什么统一用 username，而不是有的用 user id？
 

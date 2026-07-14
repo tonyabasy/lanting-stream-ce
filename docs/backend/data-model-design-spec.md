@@ -4,17 +4,18 @@
 
 ## 1. 通用字段约定
 
-每张业务表必须包含以下字段：
+每张业务表必须包含以下字段。若实体继承 `BasicEntity`，则默认由框架提供这些字段；若实体因业务特殊不继承 `BasicEntity`，仍需保证等效字段（`id`、`create_time`、`update_time`）存在，并自行声明软删除方案。
 
 | 字段名       | 类型    | 是否可空 | 默认值 | 说明                                                         |
 | ------------ | ------- | -------- | ------ | ------------------------------------------------------------ |
 | `id`         | INTEGER | NOT NULL | -      | 主键，自增（SQLite `AUTOINCREMENT`）                         |
-| `is_delete`  | INTEGER | NOT NULL | 0      | 软删除标志：0 表示未删除；非零（记录 id）表示已删除          |
+| `is_delete`  | INTEGER | NOT NULL | 0      | 软删除标志：0 表示未删除；非零（记录 id）表示已删除。继承 `BasicEntity` 的表默认使用此字段；不继承 `BasicEntity` 的表可使用语义等价的业务字段（如 `deleted_at`）替代，但需在表设计中明确说明。 |
 | `create_time`| BIGINT | NOT NULL | 0      | 毫秒级时间戳，对应 Java `Long`                                 |
 | `update_time`| BIGINT | NOT NULL | 0      | 毫秒级时间戳，对应 Java `Long`                                 |
 
 - 时间字段统一使用**毫秒级时间戳**（`BIGINT`），对应 Java `Long`。
-- 软删除由 MyBatis-Plus `@TableLogic` 管理，删除时自动将 `is_delete` 更新为当前记录 `id`。
+- 软删除由 MyBatis-Plus `@TableLogic` 管理，删除时自动将 `is_delete` 更新为当前记录 `id`（仅适用于继承 `BasicEntity` 的表）。
+- 不继承 `BasicEntity` 的表若使用 `deleted_at` 等业务时间戳作为软删除标志，必须自行在查询、更新、唯一约束中处理该字段，确保逻辑删除语义一致。
 
 ## 2. 命名规范
 
@@ -39,12 +40,18 @@
 
 ### 3.1 核心原则
 
-**业务名称类字段若需要唯一，必须配合软删除字段使用联合唯一索引 `(name, is_delete)`。**
+**业务名称类字段若需要唯一，必须配合软删除字段使用联合唯一索引。**
+
+具体字段取决于该表使用的软删除方案：
+
+- 使用 `is_delete` 的表：`(name, is_delete)`。
+- 使用 `deleted_at` 等时间戳字段的表：`(name, deleted_at)`。
 
 原因：
 - 软删除的记录应视为“已不可用”，但不应永久占用业务名称。
 - 若使用单列 `UNIQUE(name)`，删除后同名记录将永远无法再次创建，违背软删除语义。
-- MyBatis-Plus `@TableLogic` 删除时把 `is_delete` 设为记录 `id`，每条已删除记录的 `is_delete` 值天然不同，因此 `(name, is_delete)` 联合唯一不会冲突。
+- 使用 `is_delete` 时，MyBatis-Plus `@TableLogic` 删除时把 `is_delete` 设为记录 `id`，每条已删除记录的 `is_delete` 值天然不同，因此 `(name, is_delete)` 联合唯一不会冲突。
+- 使用 `deleted_at` 时，同一毫秒可能被多个文件删除，因此可额外加入 `id` 等区分字段，或在业务层保证同一目录下路径不重复。文件索引表采用 `(path, deleted_at)` 已能满足业务需求。
 
 > 例外：为了方便安全审计，以下场景可保留单列唯一约束：
 >
@@ -62,7 +69,7 @@
 | 大文本/JSON          | TEXT        | 配置、日志、DDL 等                           |
 | URL/路径             | VARCHAR(500)| 文件路径、访问地址等                           |
 | 时间戳               | BIGINT | 毫秒级时间戳，具体类型与同表其他字段保持一致 |
-| 删除标志             | INTEGER     | 0 或记录 id，由 MyBatis-Plus 管理             |
+| 删除标志             | INTEGER / BIGINT | 默认 `0` 或记录 id，由 MyBatis-Plus 管理；不继承 `BasicEntity` 的表可用 BIGINT 类型的时间戳字段（如 `deleted_at`）作为业务删除标志。 |
 
 ## 5. 变更管理
 

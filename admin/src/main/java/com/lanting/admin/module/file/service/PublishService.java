@@ -44,7 +44,7 @@ public class PublishService {
         } catch (Exception e) {
             log.error("发布记录落库失败，补偿删除 tag：{}", vo.getTagName(), e);
             gitFileService.deleteTag(vo.getTagName());
-            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, "发布记录写入失败：" + e.getMessage());
+            throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, "发布记录写入失败：" + e.getMessage());
         }
         return vo;
     }

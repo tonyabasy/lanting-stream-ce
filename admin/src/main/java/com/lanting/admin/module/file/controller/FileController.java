@@ -14,9 +14,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.util.List;
 
 import static com.lanting.admin.common.util.SecurityUtils.currentUser;
@@ -66,8 +68,17 @@ public class FileController {
      */
     @Operation(summary = "读取文件内容")
     @GetMapping("/content")
-    public Result<String> content(@RequestParam @NotBlank String path) {
-        return Result.success(gitFileService.content(path));
+    public Result<String> content(@RequestParam @NotNull Long fileId) {
+        return Result.success(gitFileService.content(fileId));
+    }
+
+    /**
+     * 创建空文件。只写磁盘空文件 + DB INSERT，不抢锁、不写入内容、不产生 commit。
+     */
+    @Operation(summary = "创建文件")
+    @PostMapping("/create")
+    public Result<FileCreatedVO> create(@Valid @RequestBody CreateFileDTO dto) {
+        return Result.success(gitFileService.create(dto));
     }
 
     /**
@@ -81,13 +92,21 @@ public class FileController {
     }
 
     /**
-     * 创建文件夹。目录结构由 DB 索引维护，创建成功后自动提交。
+     * 创建文件夹。目录结构由 DB 索引维护，创建成功后返回文件夹 ID。
      */
     @Operation(summary = "创建文件夹")
     @PostMapping("/folder")
-    public Result<Void> folder(@Valid @RequestBody CreateFolderDTO dto) {
-        gitFileService.createFolder(dto);
-        return Result.success();
+    public Result<FileCreatedVO> folder(@Valid @RequestBody CreateFolderDTO dto) {
+        return Result.success(gitFileService.createFolder(dto));
+    }
+
+    /**
+     * 重命名文件或文件夹。文件重命名需持锁，文件夹重命名不检查锁，不产生 commit。
+     */
+    @Operation(summary = "重命名文件或文件夹")
+    @PostMapping("/rename")
+    public Result<PathRenamedVO> rename(@Valid @RequestBody RenameDTO dto) {
+        return Result.success(gitFileService.rename(dto));
     }
 
     /**
@@ -95,9 +114,9 @@ public class FileController {
      */
     @Operation(summary = "删除文件或文件夹")
     @DeleteMapping
-    public Result<DeleteLockedVO> delete(@RequestParam @NotBlank String path,
-                                         @RequestParam(defaultValue = "false") boolean force) {
-        DeleteLockedVO locked = gitFileService.delete(path, force);
+    public Result<DeleteLockedVO> delete(@RequestParam @NotNull Long fileId,
+                                         @RequestParam(defaultValue = "false") boolean force) throws IOException {
+        DeleteLockedVO locked = gitFileService.delete(fileId, force);
         if (locked != null) {
             return Result.error(FileResultCode.FILES_LOCKED, locked);
         }
@@ -131,14 +150,14 @@ public class FileController {
      */
     @Operation(summary = "文件 diff")
     @GetMapping("/diff")
-    public Result<String> diff(@RequestParam @NotBlank String path,
+    public Result<String> diff(@RequestParam @NotNull Long fileId,
                                @RequestParam @NotBlank String from,
                                @RequestParam @NotBlank String to) {
-        return Result.success(gitFileService.diff(path, from, to));
+        return Result.success(gitFileService.diff(fileId, from, to));
     }
 
     /**
-     * 文件级回滚。读取目标 commit 中该文件的内容覆盖当前文件，并产生一次新 commit。
+     * 文件级回滚。读取目标 commit 中该文件的内容覆盖当前文件，不产生新 commit。
      */
     @Operation(summary = "文件级回滚")
     @PostMapping("/revert")
@@ -155,7 +174,7 @@ public class FileController {
     @Operation(summary = "抢锁")
     @PostMapping("/lock/acquire")
     public Result<AcquireLockVO> acquireLock(@Valid @RequestBody LockDTO dto) {
-        return Result.success(fileLockService.acquire(dto.getPath(), currentUser()));
+        return Result.success(fileLockService.acquire(dto.getFileId(), currentUser()));
     }
 
     /**
@@ -164,7 +183,7 @@ public class FileController {
     @Operation(summary = "释放锁")
     @PostMapping("/lock/release")
     public Result<Void> releaseLock(@Valid @RequestBody LockDTO dto) {
-        boolean released = fileLockService.release(dto.getPath(), currentUser());
+        boolean released = fileLockService.release(dto.getFileId(), currentUser());
         if (!released) {
             return Result.error(com.lanting.admin.common.result.CommonResultCode.FORBIDDEN);
         }

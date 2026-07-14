@@ -29,13 +29,13 @@ import java.util.function.Supplier;
 public class FileLockService {
 
     /**
-     * path -> 持锁信息。
+     * fileId -> 持锁信息。
      */
     private final Map<String, LockInfo> lockMap = new ConcurrentHashMap<>();
 
     /**
-     * 固定大小的 stripe 锁数组。把文件路径按 hash 映射到某一把锁，
-     * 在"持锁校验与执行"和"锁操作"之间提供互斥；不同路径可能命中不同 stripe 实现并行，
+     * 固定大小的 stripe 锁数组。把文件 ID 按 hash 映射到某一把锁，
+     * 在"持锁校验与执行"和"锁操作"之间提供互斥；不同文件可能命中不同 stripe 实现并行，
      * 也可能命中同一 stripe 导致无关串行，但不会影响正确性。
      * <p>
      * 数量为 32，基于 CE 并发编辑文件数通常不超过 5 的估算：5 个文件时碰撞概率约 14%，
@@ -50,8 +50,12 @@ public class FileLockService {
         }
     }
 
-    private Object stripeFor(String path) {
-        return stripes[Math.floorMod(path.hashCode(), STRIPE_COUNT)];
+    private String key(Long fileId) {
+        return fileId == null ? "" : fileId.toString();
+    }
+
+    private Object stripeFor(Long fileId) {
+        return stripes[Math.floorMod(key(fileId).hashCode(), STRIPE_COUNT)];
     }
 
     /**
@@ -66,18 +70,18 @@ public class FileLockService {
      * 临界区与 {@link #acquire} 互斥：动作执行期间他人的抢锁请求会阻塞等待；
      * 若他人先抢到锁，本方法进入临界区后校验失败，抛 30709 文件已被锁定。
      * <p>
-     * <b>死锁纪律</b>：action 内允许获取 Git 写锁（path stripe → gitWriteLock 的顺序），
+     * <b>死锁纪律</b>：action 内允许获取 Git 写锁（fileId stripe → gitWriteLock 的顺序），
      * 但任何持有 gitWriteLock 的代码<b>不得</b>再调用本方法或锁操作（反向嵌套会死锁），
      * 见 GitFileService#withWorkspaceLock 的说明。
      *
-     * @param path     文件相对路径
+     * @param fileId   文件 ID
      * @param username 期望的持锁人
      * @param action   持锁校验通过后执行的动作
      * @return action 的返回值
      */
-    public <T> T doIfHolder(String path, String username, Supplier<T> action) {
-        synchronized (stripeFor(path)) {
-            if (!isHolder(path, username)) {
+    public <T> T doIfHolder(Long fileId, String username, Supplier<T> action) {
+        synchronized (stripeFor(fileId)) {
+            if (!isHolder(fileId, username)) {
                 throw new BusinessException(FileResultCode.FILE_LOCKED);
             }
             return action.get();
@@ -89,16 +93,17 @@ public class FileLockService {
      * <p>
      * 与 {@link #doIfHolder} 互斥：他人的写动作正在执行时，抢锁会等待其完成。
      *
-     * @param path   文件相对路径
+     * @param fileId 文件 ID
      * @param holder 持锁人 username
      * @return 抢锁结果
      */
-    public AcquireLockVO acquire(String path, String holder) {
-        synchronized (stripeFor(path)) {
+    public AcquireLockVO acquire(Long fileId, String holder) {
+        String key = key(fileId);
+        synchronized (stripeFor(fileId)) {
             AcquireLockVO vo = new AcquireLockVO();
             vo.setAcquired(true);
 
-            LockInfo previous = lockMap.put(path, new LockInfo(holder, System.currentTimeMillis()));
+            LockInfo previous = lockMap.put(key, new LockInfo(holder, System.currentTimeMillis()));
             if (previous != null && !previous.holder.equals(holder)) {
                 vo.setPreviousHolder(previous.holder);
                 vo.setPreviousHolderAt(previous.lockedAt);
@@ -110,20 +115,21 @@ public class FileLockService {
     /**
      * 释放锁。只有当前持锁人自己可以释放。
      *
-     * @param path   文件相对路径
+     * @param fileId 文件 ID
      * @param holder 持锁人 username
      * @return 是否释放成功
      */
-    public boolean release(String path, String holder) {
-        synchronized (stripeFor(path)) {
-            LockInfo current = lockMap.get(path);
+    public boolean release(Long fileId, String holder) {
+        String key = key(fileId);
+        synchronized (stripeFor(fileId)) {
+            LockInfo current = lockMap.get(key);
             if (current == null) {
                 return true;
             }
             if (!current.holder.equals(holder)) {
                 return false;
             }
-            lockMap.remove(path);
+            lockMap.remove(key);
             return true;
         }
     }
@@ -134,11 +140,12 @@ public class FileLockService {
      * 仅供服务端内部使用（如 force 删除文件夹时清理他人持有的锁），
      * 权限校验由调用方在入口处完成，不得直接暴露给 Controller。
      *
-     * @param path 文件相对路径
+     * @param fileId 文件 ID
      */
-    public void forceRelease(String path) {
-        synchronized (stripeFor(path)) {
-            lockMap.remove(path);
+    public void forceRelease(Long fileId) {
+        String key = key(fileId);
+        synchronized (stripeFor(fileId)) {
+            lockMap.remove(key);
         }
     }
 
@@ -149,30 +156,30 @@ public class FileLockService {
      * {@link GitFileService#commit} 使用此方法判断文件是否可提交，是已知的设计取舍
      * （commit 不要求原子性）。
      */
-    public boolean isHolder(String path, String holder) {
-        LockInfo current = lockMap.get(path);
+    public boolean isHolder(Long fileId, String holder) {
+        LockInfo current = lockMap.get(key(fileId));
         return current != null && current.holder.equals(holder);
     }
 
     /**
      * 获取当前持锁人。
      *
-     * @param path 文件相对路径
+     * @param fileId 文件 ID
      * @return 持锁人 username，未锁定返回 null
      */
-    public String getHolder(String path) {
-        LockInfo current = lockMap.get(path);
+    public String getHolder(Long fileId) {
+        LockInfo current = lockMap.get(key(fileId));
         return current == null ? null : current.holder;
     }
 
     /**
      * 获取持锁时间戳。
      *
-     * @param path 文件相对路径
+     * @param fileId 文件 ID
      * @return 持锁时间戳，未锁定返回 null
      */
-    public Long getLockedAt(String path) {
-        LockInfo current = lockMap.get(path);
+    public Long getLockedAt(Long fileId) {
+        LockInfo current = lockMap.get(key(fileId));
         return current == null ? null : current.lockedAt;
     }
 }

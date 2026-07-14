@@ -1,7 +1,9 @@
 package com.lanting.admin.module.file.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
@@ -11,6 +13,8 @@ import java.util.List;
  * @author wangzhao
  */
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 @Schema(description = "删除文件夹锁冲突结果")
 public class DeleteLockedVO {
 

@@ -3,6 +3,7 @@ package com.lanting.admin.module.file.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
@@ -17,6 +18,9 @@ import lombok.Setter;
 @Setter
 @TableName("lanting_file_index")
 public class FileIndexEntity {
+
+    public static final String FILE = "file";
+    public static final String FOLDER = "folder";
 
     @Schema(description = "主键ID")
     @TableId(type = IdType.AUTO)
@@ -40,9 +44,26 @@ public class FileIndexEntity {
     @Schema(description = "文件内容 CRC32 校验和，folder 固定为 0")
     private Long crc32;
 
+    @Schema(description = "删除时间戳（毫秒），0 表示未删除")
+    private Long deletedAt;
+
     @Schema(description = "创建时间（毫秒时间戳）")
     private Long createTime;
 
     @Schema(description = "更新时间（毫秒时间戳）")
     private Long updateTime;
+
+    @JsonIgnore
+    public boolean isDirectory() {
+        return FOLDER.equals(type);
+    }
+
+    @JsonIgnore
+    public boolean isFile() {
+        return FILE.equals(type);
+    }
+
+    public static boolean isDirectory(String type) {
+        return FOLDER.equals(type);
+    }
 }

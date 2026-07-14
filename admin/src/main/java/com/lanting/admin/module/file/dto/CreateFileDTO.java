@@ -7,18 +7,18 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 创建文件夹 DTO。
+ * 创建文件 DTO。
  *
  * @author wangzhao
  */
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-@Schema(description = "创建文件夹请求")
-public class CreateFolderDTO {
+@Schema(description = "创建文件请求")
+public class CreateFileDTO {
 
-    /** 文件夹相对路径 */
-    @NotBlank(message = "文件夹路径不能为空")
-    @Schema(description = "文件夹相对路径", example = "sql/2026")
+    /** 文件相对路径 */
+    @NotBlank(message = "文件路径不能为空")
+    @Schema(description = "文件相对路径", example = "sql/user_count.sql")
     private String path;
 }

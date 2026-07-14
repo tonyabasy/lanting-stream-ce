@@ -23,8 +23,8 @@ class FileLockServiceTest {
 
     @AfterEach
     void tearDown() {
-        fileLockService.forceRelease("test/a.sql");
-        fileLockService.forceRelease("test/b.sql");
+        fileLockService.forceRelease(1L);
+        fileLockService.forceRelease(2L);
     }
 
     @Nested
@@ -34,9 +34,9 @@ class FileLockServiceTest {
         @Test
         @DisplayName("持锁人执行成功并正确返回结果")
         void shouldExecuteWhenHolder() {
-            fileLockService.acquire("test/a.sql", "alice");
+            fileLockService.acquire(1L, "alice");
 
-            String result = fileLockService.doIfHolder("test/a.sql", "alice",
+            String result = fileLockService.doIfHolder(1L, "alice",
                     () -> "executed-by-alice");
 
             assertThat(result).isEqualTo("executed-by-alice");
@@ -45,9 +45,9 @@ class FileLockServiceTest {
         @Test
         @DisplayName("非持锁人执行抛 FILE_LOCKED")
         void shouldThrowWhenNotHolder() {
-            fileLockService.acquire("test/a.sql", "alice");
+            fileLockService.acquire(1L, "alice");
 
-            assertThatThrownBy(() -> fileLockService.doIfHolder("test/a.sql", "bob", () -> null))
+            assertThatThrownBy(() -> fileLockService.doIfHolder(1L, "bob", () -> null))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getResultCode())
                     .isEqualTo(FileResultCode.FILE_LOCKED);
@@ -56,7 +56,7 @@ class FileLockServiceTest {
         @Test
         @DisplayName("无人持锁时执行也应抛 FILE_LOCKED")
         void shouldThrowWhenNotLocked() {
-            assertThatThrownBy(() -> fileLockService.doIfHolder("test/a.sql", "alice", () -> null))
+            assertThatThrownBy(() -> fileLockService.doIfHolder(1L, "alice", () -> null))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getResultCode())
                     .isEqualTo(FileResultCode.FILE_LOCKED);
@@ -70,24 +70,24 @@ class FileLockServiceTest {
         @Test
         @DisplayName("首次抢锁返回 previousHolder 为 null")
         void shouldAcquireFirstTime() {
-            AcquireLockVO result = fileLockService.acquire("test/a.sql", "alice");
+            AcquireLockVO result = fileLockService.acquire(1L, "alice");
 
             assertThat(result.isAcquired()).isTrue();
             assertThat(result.getPreviousHolder()).isNull();
             assertThat(result.getPreviousHolderAt()).isNull();
-            assertThat(fileLockService.getHolder("test/a.sql")).isEqualTo("alice");
+            assertThat(fileLockService.getHolder(1L)).isEqualTo("alice");
         }
 
         @Test
         @DisplayName("覆盖他人锁时返回前持锁人信息")
         void shouldReturnPreviousHolderWhenOverriding() {
-            fileLockService.acquire("test/a.sql", "alice");
-            AcquireLockVO result = fileLockService.acquire("test/a.sql", "bob");
+            fileLockService.acquire(1L, "alice");
+            AcquireLockVO result = fileLockService.acquire(1L, "bob");
 
             assertThat(result.isAcquired()).isTrue();
             assertThat(result.getPreviousHolder()).isEqualTo("alice");
             assertThat(result.getPreviousHolderAt()).isNotNull();
-            assertThat(fileLockService.getHolder("test/a.sql")).isEqualTo("bob");
+            assertThat(fileLockService.getHolder(1L)).isEqualTo("bob");
         }
     }
 
@@ -98,21 +98,21 @@ class FileLockServiceTest {
         @Test
         @DisplayName("持锁人释放成功")
         void shouldReleaseByHolder() {
-            fileLockService.acquire("test/a.sql", "alice");
-            boolean released = fileLockService.release("test/a.sql", "alice");
+            fileLockService.acquire(1L, "alice");
+            boolean released = fileLockService.release(1L, "alice");
 
             assertThat(released).isTrue();
-            assertThat(fileLockService.getHolder("test/a.sql")).isNull();
+            assertThat(fileLockService.getHolder(1L)).isNull();
         }
 
         @Test
         @DisplayName("非持锁人释放失败")
         void shouldFailReleaseByNonHolder() {
-            fileLockService.acquire("test/a.sql", "alice");
-            boolean released = fileLockService.release("test/a.sql", "bob");
+            fileLockService.acquire(1L, "alice");
+            boolean released = fileLockService.release(1L, "bob");
 
             assertThat(released).isFalse();
-            assertThat(fileLockService.getHolder("test/a.sql")).isEqualTo("alice");
+            assertThat(fileLockService.getHolder(1L)).isEqualTo("alice");
         }
     }
 
@@ -123,10 +123,10 @@ class FileLockServiceTest {
         @Test
         @DisplayName("不校验持锁人直接释放")
         void shouldReleaseRegardlessOfHolder() {
-            fileLockService.acquire("test/a.sql", "alice");
-            fileLockService.forceRelease("test/a.sql");
+            fileLockService.acquire(1L, "alice");
+            fileLockService.forceRelease(1L);
 
-            assertThat(fileLockService.getHolder("test/a.sql")).isNull();
+            assertThat(fileLockService.getHolder(1L)).isNull();
         }
     }
 
@@ -137,15 +137,15 @@ class FileLockServiceTest {
         @Test
         @DisplayName("正常查询与未锁定情况")
         void shouldReturnCorrectLockInfo() {
-            assertThat(fileLockService.getHolder("test/a.sql")).isNull();
-            assertThat(fileLockService.getLockedAt("test/a.sql")).isNull();
+            assertThat(fileLockService.getHolder(1L)).isNull();
+            assertThat(fileLockService.getLockedAt(1L)).isNull();
 
-            fileLockService.acquire("test/a.sql", "alice");
+            fileLockService.acquire(1L, "alice");
 
-            assertThat(fileLockService.isHolder("test/a.sql", "alice")).isTrue();
-            assertThat(fileLockService.isHolder("test/a.sql", "bob")).isFalse();
-            assertThat(fileLockService.getHolder("test/a.sql")).isEqualTo("alice");
-            assertThat(fileLockService.getLockedAt("test/a.sql")).isNotNull();
+            assertThat(fileLockService.isHolder(1L, "alice")).isTrue();
+            assertThat(fileLockService.isHolder(1L, "bob")).isFalse();
+            assertThat(fileLockService.getHolder(1L)).isEqualTo("alice");
+            assertThat(fileLockService.getLockedAt(1L)).isNotNull();
         }
     }
 }

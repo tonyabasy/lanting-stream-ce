@@ -1,7 +1,7 @@
 package com.lanting.admin.module.file.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 /**
@@ -13,10 +13,10 @@ import lombok.Data;
 @Schema(description = "自动保存文件请求")
 public class SaveFileDTO {
 
-    /** 文件相对路径 */
-    @NotBlank(message = "文件路径不能为空")
-    @Schema(description = "文件相对路径", example = "sql/user_count.sql")
-    private String path;
+    /** 文件 ID */
+    @NotNull(message = "文件 ID 不能为空")
+    @Schema(description = "文件 ID", example = "1")
+    private Long fileId;
 
     /** 文件内容 */
     @Schema(description = "文件内容")

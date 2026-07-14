@@ -17,9 +17,9 @@ import lombok.EqualsAndHashCode;
 public class HistoryPageQuery extends PageQuery {
 
     /**
-     * 文件相对路径，为空时查询整个仓库历史。
+     * 文件 ID。
      */
     @NotNull
-    @Schema(description = "文件相对路径，为空时查询整个仓库历史")
-    private String path;
+    @Schema(description = "文件 ID")
+    private Long fileId;
 }

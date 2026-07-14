@@ -3,10 +3,11 @@ package com.lanting.admin.module.file.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.module.file.dto.*;
+import com.lanting.admin.module.file.service.FileIndexService;
 import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -24,6 +25,9 @@ class FileControllerTest extends BaseIntegrationTest {
     private String token;
     private String uniquePath;
 
+    @Autowired
+    private FileIndexService fileIndexService;
+
     @BeforeEach
     void setUp() {
         token = loginAsAdmin();
@@ -35,11 +39,23 @@ class FileControllerTest extends BaseIntegrationTest {
         // HTTP 测试无需手动清理锁
     }
 
-    private String lastCommitHash(String path) {
+    private Long fileIdByPath(String path) {
+        var entity = fileIndexService.getByPath(path);
+        return entity == null ? null : entity.getId();
+    }
+
+    private String lastCommitHash(Long fileId) {
         ResponseEntity<JsonNode> response = restTemplate.exchange(
-                "/api/files/history?path=" + path + "&pageNum=1&pageSize=1",
+                "/api/files/history?fileId=" + fileId + "&pageNum=1&pageSize=1",
                 HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
         return Objects.requireNonNull(response.getBody()).path("data").path("records").get(0).path("commitHash").asText();
+    }
+
+    private void releaseLock(Long fileId) {
+        LockDTO dto = new LockDTO();
+        dto.setFileId(fileId);
+        restTemplate.exchange("/api/files/lock/release", HttpMethod.POST,
+                new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
     // ==================== review 添加与查询 ====================
@@ -52,18 +68,28 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("添加 review 并查询")
         void shouldAddAndListReview() {
             // 创建文件夹
-            // placeholder, using map
-            var folderBody = new HashMap<String, String>();
-            folderBody.put("path", uniquePath);
+            var folderBody = new CreateFolderDTO();
+            folderBody.setPath(uniquePath);
             restTemplate.exchange(
                     "/api/files/folder",
                     HttpMethod.POST,
                     new HttpEntity<>(folderBody, authHeaders(token)),
                     JsonNode.class);
 
+            // 创建文件
+            String filePath = uniquePath + "/review.sql";
+            var createBody = new CreateFileDTO();
+            createBody.setPath(filePath);
+            restTemplate.exchange(
+                    "/api/files/create",
+                    HttpMethod.POST,
+                    new HttpEntity<>(createBody, authHeaders(token)),
+                    JsonNode.class);
+            Long fileId = fileIdByPath(filePath);
+
             // 抢锁
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", uniquePath + "/review.sql");
+            var lockBody = new LockDTO();
+            lockBody.setFileId(fileId);
             restTemplate.exchange(
                     "/api/files/lock/acquire",
                     HttpMethod.POST,
@@ -71,9 +97,9 @@ class FileControllerTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             // 保存文件
-            var saveBody = new HashMap<String, Object>();
-            saveBody.put("path", uniquePath + "/review.sql");
-            saveBody.put("content", "SELECT 1");
+            var saveBody = new SaveFileDTO();
+            saveBody.setFileId(fileId);
+            saveBody.setContent("SELECT 1");
             restTemplate.exchange(
                     "/api/files/save",
                     HttpMethod.POST,
@@ -81,9 +107,9 @@ class FileControllerTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             // 提交
-            var commitBody = new HashMap<String, Object>();
-            commitBody.put("paths", List.of(uniquePath + "/review.sql"));
-            commitBody.put("message", "for review test");
+            var commitBody = new CommitFileDTO();
+            commitBody.setFileIds(List.of(fileId));
+            commitBody.setMessage("for review test");
             restTemplate.exchange(
                     "/api/files/commit",
                     HttpMethod.POST,
@@ -91,8 +117,8 @@ class FileControllerTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             // 发布
-            var publishBody = new HashMap<String, String>();
-            publishBody.put("displayName", "review release");
+            var publishBody = new PublishDTO();
+            publishBody.setDisplayName("review release");
             var publishResponse = restTemplate.exchange(
                     "/api/files/publish",
                     HttpMethod.POST,
@@ -128,7 +154,7 @@ class FileControllerTest extends BaseIntegrationTest {
         }
     }
 
-    // ==================== 鉴权与错误码 ====================
+    // ==================== 鉴权与校验 ====================
 
     @Nested
     @DisplayName("鉴权与校验")
@@ -161,9 +187,18 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("save 未持锁 → 30709 FILE_LOCKED")
         void shouldReturnFileLockedWhenNotHolder() {
-            String file = uniquePath + "/locked.sql";
+            String filePath = uniquePath + "/locked.sql";
+            // 先创建文件
+            var createDto = new CreateFileDTO();
+            createDto.setPath(filePath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(filePath);
+            // create 会自动持锁，先释放以构造“未持锁”场景
+            releaseLock(fileId);
+
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(file);
+            dto.setFileId(fileId);
             dto.setContent("test");
 
             ResponseEntity<JsonNode> response = restTemplate.exchange(
@@ -179,7 +214,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("删除不存在的文件 → 30702 FILE_NOT_FOUND")
         void shouldReturnFileNotFound() {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files?path=nonexistent/path.sql",
+                    "/api/files?fileId=999999",
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -197,11 +232,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("path 含 '..' → PATH_ILLEGAL（30705）")
         void shouldRejectPathWithDotDot() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath("sql/../../../etc/passwd");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
@@ -209,11 +243,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("绝对路径 → PATH_ILLEGAL（30705）")
         void shouldRejectAbsolutePath() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath("/etc/passwd");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
@@ -221,11 +254,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("反斜杠路径 → PATH_ILLEGAL（30705）")
         void shouldRejectBackslashPath() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath("sql\\a.sql");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30705);
         }
@@ -233,11 +265,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName(".lanting 目录 → LANTING_DIR_FORBIDDEN（30706）")
         void shouldRejectLantingDir() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath(".lanting/config.json");
-            dto.setContent("{}");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30706);
         }
@@ -245,11 +276,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName(".git 目录 → LANTING_DIR_FORBIDDEN（30706）")
         void shouldRejectGitDir() {
-            SaveFileDTO dto = new SaveFileDTO();
+            CreateFileDTO dto = new CreateFileDTO();
             dto.setPath(".git/config");
-            dto.setContent("test");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30706);
         }
@@ -261,26 +291,13 @@ class FileControllerTest extends BaseIntegrationTest {
     @DisplayName("文件类型和大小校验")
     class FileTypeAndSize {
 
-        private String lockedPath;
-
-        @BeforeEach
-        void acquireTestLock() {
-            // 提前抢锁，使后续 save 请求能进入类型校验
-            lockedPath = uniquePath + "/test.txt";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", lockedPath);
-            restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
-                    new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
-        }
-
         @Test
         @DisplayName(".txt 文件 → FILE_TYPE_NOT_ALLOWED（30703）")
         void shouldRejectTxtFile() {
-            SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(lockedPath);
-            dto.setContent("test");
+            CreateFileDTO dto = new CreateFileDTO();
+            dto.setPath(uniquePath + "/test.txt");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
         }
@@ -288,17 +305,10 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("无扩展名文件 → FILE_TYPE_NOT_ALLOWED（30703）")
         void shouldRejectFileWithNoExtension() {
-            String noExtPath = uniquePath + "/noext";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", noExtPath);
-            restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
-                    new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
-
-            SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(noExtPath);
-            dto.setContent("test");
+            CreateFileDTO dto = new CreateFileDTO();
+            dto.setPath(uniquePath + "/noext");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/save", HttpMethod.POST,
+                    "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
         }
@@ -307,15 +317,22 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName(".sql 文件内容等于 1MB 应通过")
         void shouldAcceptFileExactly1MB() {
             String sqlPath = uniquePath + "/exactly1mb.sql";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", sqlPath);
+            CreateFileDTO createDto = new CreateFileDTO();
+            createDto.setPath(sqlPath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(sqlPath);
+
+            // 抢锁
+            var lockBody = new LockDTO();
+            lockBody.setFileId(fileId);
             restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                     new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
 
             // 生成正好 1MB 的内容（ASCII 字符，每字符 1 字节）
             String content = "A".repeat(1024 * 1024);
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(sqlPath);
+            dto.setFileId(fileId);
             dto.setContent(content);
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
@@ -327,15 +344,21 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("文件内容超过 1MB → FILE_SIZE_EXCEEDED（30704）")
         void shouldRejectFileOver1MB() {
             String sqlPath = uniquePath + "/over1mb.sql";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", sqlPath);
+            CreateFileDTO createDto = new CreateFileDTO();
+            createDto.setPath(sqlPath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(sqlPath);
+
+            var lockBody = new LockDTO();
+            lockBody.setFileId(fileId);
             restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                     new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
 
             // 1MB + 1 字节
             String content = "A".repeat(1024 * 1024 + 1);
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(sqlPath);
+            dto.setFileId(fileId);
             dto.setContent(content);
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
@@ -347,13 +370,19 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("空内容 null / '' — 写入0 字节，不报错")
         void shouldAcceptEmptyContent() {
             String sqlPath = uniquePath + "/empty.sql";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", sqlPath);
+            CreateFileDTO createDto = new CreateFileDTO();
+            createDto.setPath(sqlPath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(sqlPath);
+
+            var lockBody = new LockDTO();
+            lockBody.setFileId(fileId);
             restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                     new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
 
             SaveFileDTO dto = new SaveFileDTO();
-            dto.setPath(sqlPath);
+            dto.setFileId(fileId);
             dto.setContent("");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/save", HttpMethod.POST,
@@ -372,7 +401,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("非法 commit SHA → 400 + PARAM_INVALID（10001）")
         void shouldReturn400ForInvalidSha() {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/diff?path=sql/a.sql&from=invalid-sha&to=deadbeef1234567890",
+                    "/api/files/diff?fileId=1&from=invalid-sha&to=deadbeef1234567890",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
@@ -391,27 +420,33 @@ class FileControllerTest extends BaseIntegrationTest {
                     new HttpEntity<>(folder, authHeaders(token)), JsonNode.class);
 
             String filePath = folderPath + "/a.sql";
-            var lockBody = new HashMap<String, String>();
-            lockBody.put("path", filePath);
+            CreateFileDTO createDto = new CreateFileDTO();
+            createDto.setPath(filePath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(filePath);
+
+            var lockBody = new LockDTO();
+            lockBody.setFileId(fileId);
             restTemplate.exchange("/api/files/lock/acquire", HttpMethod.POST,
                     new HttpEntity<>(lockBody, authHeaders(token)), JsonNode.class);
 
             SaveFileDTO save = new SaveFileDTO();
-            save.setPath(filePath);
+            save.setFileId(fileId);
             save.setContent("SELECT 1");
             restTemplate.exchange("/api/files/save", HttpMethod.POST,
                     new HttpEntity<>(save, authHeaders(token)), JsonNode.class);
 
             CommitFileDTO commitDTO = new CommitFileDTO();
-            commitDTO.setPaths(List.of(filePath));
+            commitDTO.setFileIds(List.of(fileId));
             commitDTO.setMessage("add");
             restTemplate.exchange("/api/files/commit", HttpMethod.POST,
                     new HttpEntity<>(commitDTO, authHeaders(token)), JsonNode.class);
 
-            String hash = lastCommitHash(folderPath);
+            String hash = lastCommitHash(fileId);
 
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/diff?path=" + filePath + "&from=" + hash + "&to=" + hash,
+                    "/api/files/diff?fileId=" + fileId + "&from=" + hash + "&to=" + hash,
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);

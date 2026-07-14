@@ -8,7 +8,6 @@ import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.Git;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -122,7 +121,7 @@ public class WorkspaceService {
             }
         } catch (Exception e) {
             log.error("工作空间初始化失败：{}", root, e);
-            throw new BusinessException(FileResultCode.GIT_OPERATION_FAILED, e.getMessage());
+            throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
         }
     }
 

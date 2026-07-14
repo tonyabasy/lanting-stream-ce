@@ -20,7 +20,7 @@ public enum FileResultCode implements ResultCode {
     PATH_ILLEGAL(30705, "路径包含非法字符", 400),
     LANTING_DIR_FORBIDDEN(30706, "不允许操作 .lanting 目录", 403),
     FILE_ALREADY_EXISTS(30707, "文件已存在", 400),
-    GIT_OPERATION_FAILED(30708, "文件操作失败", 500),
+    FILE_OPERATION_FAILED(30708, "文件操作失败", 500),
     FILE_LOCKED(30709, "文件已被锁定", 423),
     PUBLISH_TAG_EXISTS(30710, "发布 tag 已存在", 409),
     ROLLBACK_TARGET_NOT_FOUND(30711, "回滚目标不存在", 404),

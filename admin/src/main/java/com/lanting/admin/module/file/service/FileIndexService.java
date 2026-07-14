@@ -16,6 +16,9 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.zip.CRC32;
 
+import static com.lanting.admin.module.file.entity.FileIndexEntity.FILE;
+import static com.lanting.admin.module.file.entity.FileIndexEntity.isDirectory;
+
 /**
  * 文件系统元数据索引服务。
  *
@@ -34,8 +37,19 @@ public class FileIndexService {
      * @param parentPath 父路径
      * @return 子节点列表
      */
-    public List<FileIndexEntity> listByParentPath(String parentPath) {
-        return fileIndexMapper.selectByParentPath(parentPath);
+    public List<FileIndexEntity> listDirectlyChildren(String parentPath) {
+        return fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
+                .eq(FileIndexEntity::getParentPath, parentPath));
+    }
+
+
+    /**
+     * 根据路径前缀查找文件列表
+     */
+    public List<FileIndexEntity> listAllChildren(String pathPrefix) {
+        return fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
+                .likeRight(FileIndexEntity::getPath, pathPrefix)
+                .ne(FileIndexEntity::getPath, pathPrefix));
     }
 
     /**
@@ -45,10 +59,20 @@ public class FileIndexService {
      * @return 索引记录，不存在返回 null
      */
     public FileIndexEntity getByPath(String path) {
-        LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(FileIndexEntity::getPath, path);
-        return fileIndexMapper.selectOne(wrapper);
+        return fileIndexMapper.selectOne(new LambdaQueryWrapper<FileIndexEntity>()
+                .eq(FileIndexEntity::getPath, path));
     }
+
+    /**
+     * 按主键 ID 查询索引记录。
+     *
+     * @param id 主键 ID
+     * @return 索引记录，不存在返回 null
+     */
+    public FileIndexEntity getById(Long id) {
+        return fileIndexMapper.selectById(id);
+    }
+
 
     /**
      * 创建文件或文件夹后建立索引。
@@ -57,10 +81,10 @@ public class FileIndexService {
      * @param type file / folder
      * @param root 工作空间根目录
      */
-    public void indexOnCreate(String path, String type, Path root) {
+    public FileIndexEntity indexOnCreate(String path, String type, Path root) {
         FileIndexEntity existing = getByPath(path);
         long now = System.currentTimeMillis();
-        long mtime = "folder".equals(type) ? lastModifiedTime(root.resolve(path)) : 0L;
+        long mtime = isDirectory(type) ? lastModifiedTime(root.resolve(path)) : 0L;
 
         if (existing != null) {
             existing.setType(type);
@@ -69,7 +93,7 @@ public class FileIndexService {
             existing.setMtime(mtime);
             existing.setUpdateTime(now);
             fileIndexMapper.updateById(existing);
-            return;
+            return existing;
         }
 
         FileIndexEntity entity = new FileIndexEntity();
@@ -78,27 +102,11 @@ public class FileIndexService {
         entity.setType(type);
         entity.setParentPath(extractParentPath(path));
         entity.setMtime(mtime);
-        entity.setCrc32(0L);
+        entity.setCrc32(0L); // 新建文件没有任何数据 CRC32 为 0
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         fileIndexMapper.insert(entity);
-    }
-
-    /**
-     * 删除文件或文件夹前删除索引（递归删除子路径）。
-     *
-     * @param path 文件相对路径
-     */
-    public void indexOnDelete(String path) {
-        // 删除自身
-        LambdaQueryWrapper<FileIndexEntity> self = new LambdaQueryWrapper<>();
-        self.eq(FileIndexEntity::getPath, path);
-        fileIndexMapper.delete(self);
-
-        // 递归删除以该路径为前缀的子节点
-        LambdaQueryWrapper<FileIndexEntity> children = new LambdaQueryWrapper<>();
-        children.likeRight(FileIndexEntity::getPath, path + "/");
-        fileIndexMapper.delete(children);
+        return entity;
     }
 
     /**
@@ -145,13 +153,62 @@ public class FileIndexService {
         FileIndexEntity entity = new FileIndexEntity();
         entity.setPath(path);
         entity.setName(extractName(path));
-        entity.setType("file");
+        entity.setType(FILE);
         entity.setParentPath(extractParentPath(path));
         entity.setMtime(mtime);
         entity.setCrc32(crc32);
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         fileIndexMapper.insert(entity);
+    }
+
+    /**
+     * 单条文件 rename 后更新索引的 path/name/parent_path。
+     *
+     * @param fileId  文件 ID
+     * @param newPath 新相对路径
+     */
+    public void indexOnRename(Long fileId, String newPath) {
+        FileIndexEntity entity = fileIndexMapper.selectById(fileId);
+        if (entity == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        entity.setPath(newPath);
+        entity.setName(extractName(newPath));
+        entity.setParentPath(extractParentPath(newPath));
+        entity.setUpdateTime(now);
+        fileIndexMapper.updateById(entity);
+    }
+
+    /**
+     * 文件夹 rename 后批量更新索引：path 和 parent_path 中匹配 oldPrefix 的前缀替换为 newPrefix。
+     *
+     * @param oldPrefix 原文件夹路径
+     * @param newPrefix 新文件夹路径
+     */
+    public void indexOnFolderRename(String oldPrefix, String newPrefix) {
+        if (oldPrefix.equals(newPrefix)) {
+            return;
+        }
+        fileIndexMapper.updatePathsByPrefix(oldPrefix, newPrefix);
+    }
+
+    /**
+     * 删除文件或文件夹前删除索引（递归删除子路径）。
+     *
+     * @param path 文件相对路径
+     */
+    public void indexOnDelete(String path) {
+        fileIndexMapper.delete(new LambdaQueryWrapper<FileIndexEntity>()
+                .likeRight(FileIndexEntity::getPath, path));
+    }
+
+    /**
+     * 根据 ID 列表批量删除文件/目录
+     */
+    public void indexOnDeleteByIds(Set<Long> fileIds) {
+        fileIndexMapper.deleteByIds(fileIds);
     }
 
     /**
@@ -208,8 +265,8 @@ public class FileIndexService {
         // 加载 DB 中索引记录，按 path 建立 Map
         List<FileIndexEntity> allIndex = hasScope
                 ? fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
-                        .likeRight(FileIndexEntity::getPath, scope + "/")
-                        .or().eq(FileIndexEntity::getPath, scope))
+                                             .likeRight(FileIndexEntity::getPath, scope + "/")
+                                             .or().eq(FileIndexEntity::getPath, scope))
                 : fileIndexMapper.selectList(null);
         Map<String, FileIndexEntity> indexMap = new HashMap<>();
         for (FileIndexEntity entity : allIndex) {
@@ -235,7 +292,7 @@ public class FileIndexService {
                     FileIndexEntity entity = indexMap.get(relative);
                     if (entity == null) {
                         unindexedFolders.add(relative);
-                    } else if (!"folder".equals(entity.getType())) {
+                    } else if (entity.isFile()) {
                         mtimeMismatches.add(relative);
                     }
                     return FileVisitResult.CONTINUE;
@@ -279,7 +336,7 @@ public class FileIndexService {
         for (FileIndexEntity entity : allIndex) {
             String path = entity.getPath();
             if (!diskPaths.contains(path)) {
-                if ("folder".equals(entity.getType())) {
+                if (entity.isDirectory()) {
                     staleFolders.add(path);
                 } else {
                     staleFiles.add(path);

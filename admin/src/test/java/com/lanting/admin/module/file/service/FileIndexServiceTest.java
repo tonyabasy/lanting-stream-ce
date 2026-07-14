@@ -1,17 +1,24 @@
 package com.lanting.admin.module.file.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.lanting.admin.BaseIntegrationTest;
+import com.lanting.admin.common.util.SecurityUtils;
+import com.lanting.admin.module.file.dto.CreateFileDTO;
+import com.lanting.admin.module.file.dto.CreateFolderDTO;
+import com.lanting.admin.module.file.dto.SaveFileDTO;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -34,6 +41,8 @@ class FileIndexServiceTest extends BaseIntegrationTest {
 
     private Path root;
     private String uniqueDir;
+    @Autowired
+    private GitFileService gitFileService;
 
     @BeforeEach
     void setUp() {
@@ -157,6 +166,143 @@ class FileIndexServiceTest extends BaseIntegrationTest {
         }
     }
 
+    // ==================== 批量索引操作 ====================
+
+    @Nested
+    @DisplayName("批量索引操作")
+    class BatchIndexOperations {
+        private MockedStatic<SecurityUtils> securityUtilsMock;
+
+        @BeforeEach
+        void mockCurrentUser() {
+            securityUtilsMock = Mockito.mockStatic(SecurityUtils.class);
+            securityUtilsMock.when(SecurityUtils::currentUser).thenReturn("admin");
+        }
+
+        @AfterEach
+        void closeMock() {
+            if (securityUtilsMock != null) {
+                securityUtilsMock.close();
+            }
+        }
+
+        @Test
+        @DisplayName("indexOnDeleteByPathPrefix 删除 3 层目录及 10 个文件")
+        void shouldDeleteAllByPathPrefix() {
+            // 3 层目录：uniqueDir/l1/l2
+            String l1 = uniqueDir + "/l1";
+            String l2 = l1 + "/l2";
+            fileIndexService.indexOnCreate(l1, "folder", root);
+            fileIndexService.indexOnCreate(l2, "folder", root);
+
+            // 10 个文件分布在各层级
+            String[] files = {
+                    uniqueDir + "/f1.sql",
+                    uniqueDir + "/f2.sql",
+                    l1 + "/f3.sql",
+                    l1 + "/f4.sql",
+                    l1 + "/f5.sql",
+                    l2 + "/f6.sql",
+                    l2 + "/f7.sql",
+                    l2 + "/f8.sql",
+                    l2 + "/f9.sql",
+                    l2 + "/f10.sql"
+            };
+            for (String file : files) {
+                fileIndexService.indexOnSave(file, root);
+            }
+
+            // 通过前缀删除整个目录树
+            fileIndexService.indexOnDelete(uniqueDir);
+
+            // 验证所有文件和目录记录都被删除
+            assertThat(fileIndexService.getByPath(uniqueDir)).isNull();
+            assertThat(fileIndexService.getByPath(l1)).isNull();
+            assertThat(fileIndexService.getByPath(l2)).isNull();
+            for (String file : files) {
+                assertThat(fileIndexService.getByPath(file)).isNull();
+            }
+        }
+
+        @Test
+        @DisplayName("indexOnDeleteByIds 只删除指定文件 ID，保留目录")
+        void shouldDeleteOnlySpecifiedFileIds() {
+            String folder = uniqueDir + "/folder";
+            fileIndexService.indexOnCreate(folder, "folder", root);
+
+            // 4 个文件
+            String[] files = {
+                    folder + "/a.sql",
+                    folder + "/b.sql",
+                    folder + "/c.sql",
+                    folder + "/d.sql"
+            };
+            Set<Long> fileIds = new HashSet<>();
+            for (String file : files) {
+                fileIndexService.indexOnSave(file, root);
+                FileIndexEntity entity = fileIndexService.getByPath(file);
+                assertThat(entity).isNotNull();
+                fileIds.add(entity.getId());
+            }
+
+            // 通过文件 ID 删除
+            fileIndexService.indexOnDeleteByIds(fileIds);
+
+            // 验证文件被删除，目录保留
+            for (String file : files) {
+                assertThat(fileIndexService.getByPath(file)).isNull();
+            }
+            assertThat(fileIndexService.getByPath(folder)).isNotNull();
+        }
+
+        @Test
+        @DisplayName("listAllChildren 按前缀查找 4 层目录下第二层级的所有文件")
+        void shouldListAllChildrenByPrefix() {
+            // 4 层目录：uniqueDir/l1/l2/l3
+            String l1 = uniqueDir + "/l1";
+            String l2 = l1 + "/l2";
+            String l3 = l2 + "/l3";
+
+            gitFileService.createFolder(new CreateFolderDTO(l1));
+            gitFileService.createFolder(new CreateFolderDTO(l2));
+            gitFileService.createFolder(new CreateFolderDTO(l3));
+
+            // 10 个文件
+            String[] files = {
+                    l1 + "/f1.sql",
+                    l1 + "/f2.sql",
+                    l2 + "/f3.sql",
+                    l2 + "/f4.sql",
+                    l2 + "/f5.sql",
+                    l3 + "/f6.sql",
+                    l3 + "/f7.sql",
+                    l3 + "/f8.sql",
+                    l3 + "/f9.sql",
+                    l3 + "/f10.sql"
+            };
+            for (String file : files) {
+                gitFileService.create(new CreateFileDTO(file));
+            }
+
+            // 根据前缀 l1 查找所有 children，不包括 l1 目录本身
+            List<FileIndexEntity> children = fileIndexService.listAllChildren(l1);
+
+            Set<String> childPaths = children.stream()
+                    .map(FileIndexEntity::getPath)
+                    .collect(Collectors.toSet());
+
+            // 应包含 l2、l3 目录及所有子孙文件
+            assertThat(childPaths).contains(l2, l3);
+            for (String file : files) {
+                assertThat(childPaths).contains(file);
+            }
+            // 不包含 l1 自身
+            assertThat(childPaths).doesNotContain(l1);
+            // 共 11 条：l2 目录 + l3 目录 + 10 个文件
+            assertThat(children).hasSize(12);
+        }
+    }
+
     // ==================== reconcile 数据一致性 ====================
 
     @Nested
@@ -270,7 +416,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             Files.deleteIfExists(root.resolve(file));
 
             // tree() 应仍然返回（查 DB 不是磁盘）
-            List<FileIndexEntity> children = fileIndexService.listByParentPath(uniqueDir);
+            List<FileIndexEntity> children = fileIndexService.listDirectlyChildren(uniqueDir);
             boolean found = children.stream().anyMatch(e -> "db-only.sql".equals(e.getName()));
             assertThat(found).isTrue();
         }
@@ -298,7 +444,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             fileIndexService.reloadIndex(root);
 
             // 查询扫描后的记录
-            List<FileIndexEntity> children = fileIndexService.listByParentPath(dir);
+            List<FileIndexEntity> children = fileIndexService.listDirectlyChildren(dir);
             // 应有 a.sql, b.sql, sub 三个
             assertThat(children).extracting(FileIndexEntity::getName)
                     .contains("a.sql", "b.sql", "sub");

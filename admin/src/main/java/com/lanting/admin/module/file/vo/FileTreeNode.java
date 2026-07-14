@@ -14,6 +14,10 @@ import java.util.List;
 @Schema(description = "文件树节点")
 public class FileTreeNode {
 
+    /** 文件/文件夹 ID */
+    @Schema(description = "文件/文件夹 ID")
+    private Long fileId;
+
     /** 文件/文件夹名 */
     @Schema(description = "文件/文件夹名")
     private String name;
