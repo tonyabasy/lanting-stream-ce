@@ -110,7 +110,8 @@ public class FileController {
     }
 
     /**
-     * 删除文件或文件夹。文件夹删除时若存在他人锁定文件且未 force，返回 30712 部分文件被锁定。
+     * 删除文件或文件夹（软删除）。文件夹删除时若存在他人锁定文件且未 force，返回 30712 部分文件被锁定。
+     * 删除不产生 Git commit，仅标记 deleted_at 并删除磁盘文件。
      */
     @Operation(summary = "删除文件或文件夹")
     @DeleteMapping
@@ -120,6 +121,35 @@ public class FileController {
         if (locked != null) {
             return Result.error(FileResultCode.FILES_LOCKED, locked);
         }
+        return Result.success();
+    }
+
+    /**
+     * 回收站文件树。返回指定父路径下已软删除的文件/文件夹。
+     */
+    @Operation(summary = "回收站文件树")
+    @GetMapping("/trash")
+    public Result<List<FileTreeNode>> trash(@RequestParam(defaultValue = "") String parentPath) {
+        return Result.success(gitFileService.trash(parentPath));
+    }
+
+    /**
+     * 从回收站恢复文件/文件夹。commitHash 为空时从 HEAD 恢复。
+     */
+    @Operation(summary = "恢复文件或文件夹")
+    @PostMapping("/trash/restore")
+    public Result<Void> restore(@Valid @RequestBody RestoreFileDTO dto) {
+        gitFileService.restore(dto);
+        return Result.success();
+    }
+
+    /**
+     * 从回收站彻底删除文件/文件夹。仅允许删除已软删除（deleted_at > 0）的条目。
+     */
+    @Operation(summary = "彻底删除文件或文件夹")
+    @DeleteMapping("/trash/purge")
+    public Result<Void> purge(@RequestParam @NotNull Long fileId) {
+        gitFileService.purge(fileId);
         return Result.success();
     }
 

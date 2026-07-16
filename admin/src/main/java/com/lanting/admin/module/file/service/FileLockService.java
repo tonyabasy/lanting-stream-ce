@@ -1,10 +1,12 @@
 package com.lanting.admin.module.file.service;
 
 import com.lanting.admin.common.exception.BusinessException;
+import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.vo.AcquireLockVO;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -31,20 +33,26 @@ public class FileLockService {
     /**
      * fileId -> 持锁信息。
      */
-    private final Map<String, LockInfo> lockMap = new ConcurrentHashMap<>();
+    private final Map<String, LockInfo> fileSoftLocks = new ConcurrentHashMap<>();
+
+    /**
+     * 文件夹硬锁：path -> LockInfo，10s TTL 惰性清理。
+     */
+    private final Map<String, LockInfo> folderHardLocks = new ConcurrentHashMap<>();
+    private static final long FOLDER_LOCK_TTL_MS = 10_000;
 
     /**
      * 固定大小的 stripe 锁数组。把文件 ID 按 hash 映射到某一把锁，
      * 在"持锁校验与执行"和"锁操作"之间提供互斥；不同文件可能命中不同 stripe 实现并行，
      * 也可能命中同一 stripe 导致无关串行，但不会影响正确性。
-     * <p>
-     * 数量为 32，基于 CE 并发编辑文件数通常不超过 5 的估算：5 个文件时碰撞概率约 14%，
-     * 内存占用可忽略，且无 OOM 风险。
      */
-    private static final int STRIPE_COUNT = 32;
+    private static final int STRIPE_COUNT = 256;
     private final Object[] stripes = new Object[STRIPE_COUNT];
 
-    public FileLockService() {
+    private final FileIndexService fileIndexService;
+
+    public FileLockService(FileIndexService fileIndexService) {
+        this.fileIndexService = fileIndexService;
         for (int i = 0; i < STRIPE_COUNT; i++) {
             stripes[i] = new Object();
         }
@@ -62,6 +70,9 @@ public class FileLockService {
      * 持锁信息。
      */
     private record LockInfo(String holder, long lockedAt) {
+        boolean isExpired() {
+            return System.currentTimeMillis() - lockedAt > FOLDER_LOCK_TTL_MS;
+        }
     }
 
     /**
@@ -75,12 +86,16 @@ public class FileLockService {
      * 见 GitFileService#withWorkspaceLock 的说明。
      *
      * @param fileId   文件 ID
+     * @param filePath 文件路径，用于目录锁隔离检查
      * @param username 期望的持锁人
      * @param action   持锁校验通过后执行的动作
      * @return action 的返回值
      */
-    public <T> T doIfHolder(Long fileId, String username, Supplier<T> action) {
+    public <T> T doIfHolder(Long fileId, String filePath, String username, Supplier<T> action) {
         synchronized (stripeFor(fileId)) {
+            if (!folderHardLocks.isEmpty()) {
+                ensureFolderLocksSafety(filePath, username);
+            }
             if (!isHolder(fileId, username)) {
                 throw new BusinessException(FileResultCode.FILE_LOCKED);
             }
@@ -88,28 +103,42 @@ public class FileLockService {
         }
     }
 
+    public <T> T doIfHolder(Long fileId, String username, Supplier<T> action) {
+        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId);
+        return doIfHolder(fileId, fileIndexEntity.getPath(), username, action);
+    }
+
     /**
      * 抢锁。软锁：即使有人持锁也可以强制抢锁成功。
      * <p>
      * 与 {@link #doIfHolder} 互斥：他人的写动作正在执行时，抢锁会等待其完成。
      *
-     * @param fileId 文件 ID
-     * @param holder 持锁人 username
+     * @param fileId   文件 ID
+     * @param filePath 文件路径，用于目录锁隔离检查
+     * @param holder   持锁人 username
      * @return 抢锁结果
      */
-    public AcquireLockVO acquire(Long fileId, String holder) {
+    public AcquireLockVO acquire(Long fileId, String filePath, String holder) {
+        if (!folderHardLocks.isEmpty()) {
+            ensureFolderLocksSafety(filePath, holder);
+        }
         String key = key(fileId);
         synchronized (stripeFor(fileId)) {
             AcquireLockVO vo = new AcquireLockVO();
             vo.setAcquired(true);
 
-            LockInfo previous = lockMap.put(key, new LockInfo(holder, System.currentTimeMillis()));
+            LockInfo previous = fileSoftLocks.put(key, new LockInfo(holder, System.currentTimeMillis()));
             if (previous != null && !previous.holder.equals(holder)) {
                 vo.setPreviousHolder(previous.holder);
                 vo.setPreviousHolderAt(previous.lockedAt);
             }
             return vo;
         }
+    }
+
+    public AcquireLockVO acquire(Long fileId, String holder) {
+        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId);
+        return acquire(fileId, fileIndexEntity.getPath(), holder);
     }
 
     /**
@@ -122,14 +151,14 @@ public class FileLockService {
     public boolean release(Long fileId, String holder) {
         String key = key(fileId);
         synchronized (stripeFor(fileId)) {
-            LockInfo current = lockMap.get(key);
+            LockInfo current = fileSoftLocks.get(key);
             if (current == null) {
                 return true;
             }
             if (!current.holder.equals(holder)) {
                 return false;
             }
-            lockMap.remove(key);
+            fileSoftLocks.remove(key);
             return true;
         }
     }
@@ -145,7 +174,7 @@ public class FileLockService {
     public void forceRelease(Long fileId) {
         String key = key(fileId);
         synchronized (stripeFor(fileId)) {
-            lockMap.remove(key);
+            fileSoftLocks.remove(key);
         }
     }
 
@@ -157,7 +186,7 @@ public class FileLockService {
      * （commit 不要求原子性）。
      */
     public boolean isHolder(Long fileId, String holder) {
-        LockInfo current = lockMap.get(key(fileId));
+        LockInfo current = fileSoftLocks.get(key(fileId));
         return current != null && current.holder.equals(holder);
     }
 
@@ -168,7 +197,7 @@ public class FileLockService {
      * @return 持锁人 username，未锁定返回 null
      */
     public String getHolder(Long fileId) {
-        LockInfo current = lockMap.get(key(fileId));
+        LockInfo current = fileSoftLocks.get(key(fileId));
         return current == null ? null : current.holder;
     }
 
@@ -179,7 +208,85 @@ public class FileLockService {
      * @return 持锁时间戳，未锁定返回 null
      */
     public Long getLockedAt(Long fileId) {
-        LockInfo current = lockMap.get(key(fileId));
+        LockInfo current = fileSoftLocks.get(key(fileId));
         return current == null ? null : current.lockedAt;
+    }
+
+    // ==================== 目录锁（硬锁） ====================
+
+    /**
+     * 确保指定路径不与任何活跃目录锁冲突（祖先 + 子孙双向检查）。
+     * <p>
+     * 遍历 {@code folderHardLocks} 做全表匹配，常年为空或仅 1-2 条，纳秒级。
+     * 同时惰性清理过期锁。
+     */
+    private void ensureFolderLocksSafety(String path, String holder) {
+        for (var entry : folderHardLocks.entrySet()) {
+            String lockedPath = entry.getKey();
+            LockInfo lock = entry.getValue();
+
+            // TTL 过期：惰性清理
+            if (lock.isExpired()) {
+                folderHardLocks.remove(lockedPath, lock);
+                continue;
+            }
+            // 同一持锁人放行
+            if (lock.holder().equals(holder)) {
+                continue;
+            }
+            // lockedPath 是 path 的祖先？
+            if (path.startsWith(lockedPath + "/")) {
+                throw new BusinessException(FileResultCode.FILE_LOCKED,
+                        "父目录 " + lockedPath + " 正在被操作");
+            }
+            // path 是 lockedPath 的祖先？
+            if (lockedPath.startsWith(path + "/")) {
+                throw new BusinessException(FileResultCode.FILE_LOCKED,
+                        "子目录 " + lockedPath + " 正在被操作");
+            }
+        }
+    }
+
+    /**
+     * 获取目录锁。
+     * <p>
+     * 先封门（注册目录锁），再清场（抢子文件锁）。抢子文件锁失败则自动释放目录锁。
+     */
+    public void acquireFolderLock(String path, String holder) {
+        // 1. 祖先+子孙双向检查
+        ensureFolderLocksSafety(path, holder);
+
+        // 2. 先封门 — 注册目录锁
+        folderHardLocks.compute(path, (k, existing) -> {
+            if (existing == null || existing.isExpired()) {
+                return new LockInfo(holder, System.currentTimeMillis());
+            }
+            if (existing.holder().equals(holder)) {
+                return existing;
+            }
+            throw new BusinessException(FileResultCode.FILE_LOCKED,
+                    "目录 " + path + " 正在被 " + existing.holder() + " 操作");
+        });
+
+        // 3. 再清场 — 抢子文件锁
+        try {
+            List<FileIndexEntity> children = fileIndexService.listAllChildren(path);
+            for (FileIndexEntity child : children) {
+                if (child.isFile()) {
+                    acquire(child.getId(), child.getPath(), holder);
+                }
+            }
+        } catch (Exception e) {
+            // 4. 抢子文件锁失败则释放目录锁
+            releaseFolderLock(path, holder);
+            throw e;
+        }
+    }
+
+    /**
+     * 释放目录锁（CAS 安全）。
+     */
+    public void releaseFolderLock(String path, String holder) {
+        folderHardLocks.remove(path, holder);
     }
 }

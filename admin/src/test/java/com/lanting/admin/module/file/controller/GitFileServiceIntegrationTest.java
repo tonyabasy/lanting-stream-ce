@@ -78,7 +78,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     class DeleteGitRegression {
 
         @Test
-        @DisplayName("delete → commit 后 HEAD tree 中文件不存在")
+        @DisplayName("delete 为软删除，commit 后 HEAD tree 中文件不存在")
         void deletedFileShouldNotExistInHeadTree() throws Exception {
             createFolder(uniquePath);
             String filePath = uniquePath + "/to-delete.sql";
@@ -87,19 +87,41 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             saveFile(fileId, "SELECT 1");
             commit(List.of(fileId), "add file");
 
-            // 删除
+            // 删除（软删除，不产生 commit）
             restTemplate.exchange(
                     "/api/files?fileId=" + fileId,
                     HttpMethod.DELETE,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);
 
-            // 验证删除后磁盘与索引已清理
+            // 验证删除后磁盘文件已不存在，但 DB 索引仍存在（deleted_at > 0）
             java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
             assertThat(Files.exists(root.resolve(filePath)))
                     .as("删除后磁盘文件应不存在").isFalse();
-            assertThat(fileIndexService.getByPath(filePath))
-                    .as("删除后 DB 索引应不存在").isNull();
+            FileIndexEntity deletedEntity = fileIndexService.getByPathIncludingDeleted(filePath);
+            assertThat(deletedEntity).as("删除后 DB 索引应保留").isNotNull();
+            assertThat(deletedEntity.getDeletedAt()).as("deleted_at 应大于 0").isGreaterThan(0L);
+
+            // 此时 HEAD tree 仍包含文件（未 commit）
+            try (Git git = Git.open(root.toFile());
+                 RevWalk walk = new RevWalk(git.getRepository())) {
+                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
+                RevCommit headCommit = walk.parseCommit(headId);
+                TreeWalk treeWalk = TreeWalk.forPath(
+                        git.getRepository(), filePath, headCommit.getTree());
+                assertThat(treeWalk).as("未 commit 前 HEAD tree 仍包含文件").isNotNull();
+            }
+
+            // 手动 commit 删除，HEAD tree 中文件应不存在
+            commit(List.of(fileId), "delete file");
+            try (Git git = Git.open(root.toFile());
+                 RevWalk walk = new RevWalk(git.getRepository())) {
+                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
+                RevCommit headCommit = walk.parseCommit(headId);
+                TreeWalk treeWalk = TreeWalk.forPath(
+                        git.getRepository(), filePath, headCommit.getTree());
+                assertThat(treeWalk).as("commit 删除后 HEAD tree 不应包含文件").isNull();
+            }
         }
 
         @Test
