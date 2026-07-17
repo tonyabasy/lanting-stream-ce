@@ -47,6 +47,9 @@ public class FileIndexEntity {
     @Schema(description = "删除时间戳（毫秒），0 表示未删除")
     private Long deletedAt;
 
+    @Schema(description = "最后一次进入 Git 的 commit hash")
+    private String latestCommitHash;
+
     @Schema(description = "创建时间（毫秒时间戳）")
     private Long createTime;
 

@@ -4,6 +4,7 @@ import com.lanting.admin.common.exception.BusinessException;
 import com.lanting.admin.common.exception.ContentInconsistentException;
 import com.lanting.admin.common.page.PageResult;
 import com.lanting.admin.common.result.CommonResultCode;
+import com.lanting.admin.common.util.HappyRun;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.event.PathRenamedEvent;
@@ -17,6 +18,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.LogCommand;
 import org.eclipse.jgit.api.RmCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
+import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.InvalidObjectIdException;
@@ -34,9 +36,12 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -44,6 +49,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 import static com.lanting.admin.common.util.SecurityUtils.currentUser;
+import static com.lanting.admin.module.file.vo.CommitResultVO.FILE_UNLOCKED;
 
 /**
  * 基于 Git 的文件服务，file 模块的核心。
@@ -62,8 +68,8 @@ import static com.lanting.admin.common.util.SecurityUtils.currentUser;
  *   <li><b>发布 = Tag</b>：发布对当前 HEAD 打 tag，未提交的磁盘变更不纳入发布；
  *       回滚采用"读历史内容覆盖当前文件再 commit"的软回滚，不使用 git revert。</li>
  * </ul>
- *
- * TODO：
+ * <p>
+ * TODO Thinking：
  *  1. ID -> Path 的映射期间需要保证 Path 不可变吗？是让用户感受到操作失败还是强制保证成功？分布式部署时呢？我觉得需要保持弱一致性，通过有限次数的重试来保证最终的一致性，不然系统设计太过于臃肿，而且还不太健壮
  *  2.
  *
@@ -129,7 +135,7 @@ public class GitFileService {
      * 根据文件 ID 解析当前路径。包含已删除记录，用于 history/diff/revert/restore。
      */
     private String resolvePathByFileId(Long fileId) {
-        FileIndexEntity entity = fileIndexService.getById(fileId);
+        FileIndexEntity entity = fileIndexService.getIncludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -197,7 +203,7 @@ public class GitFileService {
      * {@code code=30714} 但 {@code data=磁盘内容} 的响应。
      */
     public String content(Long fileId) {
-        FileIndexEntity entity = fileIndexService.getById(fileId);
+        FileIndexEntity entity = fileIndexService.getIncludeDeletedById(fileId);
         if (entity == null || entity.getDeletedAt() > 0) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -272,7 +278,7 @@ public class GitFileService {
             return;
         }
 
-        FileIndexEntity entity = fileIndexService.getExistingById(dto.getFileId());
+        FileIndexEntity entity = fileIndexService.getExcludeDeletedById(dto.getFileId());
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -341,7 +347,7 @@ public class GitFileService {
      */
     public PathRenamedVO rename(RenameDTO dto) {
         Long fileId = dto.getFileId();
-        FileIndexEntity entity = fileIndexService.getExistingById(fileId);
+        FileIndexEntity entity = fileIndexService.getExcludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -377,7 +383,7 @@ public class GitFileService {
         String username = currentUser();
         if (entity.isFile()) {
             // rename file 需要抢锁
-            fileLockService.doIfHolder(entity.getId(),entity.getPath(), username, () -> {
+            fileLockService.doIfHolder(entity.getId(), entity.getPath(), username, () -> {
                 try {
                     Files.move(oldFilePath, newFilePath);
                     fileIndexService.indexOnRename(fileId, newPath);
@@ -404,19 +410,17 @@ public class GitFileService {
     // ==================== 删除文件/文件夹 ====================
 
     /**
-     * 删除文件或文件夹（软删除）。
+     * 删除文件或文件夹（软删除 + 自动生成 Git commit）。
      * <p>
-     * 文件：必须持有该文件的锁才能删除；force=true 时可强制释放锁并删除。
-     * 文件夹：不递归抢锁，而是预检目录下是否有<b>他人</b>持锁的文件——
-     * 有且未指定 force 时返回被锁文件清单（Controller 转 30712）供前端弹确认框，
-     * force=true 时踢掉所有持锁人强制删除。
+     * 目录：先通过 {@link FileLockService#acquireFolderLock} 封门，再清场删除。
+     * 文件：通过 {@link FileLockService#doIfHolder} 校验持锁后删除。
+     * 删除前自动将未提交改动 commit（auto commit before delete），保证磁盘最新内容进入 Git 历史。
      * <p>
-     * 删除仅将索引标记为 deleted_at &gt; 0 并删除磁盘文件/目录，<b>不产生 Git commit</b>。
-     *
-     * @return 被他人锁定的文件清单；删除成功时返回 null
+     * 支持容错：若磁盘文件已被外部提前删除，自动清理 DB 元数据索引并视情况补齐 Git 删除 commit，
+     * 杜绝幽灵节点。
      */
-    public DeleteLockedVO delete(Long fileId, boolean force) throws IOException {
-        FileIndexEntity entity = fileIndexService.getExistingById(fileId);
+    public void delete(Long fileId) {
+        FileIndexEntity entity = fileIndexService.getExcludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -425,59 +429,51 @@ public class GitFileService {
         String path = entity.getPath();
         validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path targetPath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(targetPath, root);
-
-        // 确定文件在磁盘中是否存在
-        if (!Files.exists(targetPath)) {
-            log.warn("文件/目录在磁盘中不存在，仅存在于 DB 索引中，fileId={}，filePath={}。", fileId, path);
-            throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
-        }
+        Path absolutePath = root.resolve(path).toAbsolutePath().normalize();
+        ensureInsideWorkspace(absolutePath, root);
 
         String currentUser = currentUser();
+
         if (entity.isDirectory()) {
-            List<FileIndexEntity> children = fileIndexService.listAllChildren(entity.getPath());
-            if (!children.isEmpty()) {
-                List<LockedFileVO> lockedFileVOs = new ArrayList<>();
-                children.stream().filter(FileIndexEntity::isFile).forEach(child -> {
-                    String holder = fileLockService.getHolder(child.getId());
-                    if (force) {
-                        // 强制删除时无条件释放所有子文件锁
-                        fileLockService.forceRelease(child.getId());
-                    } else if (holder != null && !holder.equals(currentUser)) {
-                        // 非强制删除情况下：子路径被他人锁定
-                        lockedFileVOs.add(new LockedFileVO(child.getId(), child.getPath(), holder));
-                    }
-                });
-                // 非强制模式下，目录中有其他人锁定文件，返回锁定列表告知用户以判断是否需要强制删除
-                if (!lockedFileVOs.isEmpty()) {
-                    return new DeleteLockedVO(lockedFileVOs);
-                }
+            fileLockService.acquireFolderLock(path, currentUser);
+            try {
+                doDelete(path, absolutePath, entity);
+            } catch (Throwable e) {
+                throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
+            } finally {
+                fileLockService.releaseFolderLock(path, currentUser);
             }
-            // delete folder
-            fileIndexService.indexOnDelete(entity.getPath());
-            FileUtils.forceDelete(targetPath.toFile());
         } else {
-            // delete file
-            if (force) {
-                fileLockService.forceRelease(fileId);
-                fileIndexService.indexOnDeleteByIds(Collections.singleton(fileId));
-                Files.delete(targetPath);
-            } else {
-                fileLockService.doIfHolder(entity.getId(), entity.getPath(), currentUser, () -> {
-                    fileIndexService.indexOnDeleteByIds(Collections.singleton(fileId));
-                    try {
-                        Files.delete(targetPath);
-                    } catch (IOException e) {
-                        throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
-                    }
+            fileLockService.doIfHolder(entity.getId(), entity.getPath(), currentUser, () -> {
+                try {
+                    doDelete(path, absolutePath, entity);
                     return null;
-                });
-            }
-            // 确保删除后锁被释放
-            fileLockService.forceRelease(fileId);
+                } catch (Throwable e) {
+                    throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
+                }
+            });
         }
-        return null;
+    }
+
+    private void doDelete(String path, Path absolutePath, FileIndexEntity entity) throws Throwable {
+        // auto commit before delete
+        if (Files.exists(absolutePath)) {
+            HappyRun.run(() ->
+                            gitCommit(Collections.singletonList(path), Collections.emptyList(), "auto commit before delete")
+                    , "删除前的自动备份：" + path, NoFilepatternException.class);
+            HappyRun.run(() ->
+                            FileUtils.forceDelete(absolutePath.toFile())
+                    , "从磁盘删除：" + path, FileNotFoundException.class);
+        }
+
+        // delete commit
+        RevCommit revCommit = HappyRun.run(() ->
+                        gitCommit(Collections.emptyList(), Collections.singletonList(path), "delete " + path)
+                , null, "删除后自动提交：" + path, NoFilepatternException.class);
+        String commitHash = revCommit != null ? revCommit.getName() : null;
+        long deleteTimestamp = revCommit != null ? revCommit.getCommitTime() * 1000L : System.currentTimeMillis();
+        // DB 软删除
+        fileIndexService.indexOnDelete(path, deleteTimestamp, commitHash);
     }
 
     // ==================== 提交 ====================
@@ -485,50 +481,47 @@ public class GitFileService {
     /**
      * 提交文件。只提交调用方已锁定的文件；他人锁定文件进入 skipped。
      * <p>
-     * 已删除文件（deleted_at &gt; 0）通过 {@code git rm} 从 Git tree 移除；正常文件仍通过
-     * {@code git add} 提交。commit 成功后保留软删除索引，直至用户在回收站执行 purge。
-     * 若 committed 列表为空，Controller 层返回 30713 无可提交的文件。
+     * 已采用多文件分段锁（doIfLocked）保护，确保从"校验持锁"到"JGit 提交落盘"的整个过程是原子操作，
+     * 彻底杜绝提交期间因他人抢锁并保存导致的"脏提交"问题。
      */
     public CommitResultVO commit(CommitFileDTO dto) {
         String username = currentUser();
         List<String> toAdd = new ArrayList<>();
-        List<String> toRemove = new ArrayList<>();
-        List<String> skipped = new ArrayList<>();
+        List<Long> committedFileIds = new ArrayList<>();
+        List<FileIndexEntity> commited = new ArrayList<>();
+        Map<String, List<FileIndexEntity>> skipped = new HashMap<>();
 
-        for (Long fileId : dto.getFileIds()) {
-            // FIXME：这里批量通过 FileIDs 获取数据，而不是反复的请求 DB 多次
-            FileIndexEntity entity = fileIndexService.getById(fileId);
-            if (entity == null) {
-                skipped.add("fileId=" + fileId);
-                continue;
-            }
+        // 1. 乐观筛选：初步找出当前用户持有的文件（此阶段不加锁，减少锁竞争）
+        List<FileIndexEntity> list = fileIndexService.listExcludeDeletedByIds(dto.getFileIds());
+        for (FileIndexEntity entity : list) {
             String path = entity.getPath();
             validatePath(path);
-            if (entity.getDeletedAt() > 0) {
-                // 已软删除文件无需持锁即可提交删除，因为 delete 已释放锁
-                toRemove.add(path);
-            } else if (fileLockService.isHolder(fileId, username)) {
+            if (fileLockService.isHolder(entity.getId(), username)) {
+                commited.add(entity);
+                committedFileIds.add(entity.getId());
                 toAdd.add(path);
             } else {
-                skipped.add(path);
+                // 未锁定的文件不允许提交，提交本质上是上一次变更，需要先获取锁
+                skipped.computeIfAbsent(FILE_UNLOCKED, k -> new ArrayList<>()).add(entity);
             }
         }
 
-        List<String> committed = new ArrayList<>(toAdd);
-        committed.addAll(toRemove);
-
         CommitResultVO result = new CommitResultVO();
-        result.setCommitted(committed);
+        result.setCommitted(commited);
         result.setSkipped(skipped);
-
-        if (committed.isEmpty()) {
+        if (commited.isEmpty()) {
             result.setCommitHash(null);
             return result;
         }
 
-        String hash = gitCommit(toAdd, toRemove, dto.getMessage());
-        result.setCommitHash(hash);
-        return result;
+        // 2. 多文件原子加锁：按 ID 排序后对分段锁进行排他性锁定并执行二次校验，
+        // 保证 gitCommit 期间他人既无法抢走锁，也无法 save 写入新数据，确保 Git 历史纯净。
+        return fileLockService.doIfLocked(committedFileIds, toAdd, username, () -> {
+            String hash = gitCommit(toAdd, Collections.emptyList(), dto.getMessage()).getName();
+            fileIndexService.updateCommitHashByIds(committedFileIds, hash);
+            result.setCommitHash(hash);
+            return result;
+        });
     }
 
     // ==================== 回收站 ====================
@@ -567,7 +560,7 @@ public class GitFileService {
      * Git 历史保留。删除前释放该条目及其子文件锁。
      */
     public void purge(Long fileId) {
-        FileIndexEntity entity = fileIndexService.getById(fileId);
+        FileIndexEntity entity = fileIndexService.getIncludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -575,11 +568,11 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, "只能彻底删除已删除文件");
         }
         releaseLocksRecursively(fileId);
-        fileIndexService.purge(entity.getPath());
+        fileIndexService.deletePhysicallyByPathRecursively(entity.getPath());
     }
 
     private void releaseLocksRecursively(Long fileId) {
-        FileIndexEntity entity = fileIndexService.getById(fileId);
+        FileIndexEntity entity = fileIndexService.getIncludeDeletedById(fileId);
         if (entity == null) {
             return;
         }
@@ -602,7 +595,7 @@ public class GitFileService {
      */
     public void restore(RestoreFileDTO dto) {
         Long fileId = dto.getFileId();
-        FileIndexEntity entity = fileIndexService.getById(fileId);
+        FileIndexEntity entity = fileIndexService.getIncludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -770,7 +763,7 @@ public class GitFileService {
      */
     public void revert(RevertFileDTO dto) {
         Long fileId = dto.getFileId();
-        FileIndexEntity entity = fileIndexService.getExistingById(fileId);
+        FileIndexEntity entity = fileIndexService.getExcludeDeletedById(fileId);
         if (entity == null) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -875,7 +868,7 @@ public class GitFileService {
      * 对正常文件执行 {@code git add}，对已删除文件执行 {@code git rm}，
      * 从而支持软删除后通过 commit 将删除纳入 Git 历史。
      */
-    private String gitCommit(List<String> pathsToAdd, List<String> pathsToRemove, String message) {
+    private RevCommit gitCommit(List<String> pathsToAdd, List<String> pathsToRemove, String message) {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         return withWorkspaceLock(() -> {
             try (Git git = Git.open(root.toFile())) {
@@ -897,11 +890,10 @@ public class GitFileService {
 
                 String username = currentUser();
                 String email = username + "@lanting.io";
-                RevCommit commit = git.commit()
+                return git.commit()
                         .setMessage(message)
                         .setAuthor(username, email)
                         .call();
-                return commit.getName();
             } catch (IOException | GitAPIException e) {
                 throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
             }

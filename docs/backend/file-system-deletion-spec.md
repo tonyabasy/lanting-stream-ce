@@ -86,14 +86,43 @@ private String latestCommitHash;
 
 ## 业务规则
 
-### 1. `delete(fileId, force)`
+### 1. `delete(fileId)`
 
-- 校验文件存在且未被他人锁定（文件夹删除的锁检查逻辑保持不变）。
-- 将目标文件/文件夹及其所有子节点的 `deleted_at` 置为当前删除 commit 的秒级时间戳 × 1000。
-- 将目标文件/文件夹及其所有子节点的 `latest_commit_hash` 更新为本次删除 commit 的 hash。
-- 删除磁盘文件/目录。
-- 释放相关文件锁。
-- **自动生成 Git commit**：对文件执行 `git rm <path>`，对目录执行 `git rm -r <path>`，提交信息为 `delete <path>`。
+**核心设计 — 双 commit 策略 + 分层容错**：
+
+删除流程同时保证数据安全（备份未提交内容）和操作容错（磁盘文件已被外部删除）：
+
+```
+delete()
+  ├─ 锁管理层：acquireFolderLock(目录) / doIfHolder(文件)
+  │
+  └─ doDelete() — 统一逻辑
+       ├─ diskExists? → ACBD(备份未提交内容) + forceDelete
+       └─ 始终执行 → delete commit(git rm) + DB 软删除
+```
+
+**双 commit**：
+- `auto commit before delete`（ACBD）：删除前先 `git add + commit`，把磁盘上未提交的改动备份进 Git。仅在磁盘文件存在时执行。
+- `delete <path>`：`git rm + commit`，将文件从 Git tree 中移除。
+
+**HappyRun 逐步容错**：每一步被 HappyRun 包裹，单步失败不阻断后续：
+- ACBD → 忽略 `NoFilepatternException`（文件不存在）
+- forceDelete → 忽略 `FileNotFoundException`（TOCTOU 防御）
+- git rm commit → 忽略 `NoFilepatternException`（文件从未进入 Git）
+- DB 软删除始终执行，保证幽灵节点被清理
+
+**容错矩阵**：
+
+| case | 磁盘状态 | ACBD | FS删除 | git rm | DB 软删除 |
+|------|----------|------|--------|--------|-----------|
+| 1 | 存在 | ✓ | ✓ | ✓ | ✓ |
+| 2 | 存在，ACBD后被外部删 | ✓ | ✗(忽略) | ✓ | ✓ |
+| 3 | 存在，ACBD后被外部删+commit | ✓ | ✗(忽略) | ✗(忽略) | ✓ |
+| 4 | 不存在，有 Git 历史 | ✗(跳过) | ✗(跳过) | ✓ | ✓ |
+| 5 | 不存在，已 commit | ✗(跳过) | ✗(跳过) | ✗(忽略) | ✓ |
+
+**接口变更**：去掉 `force` 参数（目录锁设计下不再需要），删除失败直接抛异常。
+
 
 ### 2. `tree(parentPath)` / `content(fileId)`
 
@@ -107,9 +136,11 @@ commit 只处理 `deleted_at = 0` 的文件：
 | 文件状态 | Git 操作 |
 |---|---|
 | `deleted_at = 0` | `git add <path>`（现有行为） |
-| `deleted_at > 0` | 不支持；删除已在 `delete()` 时自动 commit |
+| `deleted_at > 0` | skipped；删除已在 `delete()` 时自动 commit |
 
-commit 成功后，更新 `latest_commit_hash` 为本次 commit hash。
+**原子保护**：使用 `FileLockService.doIfLocked` 将"校验持锁 → git commit"原子化。乐观筛选（`isHolder` 快照）后，按 segment 排序加锁二次复核，杜绝提交期间他人抢锁写入导致的"脏提交"。256 segment 分段锁，持有时间仅 5-20ms。
+
+commit 成功后，批量更新 `latest_commit_hash` 为本次 commit hash。
 
 ### 4. `restore(fileId, commitHash)` 与 `revert(fileId, commitHash)` 的区别
 
@@ -254,7 +285,7 @@ public class RestoreFileDTO {
 
 | 接口 | 变更 |
 |---|---|
-| `DELETE /api/files` | 行为改为软删除 + 自动生成 `delete` commit |
+| `DELETE /api/files` | 去掉 `force` 参数；改为双 commit（ACBD + delete）软删除 + 容错 |
 | `POST /api/files/commit` | 仅支持 `deleted_at = 0` 的文件，不再处理软删除文件 |
 | `GET /api/files/tree` | 默认过滤已删除文件 |
 | `GET /api/files/content` | 已删除文件返回 30702 |
@@ -264,12 +295,13 @@ public class RestoreFileDTO {
 
 ## 边界情况
 
-1. **删除未保存的新建文件**：文件从未 commit 过，Git 历史中不存在。`delete` 操作仍会生成一个 `delete` commit，但 tree 中本就没有该文件；restore 时从删除 commit 的父 commit 读取不到内容，提示"无历史版本可恢复"。
-2. **删除文件夹**：递归软删除所有子节点，并自动生成 `git rm -r <path>` commit。
-3. **重命名已删除文件**：不允许；重命名只针对正常文件。
-4. **恢复时路径冲突**：目录已存在则复用；文件已存在则提示"覆盖/取消"，覆盖前自动提交当前文件内容。
-5. **同一路径多次删除**：回收站中可存在多个已删除版本，按 `deleted_at` 排序展示。
-6. **并发恢复/删除**：通过 `FileLockService` 的 `doIfHolder` 或 `forceRelease` 保证原子性。
+1. **删除未保存的新建文件**：文件从未 commit 过，Git 历史中不存在。ACBD 跳过（磁盘无文件），git rm 忽略 `NoFilepatternException`，DB 进入回收站。restore 时因无历史版本无法恢复。
+2. **磁盘文件已被外部删除（有 Git 历史）**：ACBD 跳过，forceDelete 忽略 `FileNotFoundException`，git rm 成功生成 delete commit，DB 进入回收站。restore 可从 Git 历史恢复。见容错矩阵 case 4。
+3. **删除文件夹**：通过 `acquireFolderLock` 封门隔离后，递归软删除所有子节点，自动生成 `delete` commit。
+4. **并发写入中删除**：`acquireFolderLock` 先封门，`acquire` 子文件锁时在 `synchronized(segment)` 上等待写入完成。写入完整落盘后才接管，保证不丢数据。
+5. **重命名已删除文件**：不允许；重命名只针对正常文件。
+6. **恢复时路径冲突**：目录已存在则复用；文件已存在则提示"覆盖/取消"，覆盖前自动提交当前文件内容。
+7. **同一路径多次删除**：回收站中可存在多个已删除版本，按 `deleted_at` 排序展示。
 
 ---
 

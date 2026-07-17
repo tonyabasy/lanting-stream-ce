@@ -6,9 +6,11 @@ import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.vo.AcquireLockVO;
 import org.springframework.stereotype.Service;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
 /**
@@ -42,19 +44,19 @@ public class FileLockService {
     private static final long FOLDER_LOCK_TTL_MS = 10_000;
 
     /**
-     * 固定大小的 stripe 锁数组。把文件 ID 按 hash 映射到某一把锁，
-     * 在"持锁校验与执行"和"锁操作"之间提供互斥；不同文件可能命中不同 stripe 实现并行，
-     * 也可能命中同一 stripe 导致无关串行，但不会影响正确性。
+     * 固定大小的 segments 锁数组。把文件 ID 按 hash 映射到某一把锁，
+     * 在"持锁校验与执行"和"锁操作"之间提供互斥；不同文件可能命中不同 segments 实现并行，
+     * 也可能命中同一 segments 导致无关串行，但不会影响正确性。
      */
-    private static final int STRIPE_COUNT = 256;
-    private final Object[] stripes = new Object[STRIPE_COUNT];
+    private static final int SEGMENT_COUNT = 256;
+    private final ReentrantLock[] segments = new ReentrantLock[SEGMENT_COUNT];
 
     private final FileIndexService fileIndexService;
 
     public FileLockService(FileIndexService fileIndexService) {
         this.fileIndexService = fileIndexService;
-        for (int i = 0; i < STRIPE_COUNT; i++) {
-            stripes[i] = new Object();
+        for (int i = 0; i < SEGMENT_COUNT; i++) {
+            segments[i] = new ReentrantLock();
         }
     }
 
@@ -62,8 +64,9 @@ public class FileLockService {
         return fileId == null ? "" : fileId.toString();
     }
 
-    private Object stripeFor(Long fileId) {
-        return stripes[Math.floorMod(key(fileId).hashCode(), STRIPE_COUNT)];
+    private ReentrantLock segmentFor(Long fileId) {
+        long theFileId = fileId == null ? 0 : fileId;
+        return segments[Math.floorMod(theFileId, SEGMENT_COUNT)];
     }
 
     /**
@@ -81,7 +84,7 @@ public class FileLockService {
      * 临界区与 {@link #acquire} 互斥：动作执行期间他人的抢锁请求会阻塞等待；
      * 若他人先抢到锁，本方法进入临界区后校验失败，抛 30709 文件已被锁定。
      * <p>
-     * <b>死锁纪律</b>：action 内允许获取 Git 写锁（fileId stripe → gitWriteLock 的顺序），
+     * <b>死锁纪律</b>：action 内允许获取 Git 写锁（fileId segments → gitWriteLock 的顺序），
      * 但任何持有 gitWriteLock 的代码<b>不得</b>再调用本方法或锁操作（反向嵌套会死锁），
      * 见 GitFileService#withWorkspaceLock 的说明。
      *
@@ -92,7 +95,10 @@ public class FileLockService {
      * @return action 的返回值
      */
     public <T> T doIfHolder(Long fileId, String filePath, String username, Supplier<T> action) {
-        synchronized (stripeFor(fileId)) {
+        ReentrantLock lock = segmentFor(fileId);
+        lock.lock();
+        try {
+            // 目录硬锁隔离检查
             if (!folderHardLocks.isEmpty()) {
                 ensureFolderLocksSafety(filePath, username);
             }
@@ -100,12 +106,69 @@ public class FileLockService {
                 throw new BusinessException(FileResultCode.FILE_LOCKED);
             }
             return action.get();
+        } finally {
+            lock.unlock();
         }
     }
 
     public <T> T doIfHolder(Long fileId, String username, Supplier<T> action) {
-        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId);
+        FileIndexEntity fileIndexEntity = fileIndexService.getIncludeDeletedById(fileId);
         return doIfHolder(fileId, fileIndexEntity.getPath(), username, action);
+    }
+
+    /**
+     * 多文件持锁校验与执行，原子操作。
+     * <p>
+     * 将所有文件的 segment 去重后按索引排序加锁，避免死锁；校验所有文件均被
+     * username 持有且不与目录硬锁冲突后，执行 action；异常或无异常均释放锁。
+     * <p>
+     * fileIds 与 filePaths 需一一对应，长度必须一致。
+     */
+    public <T> T doIfLocked(List<Long> fileIds, List<String> filePaths, String username, Supplier<T> action) {
+        if (fileIds == null || fileIds.isEmpty() || filePaths == null || filePaths.isEmpty()) {
+            throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED,
+                    "fileIds 和 filePaths 不能为空");
+        }
+        if (fileIds.size() != filePaths.size()) {
+            throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED,
+                    "fileIds 和 filePaths 数量不一致");
+        }
+
+        // 收集去重后的 segment 索引，排序后按序加锁，防止死锁
+        int[] indices = fileIds.stream()
+                .mapToInt(id -> id == null ? 0 : Math.floorMod(id, SEGMENT_COUNT))
+                .distinct()
+                .sorted()
+                .toArray();
+
+        Arrays.stream(indices).forEach(i -> segments[i].lock());
+        try {
+            // 目录硬锁隔离检查
+            if (!folderHardLocks.isEmpty()) {
+                for (String path : filePaths) {
+                    ensureFolderLocksSafety(path, username);
+                }
+            }
+
+            // 校验所有文件均被当前用户持有
+            for (Long fileId : fileIds) {
+                if (!isHolder(fileId, username)) {
+                    throw new BusinessException(FileResultCode.FILE_LOCKED);
+                }
+            }
+
+            return action.get();
+        } finally {
+            // 逆序释放，减少锁竞争峰值
+            for (int i = indices.length - 1; i >= 0; i--) {
+                segments[indices[i]].unlock();
+            }
+        }
+    }
+
+    public <T> T doIfLocked(List<Long> fileIds, String username, Supplier<T> action) {
+        List<String> filePaths = fileIndexService.listIncludeDeletedByIds(fileIds).stream().map(FileIndexEntity::getPath).toList();
+        return doIfLocked(fileIds, filePaths, username, action);
     }
 
     /**
@@ -123,7 +186,9 @@ public class FileLockService {
             ensureFolderLocksSafety(filePath, holder);
         }
         String key = key(fileId);
-        synchronized (stripeFor(fileId)) {
+        ReentrantLock lock = segmentFor(fileId);
+        lock.lock();
+        try {
             AcquireLockVO vo = new AcquireLockVO();
             vo.setAcquired(true);
 
@@ -133,11 +198,13 @@ public class FileLockService {
                 vo.setPreviousHolderAt(previous.lockedAt);
             }
             return vo;
+        } finally {
+            lock.unlock();
         }
     }
 
     public AcquireLockVO acquire(Long fileId, String holder) {
-        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId);
+        FileIndexEntity fileIndexEntity = fileIndexService.getIncludeDeletedById(fileId);
         return acquire(fileId, fileIndexEntity.getPath(), holder);
     }
 
@@ -150,7 +217,9 @@ public class FileLockService {
      */
     public boolean release(Long fileId, String holder) {
         String key = key(fileId);
-        synchronized (stripeFor(fileId)) {
+        ReentrantLock lock = segmentFor(fileId);
+        lock.lock();
+        try {
             LockInfo current = fileSoftLocks.get(key);
             if (current == null) {
                 return true;
@@ -160,6 +229,8 @@ public class FileLockService {
             }
             fileSoftLocks.remove(key);
             return true;
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -173,8 +244,12 @@ public class FileLockService {
      */
     public void forceRelease(Long fileId) {
         String key = key(fileId);
-        synchronized (stripeFor(fileId)) {
+        ReentrantLock lock = segmentFor(fileId);
+        lock.lock();
+        try {
             fileSoftLocks.remove(key);
+        } finally {
+            lock.unlock();
         }
     }
 

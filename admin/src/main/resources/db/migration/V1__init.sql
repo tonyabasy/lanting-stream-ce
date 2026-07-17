@@ -87,16 +87,17 @@ CREATE TABLE IF NOT EXISTS lanting_file_review (
 -- 文件系统元数据索引表
 -- ============================================================
 CREATE TABLE IF NOT EXISTS lanting_file_index (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    path        VARCHAR(1000) NOT NULL,
-    name        VARCHAR(200)  NOT NULL,
-    type        VARCHAR(10)   NOT NULL,             -- file / folder
-    parent_path VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
-    mtime       BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
-    crc32       BIGINT        NOT NULL DEFAULT 0,   -- 文件内容 CRC32 校验和，用于检测 mtime 不变但内容变化的情况；folder 固定为 0
-    deleted_at  BIGINT        NOT NULL DEFAULT 0,   -- 删除时间戳（毫秒），0 表示未删除
-    create_time BIGINT        NOT NULL DEFAULT 0,
-    update_time BIGINT        NOT NULL DEFAULT 0,
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    path               VARCHAR(1000) NOT NULL,
+    name               VARCHAR(200)  NOT NULL,
+    type               VARCHAR(10)   NOT NULL,             -- file / folder
+    parent_path        VARCHAR(1000) NOT NULL DEFAULT '',  -- 根目录子节点为空字符串
+    mtime              BIGINT        NOT NULL DEFAULT 0,   -- 磁盘文件最后修改时间（毫秒）
+    crc32              BIGINT        NOT NULL DEFAULT 0,   -- 文件内容 CRC32 校验和，用于检测 mtime 不变但内容变化的情况；folder 固定为 0
+    deleted_at         BIGINT        NOT NULL DEFAULT 0,   -- 删除时间戳（毫秒），0 表示未删除
+    latest_commit_hash VARCHAR(40),                      -- 最后一次进入 Git 的 commit hash
+    create_time        BIGINT        NOT NULL DEFAULT 0,
+    update_time        BIGINT        NOT NULL DEFAULT 0,
     UNIQUE (path, deleted_at)
 );
 

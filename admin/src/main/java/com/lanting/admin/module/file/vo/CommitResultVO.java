@@ -1,9 +1,11 @@
 package com.lanting.admin.module.file.vo;
 
+import com.lanting.admin.module.file.entity.FileIndexEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 提交结果 VO。
@@ -14,15 +16,22 @@ import java.util.List;
 @Schema(description = "提交结果")
 public class CommitResultVO {
 
-    /** 本次 commit SHA，committed 为空时为 null */
+    /**
+     * 本次 commit SHA，committed 为空时为 null
+     */
     @Schema(description = "本次 commit SHA")
     private String commitHash;
 
-    /** 实际提交的文件列表 */
+    /**
+     * 实际提交的文件列表
+     */
     @Schema(description = "实际提交的文件列表")
-    private List<String> committed;
+    private List<FileIndexEntity> committed;
 
-    /** 被跳过的文件列表（他人持锁） */
-    @Schema(description = "被跳过的文件列表")
-    private List<String> skipped;
+    @Schema(description = "跳过的文件，reason -> filePath")
+    private Map<String,List<FileIndexEntity>> skipped;
+
+    /** Skip Reason */
+    public static final String FILE_NOT_FOUND = "NotFound";
+    public static final String FILE_UNLOCKED = "Unlocked";
 }

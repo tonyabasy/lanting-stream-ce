@@ -1,11 +1,9 @@
 package com.lanting.admin.module.file.service;
 
-import cn.dev33.satoken.stp.StpUtil;
 import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.common.util.SecurityUtils;
 import com.lanting.admin.module.file.dto.CreateFileDTO;
 import com.lanting.admin.module.file.dto.CreateFolderDTO;
-import com.lanting.admin.module.file.dto.SaveFileDTO;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
 import org.junit.jupiter.api.*;
@@ -58,7 +56,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
     @AfterEach
     void tearDown() {
         // 清理 DB 索引
-        fileIndexService.indexOnDelete(uniqueDir);
+        fileIndexService.deletePhysicallyByPathRecursively(uniqueDir);
         fileIndexMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FileIndexEntity>()
                 .likeRight(FileIndexEntity::getPath, uniqueDir));
     }
@@ -124,46 +122,6 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             // mtime 应该已更新（或至少记录数没翻倍）
             assertThat(second.getId()).isEqualTo(first.getId());
         }
-
-        @Test
-        @DisplayName("delete 文件 → DB 记录删除")
-        void shouldDeleteFileRecord() {
-            fileIndexService.indexOnSave(testFile, root);
-            assertThat(fileIndexService.getByPath(testFile)).isNotNull();
-
-            fileIndexService.indexOnDelete(testFile);
-            assertThat(fileIndexService.getByPath(testFile)).isNull();
-        }
-
-        @Test
-        @DisplayName("delete 文件夹 → 子节点递归删除")
-        void shouldRecursivelyDeleteChildren() {
-            String folder = uniqueDir + "/recursive-folder";
-            String childFile = folder + "/child.sql";
-            fileIndexService.indexOnCreate(folder, "folder", root);
-            fileIndexService.indexOnSave(childFile, root);
-
-            fileIndexService.indexOnDelete(folder);
-
-            assertThat(fileIndexService.getByPath(folder)).isNull();
-            assertThat(fileIndexService.getByPath(childFile)).isNull();
-        }
-
-        @Test
-        @DisplayName("rollbackRelease 恢复被删文件 → DB UPSERT 正确")
-        void shouldUpsertOnRestoreDeletedFile() {
-            // 模拟被删文件恢复的场景
-            fileIndexService.indexOnSave(testFile, root);
-            fileIndexService.indexOnDelete(testFile);
-            assertThat(fileIndexService.getByPath(testFile)).isNull();
-
-            // 回滚恢复：磁盘文件已恢复，调用 indexOnSave（UPSERT）
-            fileIndexService.indexOnSave(testFile, root);
-
-            FileIndexEntity restored = fileIndexService.getByPath(testFile);
-            assertThat(restored).isNotNull();
-            assertThat(restored.getType()).isEqualTo("file");
-        }
     }
 
     // ==================== 批量索引操作 ====================
@@ -187,7 +145,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("indexOnDeleteByPathPrefix 删除 3 层目录及 10 个文件")
+        @DisplayName("indexOnDelete 删除 3 层目录及 10 个文件")
         void shouldDeleteAllByPathPrefix() {
             // 3 层目录：uniqueDir/l1/l2
             String l1 = uniqueDir + "/l1";
@@ -213,7 +171,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             }
 
             // 通过前缀删除整个目录树
-            fileIndexService.indexOnDelete(uniqueDir);
+            fileIndexService.deletePhysicallyByPathRecursively(uniqueDir);
 
             // 验证所有文件和目录记录都被删除
             assertThat(fileIndexService.getByPath(uniqueDir)).isNull();
@@ -246,7 +204,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             }
 
             // 通过文件 ID 删除
-            fileIndexService.indexOnDeleteByIds(fileIds);
+            fileIndexService.deletePhysicallyByIds(fileIds);
 
             // 验证文件被删除，目录保留
             for (String file : files) {

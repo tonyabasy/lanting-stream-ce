@@ -18,7 +18,6 @@ import jakarta.validation.constraints.NotNull;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.util.List;
 
 import static com.lanting.admin.common.util.SecurityUtils.currentUser;
@@ -110,17 +109,12 @@ public class FileController {
     }
 
     /**
-     * 删除文件或文件夹（软删除）。文件夹删除时若存在他人锁定文件且未 force，返回 30712 部分文件被锁定。
-     * 删除不产生 Git commit，仅标记 deleted_at 并删除磁盘文件。
+     * 删除文件或文件夹（软删除 + 自动生成 Git delete commit）。
      */
     @Operation(summary = "删除文件或文件夹")
     @DeleteMapping
-    public Result<DeleteLockedVO> delete(@RequestParam @NotNull Long fileId,
-                                         @RequestParam(defaultValue = "false") boolean force) throws IOException {
-        DeleteLockedVO locked = gitFileService.delete(fileId, force);
-        if (locked != null) {
-            return Result.error(FileResultCode.FILES_LOCKED, locked);
-        }
+    public Result<Void> delete(@RequestParam @NotNull Long fileId) {
+        gitFileService.delete(fileId);
         return Result.success();
     }
 

@@ -2,11 +2,12 @@ package com.lanting.admin.module.file.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.lanting.admin.BaseIntegrationTest;
+import com.lanting.admin.common.util.JACKSON;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.service.FileIndexService;
-import com.lanting.admin.module.file.service.FileLockService;
 import com.lanting.admin.module.file.service.WorkspaceService;
+import com.lanting.admin.module.file.vo.CommitResultVO;
 import com.lanting.admin.module.file.vo.PublishVO;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
@@ -31,6 +32,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,103 +74,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     private Long fileIdByPath(String path) {
         var entity = fileIndexService.getByPath(path);
         return entity == null ? null : entity.getId();
-    }
-
-    // ==================== 严重 bug 回归：删除真正进入 Git ====================
-
-    @Nested
-    @DisplayName("严重 bug 回归：删除操作真正进入 Git")
-    class DeleteGitRegression {
-
-        @Test
-        @DisplayName("delete 为软删除，commit 后 HEAD tree 中文件不存在")
-        void deletedFileShouldNotExistInHeadTree() throws Exception {
-            createFolder(uniquePath);
-            String filePath = uniquePath + "/to-delete.sql";
-            Long fileId = createFile(filePath);
-            acquireLock(fileId);
-            saveFile(fileId, "SELECT 1");
-            commit(List.of(fileId), "add file");
-
-            // 删除（软删除，不产生 commit）
-            restTemplate.exchange(
-                    "/api/files?fileId=" + fileId,
-                    HttpMethod.DELETE,
-                    new HttpEntity<>(authHeaders(token)),
-                    JsonNode.class);
-
-            // 验证删除后磁盘文件已不存在，但 DB 索引仍存在（deleted_at > 0）
-            java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
-            assertThat(Files.exists(root.resolve(filePath)))
-                    .as("删除后磁盘文件应不存在").isFalse();
-            FileIndexEntity deletedEntity = fileIndexService.getByPathIncludingDeleted(filePath);
-            assertThat(deletedEntity).as("删除后 DB 索引应保留").isNotNull();
-            assertThat(deletedEntity.getDeletedAt()).as("deleted_at 应大于 0").isGreaterThan(0L);
-
-            // 此时 HEAD tree 仍包含文件（未 commit）
-            try (Git git = Git.open(root.toFile());
-                 RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
-                RevCommit headCommit = walk.parseCommit(headId);
-                TreeWalk treeWalk = TreeWalk.forPath(
-                        git.getRepository(), filePath, headCommit.getTree());
-                assertThat(treeWalk).as("未 commit 前 HEAD tree 仍包含文件").isNotNull();
-            }
-
-            // 手动 commit 删除，HEAD tree 中文件应不存在
-            commit(List.of(fileId), "delete file");
-            try (Git git = Git.open(root.toFile());
-                 RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
-                RevCommit headCommit = walk.parseCommit(headId);
-                TreeWalk treeWalk = TreeWalk.forPath(
-                        git.getRepository(), filePath, headCommit.getTree());
-                assertThat(treeWalk).as("commit 删除后 HEAD tree 不应包含文件").isNull();
-            }
-        }
-
-        @Test
-        @DisplayName("delete 后手动 commit，新 publish 的 tag 不含被删文件")
-        void publishAfterDeleteShouldNotContainDeletedFile() throws Exception {
-            createFolder(uniquePath);
-            String filePath = uniquePath + "/deleted.sql";
-            Long fileId = createFile(filePath);
-            acquireLock(fileId);
-            saveFile(fileId, "SELECT 1");
-            commit(List.of(fileId), "add file");
-
-            // 删除文件
-            restTemplate.exchange(
-                    "/api/files?fileId=" + fileId,
-                    HttpMethod.DELETE,
-                    new HttpEntity<>(authHeaders(token)),
-                    JsonNode.class);
-
-            // 手动 commit 删除（系统不自动 commit）
-            java.nio.file.Path root = workspaceService.getDefaultWorkspaceRoot();
-            try (Git git = Git.open(root.toFile())) {
-                git.rm().addFilepattern(filePath).call();
-                git.commit()
-                        .setMessage("delete in test")
-                        .setAuthor("admin", "admin@lanting.io")
-                        .call();
-            }
-
-            // 发布
-            PublishVO pub = publish("after delete");
-
-            // 验证新 tag 的 tree 中不含被删文件
-            try (Git git = Git.open(root.toFile())) {
-                ObjectId tagCommit = git.getRepository()
-                        .resolve(Constants.R_TAGS + pub.getTagName());
-                try (RevWalk walk = new RevWalk(git.getRepository())) {
-                    RevCommit commit = walk.parseCommit(tagCommit);
-                    TreeWalk treeWalk = TreeWalk.forPath(
-                            git.getRepository(), filePath, commit.getTree());
-                    assertThat(treeWalk).as("新发布的 tag 不应包含被删文件").isNull();
-                }
-            }
-        }
     }
 
     // ==================== 严重 bug 回归：history addPath ====================
@@ -253,45 +161,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
             assertThat(Objects.requireNonNull(response.getBody()).path("data").path("records").size()).isEqualTo(2);
             assertThat(Objects.requireNonNull(response.getBody()).path("data").path("hasMore").asBoolean()).isTrue();
-        }
-    }
-
-
-    @Nested
-    @DisplayName("严重 bug 回归：force 删除后锁真正被清理")
-    class ForceDeleteLockRegression {
-
-        @Test
-        @DisplayName("force 删除含他人锁的文件夹后，锁真正被清理")
-        void forcedDeleteShouldClearAllLocks() {
-            createFolder(uniquePath);
-            String fileA = uniquePath + "/lock-A.sql";
-            String fileB = uniquePath + "/lock-B.sql";
-
-            Long fileIdA = createFile(fileA);
-            Long fileIdB = createFile(fileB);
-            acquireLock(fileIdA);
-            saveFile(fileIdA, "A");
-            acquireLock(fileIdB);
-            saveFile(fileIdB, "B");
-
-            Long folderId = fileIdByPath(uniquePath);
-
-            // force 删除整个目录
-            ResponseEntity<JsonNode> deleteResp = restTemplate.exchange(
-                    "/api/files?fileId=" + folderId + "&force=true",
-                    HttpMethod.DELETE,
-                    new HttpEntity<>(authHeaders(token)),
-                    JsonNode.class);
-            assertThat(Objects.requireNonNull(deleteResp.getBody()).path("code").asInt()).isEqualTo(0);
-
-            // 验证锁已被清理：重新抢锁时 previousHolder 为 null
-            // （因为锁已被 forceRelease，getHolder 应返回 null）
-            // 通过 FileLockService 直接验证
-            FileLockService lockService =
-                    applicationContext.getBean(FileLockService.class);
-            assertThat(lockService.getHolder(fileIdA)).as("fileA 的锁应已被清理").isNull();
-            assertThat(lockService.getHolder(fileIdB)).as("fileB 的锁应已被清理").isNull();
         }
     }
 
@@ -484,48 +353,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             assertThat(pub1.getTagName()).isNotEqualTo(pub2.getTagName());
             assertThat(pub1.getCommitHash()).isEqualTo(pub2.getCommitHash());
-        }
-    }
-
-    // ==================== 4.5 删除边界 ====================
-
-    @Nested
-    @DisplayName("4.5 删除边界")
-    class DeleteEdgeCases {
-
-        @Test
-        @DisplayName("force=false 含他人锁的文件夹 → FILES_LOCKED（30712），返回被锁文件列表")
-        void deleteWithOtherLockAndNoForceShouldReturn30712() {
-            createFolder(uniquePath);
-            String folderPath = uniquePath + "/locked-folder";
-            createFolder(folderPath);
-            String lockedFile = folderPath + "/locked.sql";
-
-            Long fileId = createFile(lockedFile);
-            // 抢锁文件
-            acquireLock(fileId);
-            saveFile(fileId, "content");
-
-            Long folderId = fileIdByPath(folderPath);
-
-            // 先释放 admin 的锁，再用他人身份抢锁
-            FileLockService lockService =
-                    applicationContext.getBean(FileLockService.class);
-            lockService.forceRelease(fileId);
-            lockService.acquire(fileId, "other-user");
-
-            ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files?fileId=" + folderId + "&force=false",
-                    HttpMethod.DELETE,
-                    new HttpEntity<>(authHeaders(token)),
-                    JsonNode.class);
-
-            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30712);
-            // 验证返回了被锁文件列表
-            JsonNode lockedFiles = Objects.requireNonNull(response.getBody()).path("data").path("lockedFiles");
-            assertThat(lockedFiles.isArray()).isTrue();
-            assertThat(lockedFiles.size()).isGreaterThan(0);
-            assertThat(lockedFiles.get(0).path("path").asText()).contains("locked.sql");
         }
     }
 
@@ -773,38 +600,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    // ==================== delete ====================
-
-    @Nested
-    @DisplayName("delete 删除")
-    class Delete {
-
-        @Test
-        @DisplayName("删除文件夹 force=true 清除所有锁")
-        void shouldForceDeleteFolderAndClearLocks() {
-            String folderPath = uniquePath + "/force-del";
-            createFolder(folderPath);
-            String filePath = folderPath + "/locked.sql";
-            Long fileId = createFile(filePath);
-            acquireLock(fileId);
-            saveFile(fileId, "locked");
-
-            Long folderId = fileIdByPath(folderPath);
-
-            ResponseEntity<JsonNode> deleteResponse = restTemplate.exchange(
-                    "/api/files?fileId=" + folderId + "&force=true",
-                    HttpMethod.DELETE, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            assertThat(Objects.requireNonNull(deleteResponse.getBody()).path("code").asInt()).isEqualTo(0);
-
-            // 删除后文件树中不再存在
-            ResponseEntity<JsonNode> treeResponse = restTemplate.exchange(
-                    "/api/files/tree?parentPath=" + uniquePath,
-                    HttpMethod.GET, new HttpEntity<>(authHeaders(token)), JsonNode.class);
-            JsonNode tree = Objects.requireNonNull(treeResponse.getBody()).path("data");
-            assertThat(tree).isEmpty();
-        }
-    }
-
     // ==================== scan/reconcile 一致性校验 ====================
 
     @Nested
@@ -913,6 +708,146 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
     }
 
+    // ==================== 阶段 2：软删除 + 自动 commit 测试 ====================
+
+    @Nested
+    @DisplayName("软删除流程：写入中删目录，验证 auto commit + delete commit 链")
+    class Delete {
+
+        @Test
+        @DisplayName("user1 写入中 user2 并发删目录，竞态下 commit 链和时间戳正确")
+        void shouldAutoCommitBeforeDeleteAndVerifyCommitChain() throws Exception {
+            // user1 和 user2
+            createAnotherUser("user1");
+            String user1Token = login("user1", "user1");
+            String user2Token = loginAsAdmin();
+
+            // 创建目录 A 和文件 A/file1.sql
+            String folderPath = uniquePath;
+            createFolder(folderPath);
+            String filePath = folderPath + "/file1.sql";
+            Long fileId = createFile(filePath);
+
+            // user1 初次提交
+            acquireLock(fileId, user1Token);
+            saveFile(fileId, "initial content", user1Token);
+            commit(List.of(fileId), "initial commit", user1Token);
+
+            // user1 持有锁，准备写入
+            acquireLock(fileId, user1Token);
+
+            // 并发：user1 写入 + user2 删目录，在服务端 stripe 锁上真实竞争
+            ExecutorService executor = Executors.newFixedThreadPool(2);
+            try {
+                Long folderId = fileIdByPath(folderPath);
+
+                Future<?> saveFuture = executor.submit(() ->
+                        saveFile(fileId, "user1 latest content", user1Token));
+
+                Future<?> deleteFuture = executor.submit(() ->
+                        restTemplate.exchange(
+                                "/api/files?fileId=" + folderId,
+                                HttpMethod.DELETE,
+                                new HttpEntity<>(authHeaders(user2Token)),
+                                JsonNode.class));
+
+                saveFuture.get(10, TimeUnit.SECONDS);
+                deleteFuture.get(10, TimeUnit.SECONDS);
+            } finally {
+                executor.shutdown();
+            }
+
+            // === 验证 via JGit ===
+            Path root = workspaceService.getDefaultWorkspaceRoot();
+            try (Git git = Git.open(root.toFile());
+                 RevWalk walk = new RevWalk(git.getRepository())) {
+
+                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
+                RevCommit deleteCommit = walk.parseCommit(headId);
+
+                // 验证最新 commit message 为 "delete A"
+                assertThat(deleteCommit.getFullMessage())
+                        .as("最新 commit 应为 delete commit").contains("delete " + folderPath);
+
+                // 验证 DB deleted_at == HEAD commit time * 1000
+                FileIndexEntity deleted = fileIndexService.getByPathIncludingDeleted(folderPath);
+                assertThat(deleted.getDeletedAt())
+                        .as("DB deleted_at 应等于 delete commit 时间戳").isEqualTo(deleteCommit.getCommitTime() * 1000L);
+                assertThat(deleted.getLatestCommitHash())
+                        .as("DB latestCommitHash 应等于 delete commit hash").isEqualTo(deleteCommit.getName());
+
+                // 验证父 commit message 为 "auto commit before delete"
+                RevCommit autoCommit = walk.parseCommit(deleteCommit.getParent(0));
+                assertThat(autoCommit.getFullMessage())
+                        .as("delete 的父 commit 应为 auto commit before delete").contains("auto commit before delete");
+
+                // 从父 commit 读取 A/file1.sql 内容，应等于 user1 最后写入内容
+                try (TreeWalk treeWalk = TreeWalk.forPath(
+                        git.getRepository(), filePath, autoCommit.getTree())) {
+                    assertThat(treeWalk).as("auto commit 中应包含 file1.sql").isNotNull();
+                    ObjectLoader loader = git.getRepository().open(treeWalk.getObjectId(0));
+                    String content = new String(loader.getBytes(), StandardCharsets.UTF_8);
+                    assertThat(content).as("auto commit 中 file1 内容应为 user1 最后写入内容")
+                            .isEqualTo("user1 latest content");
+                }
+            }
+        }
+
+        /**
+         * 磁盘文件容错删除的 5 个 case（ACBD = auto commit before delete）：
+         * <pre>
+         * case1：磁盘存在 → ACBD ✓ + FS删除 ✓ + delete commit ✓ + 索引更新 ✓
+         * case2：磁盘存在，ACBD 后被外部删除（未 commit）→ ACBD ✓ + FS删除 ✗ + delete commit ✓ + 索引更新 ✓
+         * case3：磁盘存在，ACBD 后被外部删除（已 commit）→ ACBD ✓ + FS删除 ✗ + delete commit ✗ + 索引更新 ✓
+         * case4：磁盘不存在，曾被 commit 过，当前未提交改动 → ACBD ✗ + FS删除 ✗ + delete commit ✓ + 索引更新 ✓
+         * case5：磁盘不存在，操作前已被删除且已 commit → ACBD ✗ + FS删除 ✗ + delete commit ✗ + 索引更新 ✓
+         * </pre>
+         * 当前只搭建了 case4（最典型的容错场景：文件已被外部删除但有 Git 历史）。
+         */
+        @Test
+        @DisplayName("case4：磁盘文件已被外部删除（有 Git 历史但当前改动未提交），删除应补齐 git rm 并进入回收站")
+        void shouldEnterTrashWhenFileDeletedExternallyWithUncommittedChanges() throws Exception {
+            // 创建文件并提交，建立 Git 历史
+            String filePath = uniquePath + "/case4.sql";
+            Long fileId = createFile(filePath);
+            acquireLock(fileId);
+            saveFile(fileId, "committed content");
+            CommitResultVO firstCommit = commit(List.of(fileId), "initial commit");
+
+            // 写入新内容但不提交
+            acquireLock(fileId);
+            saveFile(fileId, "uncommitted content");
+
+            // 模拟外部删除：直接从磁盘删除文件
+            Path root = workspaceService.getDefaultWorkspaceRoot();
+            Path diskPath = root.resolve(filePath);
+            assertThat(Files.exists(diskPath)).as("磁盘文件应存在").isTrue();
+            Files.delete(diskPath);
+            assertThat(Files.exists(diskPath)).as("磁盘文件已被外部删除").isFalse();
+
+            // 调用删除 API
+            restTemplate.exchange(
+                    "/api/files?fileId=" + fileId,
+                    HttpMethod.DELETE,
+                    new HttpEntity<>(authHeaders(token)),
+                    JsonNode.class);
+
+            // 验证：文件进入回收站，delete commit 生成了
+            FileIndexEntity deleted = fileIndexService.getByPathIncludingDeleted(filePath);
+            assertThat(deleted).as("DB 索引应保留").isNotNull();
+            assertThat(deleted.getDeletedAt()).as("deleted_at 应 > 0").isGreaterThan(0L);
+            assertThat(deleted.getLatestCommitHash()).as("delete commit 应成功生成").isNotNull();
+
+            // 验证 delete commit 的父 commit 为 firstCommit
+            try (Git git = Git.open(root.toFile());
+                 RevWalk walk = new RevWalk(git.getRepository())) {
+                RevCommit deleteCommit = walk.parseCommit(ObjectId.fromString(deleted.getLatestCommitHash()));
+                assertThat(deleteCommit.getParent(0).getName())
+                        .as("delete commit 的父 commit 应为 initial commit").isEqualTo(firstCommit.getCommitHash());
+            }
+        }
+    }
+
     // ==================== HTTP 辅助方法 ====================
 
     private void createFolder(String path) {
@@ -960,12 +895,15 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
     }
 
-    private void commit(List<Long> fileIds, String message) {
+    private CommitResultVO commit(List<Long> fileIds, String message) {
         CommitFileDTO dto = new CommitFileDTO();
         dto.setFileIds(fileIds);
         dto.setMessage(message);
-        restTemplate.exchange("/api/files/commit", HttpMethod.POST,
+        ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/commit", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+        JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
+        CommitResultVO vo = JACKSON.parseObject(data.toString(), CommitResultVO.class);
+        return vo;
     }
 
     private PublishVO publish(String displayName) {
