@@ -983,11 +983,4 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_TYPE_NOT_ALLOWED);
         }
     }
-
-    /**
-     * 计算相对于工作空间根目录的路径，统一作为锁、Git、VO 中的文件标识。
-     */
-    private String relativePath(Path path, Path root) {
-        return root.toAbsolutePath().normalize().relativize(path.toAbsolutePath().normalize()).toString();
-    }
 }
