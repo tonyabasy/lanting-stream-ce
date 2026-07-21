@@ -716,7 +716,6 @@ public class GitFileService {
             log.setSkip(skip).setMaxCount(pageSize + 1);
 
             List<FileHistoryVO> fileHistoryVOs = new ArrayList<>();
-            List<RevCommit> commits = new ArrayList<>(pageSize + 1);
             boolean hasMore = false;
             for (RevCommit commit : log.call()) {
                 if (fileHistoryVOs.size() == pageSize) {
