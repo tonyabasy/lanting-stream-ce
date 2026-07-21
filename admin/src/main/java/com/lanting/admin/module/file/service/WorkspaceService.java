@@ -77,6 +77,8 @@ public class WorkspaceService {
     /**
      * 获取默认工作空间根目录路径。
      *
+     * TODO: 这里加一个缓存，10分钟的，提升查询效率
+     *
      * @return 根目录 Path
      */
     public Path getDefaultWorkspaceRoot() {

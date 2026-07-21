@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -19,6 +18,7 @@ import java.util.zip.CRC32;
 
 import static com.lanting.admin.module.file.entity.FileIndexEntity.FILE;
 import static com.lanting.admin.module.file.entity.FileIndexEntity.isDirectory;
+import static com.lanting.admin.module.file.service.GitFileService.EMPTY_CONTENT;
 
 /**
  * 文件系统元数据索引服务。
@@ -29,8 +29,14 @@ import static com.lanting.admin.module.file.entity.FileIndexEntity.isDirectory;
 @Service
 public class FileIndexService {
 
-    @Autowired
-    private FileIndexMapper fileIndexMapper;
+    private final FileIndexMapper fileIndexMapper;
+    public static final String ONLY_DELETED = "OnlyDeleted";
+    public static final String EXCLUDE_DELETED = "ExcludeDeleted";
+    public static final String INCLUDE_DELETED = "IncludeDeleted";
+
+    public FileIndexService(FileIndexMapper fileIndexMapper) {
+        this.fileIndexMapper = fileIndexMapper;
+    }
 
     /**
      * 按父路径查询直接子节点，仅返回未删除记录。
@@ -39,34 +45,35 @@ public class FileIndexService {
      * @return 子节点列表
      */
     public List<FileIndexEntity> listDirectlyChildren(String parentPath) {
-        return fileIndexMapper.selectList(
-                new LambdaQueryWrapper<FileIndexEntity>()
-                        .eq(FileIndexEntity::getParentPath, parentPath)
-                        .eq(FileIndexEntity::getDeletedAt, 0L));
+        return listDirectlyChildren(parentPath, EXCLUDE_DELETED);
     }
 
-    public List<FileIndexEntity> listIncludeDeletedByIds(Collection<Long> ids) {
-        return fileIndexMapper.selectByIds(ids);
-    }
+    public List<FileIndexEntity> listDirectlyChildren(String parentPath, String queryType) {
+        LambdaQueryWrapper<FileIndexEntity> queryWrapper = new LambdaQueryWrapper<FileIndexEntity>()
+                .eq(FileIndexEntity::getParentPath, parentPath);
+        queryWrapper = buildQueryWrapper(queryWrapper, queryType);
 
-    public List<FileIndexEntity> listExcludeDeletedByIds(Collection<Long> ids) {
-        return fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
-                .in(FileIndexEntity::getId, ids)
-                .eq(FileIndexEntity::getDeletedAt, 0L));
+        return fileIndexMapper.selectList(queryWrapper);
     }
 
     /**
-     * 批量更新文件索引中的 lastest_commit_hash
+     * 根据 IDs 查询索引
      */
-    public void updateCommitHashByIds(List<Long> fileIds, String commitHash) {
-        if (fileIds == null || fileIds.isEmpty()) {
-            return;
-        }
-        fileIndexMapper.update(new LambdaUpdateWrapper<FileIndexEntity>()
-                .set(FileIndexEntity::getLatestCommitHash, commitHash)
-                .set(FileIndexEntity::getUpdateTime, System.currentTimeMillis())
-                .in(FileIndexEntity::getId, fileIds));
+    public List<FileIndexEntity> listByIds(Collection<Long> ids) {
+        return listByIds(ids, EXCLUDE_DELETED);
     }
+
+    public List<FileIndexEntity> listByIds(Collection<Long> ids, String queryType) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LambdaQueryWrapper<FileIndexEntity> queryWrapper = new LambdaQueryWrapper<FileIndexEntity>()
+                .in(FileIndexEntity::getId, new HashSet<>(ids));
+        queryWrapper = buildQueryWrapper(queryWrapper, queryType);
+        return fileIndexMapper.selectList(queryWrapper);
+    }
+
 
     /**
      * 根据路径前缀查找未删除的文件列表。
@@ -75,26 +82,14 @@ public class FileIndexService {
      * @return 子节点列表
      */
     public List<FileIndexEntity> listAllChildren(String pathPrefix) {
-        return selectAllChildren(pathPrefix, false);
+        return listAllChildren(pathPrefix, EXCLUDE_DELETED);
     }
 
-    /**
-     * 根据路径前缀查找所有节点，包含已删除记录。
-     *
-     * @param pathPrefix 路径前缀
-     * @return 子节点列表
-     */
-    public List<FileIndexEntity> listAllChildrenIncludingDeleted(String pathPrefix) {
-        return selectAllChildren(pathPrefix, true);
-    }
-
-    private List<FileIndexEntity> selectAllChildren(String pathPrefix, boolean includeDeleted) {
+    public List<FileIndexEntity> listAllChildren(String pathPrefix, String queryType) {
         // 只返回严格子孙节点，不包含 pathPrefix 自身
         LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .likeRight(FileIndexEntity::getPath, pathPrefix + "/");
-        if (!includeDeleted) {
-            wrapper.eq(FileIndexEntity::getDeletedAt, 0L);
-        }
+        wrapper = buildQueryWrapper(wrapper, queryType);
         return fileIndexMapper.selectList(wrapper);
     }
 
@@ -105,48 +100,29 @@ public class FileIndexService {
      * @return 索引记录，不存在返回 null
      */
     public FileIndexEntity getByPath(String path) {
-        return selectByPath(path, false);
+        return getByPath(path, EXCLUDE_DELETED);
     }
 
-    /**
-     * 按路径查询单个索引记录，包含已删除记录。
-     *
-     * @param path 文件相对路径
-     * @return 索引记录，不存在返回 null
-     */
-    public FileIndexEntity getByPathIncludingDeleted(String path) {
-        return selectByPath(path, true);
-    }
-
-    private FileIndexEntity selectByPath(String path, boolean includeDeleted) {
+    public FileIndexEntity getByPath(String path, String queryType) {
         LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .eq(FileIndexEntity::getPath, path);
-        if (!includeDeleted) {
-            wrapper.eq(FileIndexEntity::getDeletedAt, 0L);
-        }
-        return fileIndexMapper.selectOne(wrapper.last("LIMIT 1"));
+        wrapper = buildQueryWrapper(wrapper, queryType);
+
+        return fileIndexMapper.selectOne(wrapper);
     }
 
     /**
-     * 按主键 ID 查询索引记录，包含已删除记录。
-     *
-     * @param id 主键 ID
-     * @return 索引记录，不存在返回 null
+     * 按主键 ID 查询索引记录
      */
-    public FileIndexEntity getIncludeDeletedById(Long id) {
-        return fileIndexMapper.selectById(id);
+    public FileIndexEntity getById(Long id) {
+        return getById(id, EXCLUDE_DELETED);
     }
 
-    /**
-     * 按主键 ID 查询未删除的索引记录。
-     *
-     * @param id 主键 ID
-     * @return 索引记录，不存在或已删除返回 null
-     */
-    public FileIndexEntity getExcludeDeletedById(Long id) {
-        return fileIndexMapper.selectOne(new LambdaQueryWrapper<FileIndexEntity>()
-                .eq(FileIndexEntity::getId, id)
-                .eq(FileIndexEntity::getDeletedAt, 0L));
+    public FileIndexEntity getById(Long id, String queryType) {
+        LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
+                .eq(FileIndexEntity::getId, id);
+        wrapper = buildQueryWrapper(wrapper, queryType);
+        return fileIndexMapper.selectOne(wrapper);
     }
 
     /**
@@ -200,7 +176,7 @@ public class FileIndexService {
             bytes = Files.readAllBytes(filePath);
         } catch (IOException e) {
             log.warn("读取文件内容计算 CRC32 失败：{}，按空内容处理", filePath, e);
-            bytes = new byte[0];
+            bytes = EMPTY_CONTENT;
         }
         indexOnSave(path, root, bytes);
     }
@@ -305,6 +281,19 @@ public class FileIndexService {
     }
 
     /**
+     * 批量更新文件索引中的 lastest_commit_hash
+     */
+    public void updateCommitHashByIds(List<Long> fileIds, String commitHash) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return;
+        }
+        fileIndexMapper.update(new LambdaUpdateWrapper<FileIndexEntity>()
+                .set(FileIndexEntity::getLatestCommitHash, commitHash)
+                .set(FileIndexEntity::getUpdateTime, System.currentTimeMillis())
+                .in(FileIndexEntity::getId, fileIds));
+    }
+
+    /**
      * 从DB彻底删除文件或文件夹（递归物理删除索引）。
      *
      * @param path 文件相对路径
@@ -331,103 +320,6 @@ public class FileIndexService {
     }
 
     /**
-     * 恢复已删除文件或文件夹（递归重置 deleted_at）。
-     *
-     * @param path 文件相对路径
-     */
-    public void restore(String path) {
-        FileIndexEntity entity = getByPathIncludingDeleted(path);
-        if (entity == null) {
-            return;
-        }
-        Set<Long> ids = collectIdsRecursively(path);
-        if (ids.isEmpty()) {
-            return;
-        }
-        fileIndexMapper.update(
-                new LambdaUpdateWrapper<FileIndexEntity>()
-                        .in(FileIndexEntity::getId, ids)
-                        .set(FileIndexEntity::getDeletedAt, 0L));
-    }
-
-    /**
-     * 恢复单个已删除文件/目录。
-     *
-     * @param fileId 文件 ID
-     */
-    public void restoreById(Long fileId) {
-        fileIndexMapper.update(
-                new LambdaUpdateWrapper<FileIndexEntity>()
-                        .eq(FileIndexEntity::getId, fileId)
-                        .set(FileIndexEntity::getDeletedAt, 0L));
-    }
-
-    /**
-     * 查询回收站中直接子节点。
-     *
-     * @param parentPath 父路径
-     * @return 已删除子节点列表
-     */
-    public List<FileIndexEntity> listTrash(String parentPath) {
-        return fileIndexMapper.selectList(
-                new LambdaQueryWrapper<FileIndexEntity>()
-                        .eq(FileIndexEntity::getParentPath, parentPath)
-                        .gt(FileIndexEntity::getDeletedAt, 0L)
-                        .orderByDesc(FileIndexEntity::getDeletedAt));
-    }
-
-    /**
-     * 递归收集某路径下所有节点 ID（包含自身）。
-     */
-    private Set<Long> collectIdsRecursively(String path) {
-        Set<Long> ids = new HashSet<>();
-        FileIndexEntity self = getByPathIncludingDeleted(path);
-        if (self == null) {
-            return ids;
-        }
-        ids.add(self.getId());
-        List<FileIndexEntity> children = listAllChildrenIncludingDeleted(path);
-        for (FileIndexEntity child : children) {
-            ids.add(child.getId());
-        }
-        return ids;
-    }
-
-    /**
-     * 扫描磁盘并建立/重建索引。
-     *
-     * @param root 工作空间根目录
-     */
-    public void reloadIndex(Path root) {
-        try {
-            Files.walkFileTree(root, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-                    String relative = relativePath(dir, root);
-                    if (relative.isEmpty() || ".git".equals(relative) || ".lanting".equals(relative)) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    indexOnCreate(relative, "folder", root);
-                    return FileVisitResult.CONTINUE;
-                }
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-                    String relative = relativePath(file, root);
-                    if (relative.isEmpty() || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
-                        return FileVisitResult.CONTINUE;
-                    }
-                    indexOnSave(relative, root);
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            log.error("扫描磁盘建立索引失败：{}", root, e);
-            throw new RuntimeException("扫描磁盘建立索引失败", e);
-        }
-    }
-
-    /**
      * 一致性校验：扫描磁盘与 DB 索引对比，返回不一致报告（不自动修复/删除）。
      *
      * @param root  工作空间根目录
@@ -447,12 +339,12 @@ public class FileIndexService {
         // 加载 DB 中未删除索引记录，按 path 建立 Map
         List<FileIndexEntity> allIndex = hasScope
                 ? fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
-                                             .eq(FileIndexEntity::getDeletedAt, 0L)
-                                             .and(w -> w.likeRight(FileIndexEntity::getPath, scope + "/")
-                                                       .or()
-                                                       .eq(FileIndexEntity::getPath, scope)))
+                .eq(FileIndexEntity::getDeletedAt, 0L)
+                .and(w -> w.likeRight(FileIndexEntity::getPath, scope + "/")
+                        .or()
+                        .eq(FileIndexEntity::getPath, scope)))
                 : fileIndexMapper.selectList(new LambdaQueryWrapper<FileIndexEntity>()
-                                             .eq(FileIndexEntity::getDeletedAt, 0L));
+                .eq(FileIndexEntity::getDeletedAt, 0L));
         Map<String, FileIndexEntity> indexMap = new HashMap<>();
         for (FileIndexEntity entity : allIndex) {
             indexMap.put(entity.getPath(), entity);
@@ -558,6 +450,25 @@ public class FileIndexService {
         Map<String, Object> status = new HashMap<>();
         status.put("total", total);
         return status;
+    }
+
+    /**
+     * 根据不同的 QueryType 组件包含不同 DeleteAt 条件的 QueryWrapper
+     */
+    private static LambdaQueryWrapper<FileIndexEntity> buildQueryWrapper(LambdaQueryWrapper<FileIndexEntity> queryWrapper, String queryType) {
+        switch (queryType) {
+            case ONLY_DELETED:
+                queryWrapper = queryWrapper.lt(FileIndexEntity::getDeletedAt, 0L);
+                break;
+            case EXCLUDE_DELETED:
+                queryWrapper = queryWrapper.eq(FileIndexEntity::getDeletedAt, 0L);
+                break;
+            case INCLUDE_DELETED:
+                break;
+            default:
+                throw new IllegalArgumentException("Query Type 不合法：" + queryType);
+        }
+        return queryWrapper;
     }
 
     /**

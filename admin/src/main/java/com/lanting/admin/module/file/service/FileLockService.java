@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -76,6 +78,24 @@ public class FileLockService {
         boolean isExpired() {
             return System.currentTimeMillis() - lockedAt > FOLDER_LOCK_TTL_MS;
         }
+
+        public static LockInfo of(String holder) {
+            return new LockInfo(holder, 0);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            LockInfo lockInfo = (LockInfo) o;
+            return Objects.equals(holder, lockInfo.holder);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(holder);
+        }
     }
 
     /**
@@ -94,7 +114,7 @@ public class FileLockService {
      * @param action   持锁校验通过后执行的动作
      * @return action 的返回值
      */
-    public <T> T doIfHolder(Long fileId, String filePath, String username, Supplier<T> action) {
+    public <T> T doIfHolder(Long fileId, String filePath, String username, Callable<T> action) throws Exception {
         ReentrantLock lock = segmentFor(fileId);
         lock.lock();
         try {
@@ -105,14 +125,14 @@ public class FileLockService {
             if (!isHolder(fileId, username)) {
                 throw new BusinessException(FileResultCode.FILE_LOCKED);
             }
-            return action.get();
+            return action.call();
         } finally {
             lock.unlock();
         }
     }
 
-    public <T> T doIfHolder(Long fileId, String username, Supplier<T> action) {
-        FileIndexEntity fileIndexEntity = fileIndexService.getIncludeDeletedById(fileId);
+    public <T> T doIfHolder(Long fileId, String username, Callable<T> action) throws Exception {
+        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId, FileIndexService.INCLUDE_DELETED);
         return doIfHolder(fileId, fileIndexEntity.getPath(), username, action);
     }
 
@@ -124,7 +144,7 @@ public class FileLockService {
      * <p>
      * fileIds 与 filePaths 需一一对应，长度必须一致。
      */
-    public <T> T doIfLocked(List<Long> fileIds, List<String> filePaths, String username, Supplier<T> action) {
+    public <T> T doIfHolder(List<Long> fileIds, List<String> filePaths, String username, Supplier<T> action) {
         if (fileIds == null || fileIds.isEmpty() || filePaths == null || filePaths.isEmpty()) {
             throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED,
                     "fileIds 和 filePaths 不能为空");
@@ -153,7 +173,7 @@ public class FileLockService {
             // 校验所有文件均被当前用户持有
             for (Long fileId : fileIds) {
                 if (!isHolder(fileId, username)) {
-                    throw new BusinessException(FileResultCode.FILE_LOCKED);
+                    throw new BusinessException(FileResultCode.FILE_LOCKED, fileId.toString());
                 }
             }
 
@@ -166,9 +186,9 @@ public class FileLockService {
         }
     }
 
-    public <T> T doIfLocked(List<Long> fileIds, String username, Supplier<T> action) {
-        List<String> filePaths = fileIndexService.listIncludeDeletedByIds(fileIds).stream().map(FileIndexEntity::getPath).toList();
-        return doIfLocked(fileIds, filePaths, username, action);
+    public <T> T doIfHolder(List<Long> fileIds, String username, Supplier<T> action) {
+        List<String> filePaths = fileIndexService.listByIds(fileIds, FileIndexService.INCLUDE_DELETED).stream().map(FileIndexEntity::getPath).toList();
+        return doIfHolder(fileIds, filePaths, username, action);
     }
 
     /**
@@ -204,7 +224,7 @@ public class FileLockService {
     }
 
     public AcquireLockVO acquire(Long fileId, String holder) {
-        FileIndexEntity fileIndexEntity = fileIndexService.getIncludeDeletedById(fileId);
+        FileIndexEntity fileIndexEntity = fileIndexService.getById(fileId, FileIndexService.INCLUDE_DELETED);
         return acquire(fileId, fileIndexEntity.getPath(), holder);
     }
 
@@ -362,6 +382,10 @@ public class FileLockService {
      * 释放目录锁（CAS 安全）。
      */
     public void releaseFolderLock(String path, String holder) {
-        folderHardLocks.remove(path, holder);
+        folderHardLocks.remove(path, LockInfo.of(holder));
+    }
+
+    public void forceReleaseFolderLock(String path) {
+        folderHardLocks.remove(path);
     }
 }

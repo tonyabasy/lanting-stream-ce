@@ -27,11 +27,4 @@ public class CommitResultVO {
      */
     @Schema(description = "实际提交的文件列表")
     private List<FileIndexEntity> committed;
-
-    @Schema(description = "跳过的文件，reason -> filePath")
-    private Map<String,List<FileIndexEntity>> skipped;
-
-    /** Skip Reason */
-    public static final String FILE_NOT_FOUND = "NotFound";
-    public static final String FILE_UNLOCKED = "Unlocked";
 }

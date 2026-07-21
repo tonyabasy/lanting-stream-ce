@@ -69,4 +69,6 @@ public class FileIndexEntity {
     public static boolean isDirectory(String type) {
         return FOLDER.equals(type);
     }
+
+
 }

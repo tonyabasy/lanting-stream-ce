@@ -1,5 +1,6 @@
 package com.lanting.admin.module.file.vo;
 
+import com.lanting.admin.module.file.entity.FileIndexEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -45,4 +46,17 @@ public class FileTreeNode {
     /** 子节点，folder 时有值，file 时为 null */
     @Schema(description = "子节点")
     private List<FileTreeNode> children;
+
+    public static FileTreeNode of(FileIndexEntity entity, String holder, Long lockedAt) {
+        FileTreeNode node = new FileTreeNode();
+        node.setFileId(entity.getId());
+        node.setName(entity.getName());
+        node.setPath(entity.getPath());
+        node.setType(entity.getType());
+        node.setMtime(entity.getMtime());
+        node.setLockedBy(holder);
+        node.setLockedAt(lockedAt);
+
+        return node;
+    }
 }

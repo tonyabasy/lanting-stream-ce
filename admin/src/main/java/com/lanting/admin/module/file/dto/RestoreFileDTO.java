@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 从回收站恢复文件请求 DTO。
  *
@@ -13,12 +15,16 @@ import lombok.Data;
 @Schema(description = "恢复文件请求")
 public class RestoreFileDTO {
 
-    /** 文件 ID */
+    /**
+     * 文件 ID
+     */
     @NotNull(message = "文件 ID 不能为空")
     @Schema(description = "文件 ID", example = "1")
-    private Long fileId;
+    private List<Long> fileIds;
 
-    /** 目标 commit SHA，为空时从 HEAD 恢复 */
+    /**
+     * 目标 commit SHA，为空时从 HEAD 恢复
+     */
     @Schema(description = "目标 commit SHA，为空时从 HEAD 恢复")
     private String commitHash;
 }

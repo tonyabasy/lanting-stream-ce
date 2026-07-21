@@ -97,7 +97,7 @@ delete()
 
 **新增工具**：
 - `HappyRun`（`admin/src/main/java/com/lanting/admin/common/util/HappyRun.java`）：容错执行工具，`run()` 忽略指定异常继续执行，`retry()` 失败重试
-- `FileIndexService` 新增 `updateCommitHashByIds`、`listExcludeDeletedByIds`、`getExcludeDeletedById` 等方法
+- `FileIndexService` 新增 `updateCommitHashByIds` 等方法
 
 **容错场景**（ACBD = auto commit before delete）：
 
@@ -119,7 +119,7 @@ delete()
 1. 乐观筛选：遍历待提交文件，`isHolder` 快照判断 → 持锁者进入 `commited`，否则进入 `skipped`
 2. `doIfLocked` 原子复核 + 执行：按 segment 排序加锁 → 二次校验 `isHolder` → `git add + commit` → 批量更新 `latestCommitHash`
 3. `deleted_at > 0` 的文件直接 skipped（delete 已自动 commit）
-4. 使用 `listExcludeDeletedByIds` 批量查询，消除 N+1
+4. 使用 `listByIds` 批量查询，消除 N+1
 
 **为什么必须用 `doIfLocked`**：`isHolder` 快照检查存在 TOCTOU 窗口——check 后、git add 前，他人可能抢锁并写入。脏提交会污染 Git 历史和 blame。`doIfLocked` 将"校验 + 提交"原子化，利用 256 segment 分段锁（5-20ms 持有时间，阻塞概率 <4%），代价极低。
 

@@ -6,7 +6,7 @@ import com.lanting.admin.common.result.ResultCode;
 import lombok.Getter;
 
 /**
- * 业务异常，携带 {@link ResultCode}，由 {@link GlobalExceptionHandler} 统一处理。
+ * 业务异常，携带 {@link ResultCode}，由 {@link com.lanting.admin.common.config.GlobalExceptionHandler} 统一处理。
  * <p>
  * 支持动态参数替换 message 中的占位符（如 {@code "用户 {0} 不存在"}）。
  *

@@ -379,33 +379,4 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             assertThat(found).isTrue();
         }
     }
-
-    // ==================== scanAndIndex ====================
-
-    @Nested
-    @DisplayName("scanAndIndex 全量扫描")
-    class ScanAndIndex {
-
-        @Test
-        @DisplayName("扫描磁盘后 DB 记录与磁盘文件一一对应")
-        void shouldIndexAllFiles() throws IOException {
-            String dir = uniqueDir + "/scan";
-            Files.createDirectories(root.resolve(dir));
-            Files.writeString(root.resolve(dir + "/a.sql"), "a");
-            Files.writeString(root.resolve(dir + "/b.sql"), "b");
-            Files.createDirectories(root.resolve(dir + "/sub"));
-
-            // 先确保 DB 无记录
-            fileIndexMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FileIndexEntity>()
-                    .likeRight(FileIndexEntity::getPath, dir));
-
-            fileIndexService.reloadIndex(root);
-
-            // 查询扫描后的记录
-            List<FileIndexEntity> children = fileIndexService.listDirectlyChildren(dir);
-            // 应有 a.sql, b.sql, sub 三个
-            assertThat(children).extracting(FileIndexEntity::getName)
-                    .contains("a.sql", "b.sql", "sub");
-        }
-    }
 }

@@ -5,6 +5,7 @@ import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.common.util.JACKSON;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
+import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileIndexService;
 import com.lanting.admin.module.file.service.WorkspaceService;
 import com.lanting.admin.module.file.vo.CommitResultVO;
@@ -54,8 +55,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     private WorkspaceService workspaceService;
     @Autowired
     private FileIndexService fileIndexService;
-    @Autowired
-    private ApplicationContext applicationContext;
 
     private String token;
     private String uniquePath;
@@ -243,8 +242,11 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30709);
         }
 
+        /**
+         * 提交文件没抢锁
+         */
         @Test
-        @DisplayName("提交他人锁定文件 → NOTHING_TO_COMMIT（30713）")
+        @DisplayName("提交文件时没抢锁")
         void commitAllLockedByOthersShouldReturn30713() {
             createFolder(uniquePath);
             String filePath = uniquePath + "/other.sql";
@@ -265,7 +267,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/commit", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(anotherUserToken)), JsonNode.class);
-            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30713);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(FileResultCode.FILE_LOCKED.getCode());
         }
 
         @Test
@@ -714,6 +716,9 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     @DisplayName("软删除流程：写入中删目录，验证 auto commit + delete commit 链")
     class Delete {
 
+        /**
+         * user1 正在保存，user2 删除目录
+         */
         @Test
         @DisplayName("user1 写入中 user2 并发删目录，竞态下 commit 链和时间戳正确")
         void shouldAutoCommitBeforeDeleteAndVerifyCommitChain() throws Exception {
@@ -770,7 +775,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                         .as("最新 commit 应为 delete commit").contains("delete " + folderPath);
 
                 // 验证 DB deleted_at == HEAD commit time * 1000
-                FileIndexEntity deleted = fileIndexService.getByPathIncludingDeleted(folderPath);
+                FileIndexEntity deleted = fileIndexService.getByPath(folderPath, FileIndexService.INCLUDE_DELETED);
                 assertThat(deleted.getDeletedAt())
                         .as("DB deleted_at 应等于 delete commit 时间戳").isEqualTo(deleteCommit.getCommitTime() * 1000L);
                 assertThat(deleted.getLatestCommitHash())
@@ -833,7 +838,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                     JsonNode.class);
 
             // 验证：文件进入回收站，delete commit 生成了
-            FileIndexEntity deleted = fileIndexService.getByPathIncludingDeleted(filePath);
+            FileIndexEntity deleted = fileIndexService.getByPath(filePath, FileIndexService.INCLUDE_DELETED);
             assertThat(deleted).as("DB 索引应保留").isNotNull();
             assertThat(deleted.getDeletedAt()).as("deleted_at 应 > 0").isGreaterThan(0L);
             assertThat(deleted.getLatestCommitHash()).as("delete commit 应成功生成").isNotNull();
