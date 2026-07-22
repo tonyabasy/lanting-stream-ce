@@ -1,14 +1,11 @@
 package com.lanting.admin.module.file.controller;
 
-import com.lanting.admin.common.page.PageQuery;
 import com.lanting.admin.common.page.PageResult;
 import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileLockService;
 import com.lanting.admin.module.file.service.GitFileService;
-import com.lanting.admin.module.file.service.PublishService;
-import com.lanting.admin.module.file.service.ReviewService;
 import com.lanting.admin.module.file.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -37,15 +34,9 @@ public class FileController {
 
     private final FileLockService fileLockService;
 
-    private final PublishService publishService;
-
-    private final ReviewService reviewService;
-
-    public FileController(GitFileService gitFileService, FileLockService fileLockService, PublishService publishService, ReviewService reviewService) {
+    public FileController(GitFileService gitFileService, FileLockService fileLockService) {
         this.gitFileService = gitFileService;
         this.fileLockService = fileLockService;
-        this.publishService = publishService;
-        this.reviewService = reviewService;
     }
 
     // ==================== 通用文件操作 ====================
@@ -153,7 +144,7 @@ public class FileController {
     @Operation(summary = "提交文件")
     @PostMapping("/commit")
     public Result<CommitResultVO> commit(@Valid @RequestBody CommitFileDTO dto) {
-        CommitResultVO result = gitFileService.commit(dto);
+        CommitResultVO result = gitFileService.commit(dto.getFileIds(), dto.getMessage());
         if (result.getCommitted().isEmpty()) {
             return Result.error(FileResultCode.NOTHING_TO_COMMIT, result);
         }
@@ -212,64 +203,5 @@ public class FileController {
             return Result.error(com.lanting.admin.common.result.CommonResultCode.FORBIDDEN);
         }
         return Result.success();
-    }
-
-    // ==================== 发布与回滚 ====================
-
-    /**
-     * 发布。对当前 HEAD 打 tag，磁盘上未提交的变更不影响发布内容。
-     */
-    @Operation(summary = "发布")
-    @PostMapping("/publish")
-    public Result<PublishVO> publish(@Valid @RequestBody PublishDTO dto) {
-        return Result.success(publishService.publish(dto, currentUser()));
-    }
-
-    /**
-     * 查询发布历史。已使用 PublishPageQuery 统一分页校验，pageSize 默认与 PageQuery 一致为 10。
-     */
-    @Operation(summary = "查询发布历史")
-    @GetMapping("/publish")
-    public Result<PageResult<PublishVO>> publishList(@Valid PageQuery query) {
-        return Result.success(publishService.list(query));
-    }
-
-//    /**
-//     * 发布级回滚预检。列出目标 tag 中当前被他人锁定的文件，供前端二次确认。
-//     */
-//    @Operation(summary = "发布级回滚预检")
-//    @PostMapping("/rollback-release/check")
-//    public Result<RollbackCheckVO> rollbackCheck(@Valid @RequestBody RollbackReleaseDTO dto) {
-//        return Result.success(gitFileService.rollbackCheck(dto.getTagName()));
-//    }
-//
-//    /**
-//     * 发布级回滚。将目标 tag 中所有文件覆盖回当前工作空间，并产生一次新 commit。
-//     */
-//    @Operation(summary = "发布级回滚")
-//    @PostMapping("/rollback-release")
-//    public Result<PublishVO> rollbackRelease(@Valid @RequestBody RollbackReleaseDTO dto) {
-//        return Result.success(gitFileService.rollbackRelease(dto.getTagName()));
-//    }
-
-    // ==================== Review ====================
-
-    /**
-     * 添加 review。社区版 review 为轻量标记，不触发审批流程。
-     */
-    @Operation(summary = "添加 review")
-    @PostMapping("/review")
-    public Result<Void> review(@Valid @RequestBody ReviewDTO dto) {
-        reviewService.add(dto.getTagName(), dto.getComment(), currentUser());
-        return Result.success();
-    }
-
-    /**
-     * 查询某个发布的 review 列表。
-     */
-    @Operation(summary = "查询 review 列表")
-    @GetMapping("/review")
-    public Result<List<ReviewVO>> reviewList(@RequestParam @NotBlank String tagName) {
-        return Result.success(reviewService.list(tagName));
     }
 }

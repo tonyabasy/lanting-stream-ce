@@ -13,22 +13,20 @@ import com.lanting.admin.module.file.vo.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.eclipse.jgit.api.AddCommand;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.LogCommand;
-import org.eclipse.jgit.api.RmCommand;
+import org.eclipse.jgit.api.*;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.NoFilepatternException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.errors.InvalidObjectIdException;
-import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.EmptyTreeIterator;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup;
@@ -42,8 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -148,7 +144,7 @@ public class GitFileService {
      */
     public List<FileTreeNode> tree(String parentPath, String sort) {
         // parentPath 为空字符串表示根目录，允许；非空时按普通路径校验
-        if (parentPath != null && !parentPath.isEmpty()) {
+        if (!StringUtils.isEmpty(parentPath)) {
             validatePath(parentPath);
         }
 
@@ -176,6 +172,25 @@ public class GitFileService {
         } else {
             nodes.sort(Comparator.comparing(FileTreeNode::getName));
         }
+    }
+
+    /**
+     * 返回给定文件中存在未提交变更的路径。
+     * {@code modified}: 已跟踪文件的未暂存修改，{@code untracked}: 从未提交过的新文件。
+     */
+    public UncommitVO uncommit(List<Long> fileIds) {
+        List<FileIndexEntity> entities = fileIndexService.listByIds(fileIds);
+        if (entities.isEmpty()) {
+            return new UncommitVO();
+        }
+
+        List<String> filePaths = entities.stream().map(FileIndexEntity::getPath).toList();
+        Status status = gitStatus(filePaths);
+
+        UncommitVO vo = new UncommitVO();
+        vo.setModified(new ArrayList<>(status.getModified()));
+        vo.setUntracked(new ArrayList<>(status.getUntracked()));
+        return vo;
     }
 
     /**
@@ -346,7 +361,7 @@ public class GitFileService {
 
         String oldPath = entity.getPath();
         String parentPath = entity.getParentPath();
-        String newPath = parentPath.isEmpty() ? dto.getNewName() : parentPath + "/" + dto.getNewName();
+        String newPath = StringUtils.isEmpty(parentPath) ? dto.getNewName() : parentPath + "/" + dto.getNewName();
         validatePath(newPath);
 
         Path root = workspaceService.getDefaultWorkspaceRoot();
@@ -480,14 +495,14 @@ public class GitFileService {
      * 已采用多文件分段锁保护，确保从"校验持锁"到"JGit 提交落盘"的整个过程是原子操作，
      * 彻底杜绝提交期间因他人抢锁并保存导致的"脏提交"问题。
      */
-    public CommitResultVO commit(CommitFileDTO dto) {
+    public CommitResultVO commit(List<Long> fileIds, String message) {
         String username = currentUser();
         List<String> filePathsToCommit = new ArrayList<>();
         List<Long> fileIdsToCommit = new ArrayList<>();
         List<FileIndexEntity> committedFileEntities = new ArrayList<>();
 
         // 乐观筛选：初步找出当前用户持有的文件（此阶段不加锁，减少锁竞争）
-        Set<Long> notFoundFileIds = new HashSet<>(dto.getFileIds());
+        Set<Long> notFoundFileIds = new HashSet<>(fileIds);
         List<FileIndexEntity> list = fileIndexService.listByIds(notFoundFileIds);
         for (FileIndexEntity entity : list) {
             String path = entity.getPath();
@@ -511,7 +526,7 @@ public class GitFileService {
         // 多文件原子加锁：按 ID 排序后对分段锁进行排他性锁定并执行二次校验，
         // 保证 gitCommit 期间他人既无法抢走锁，也无法 save 写入新数据，确保 Git 历史纯净。
         return fileLockService.doIfHolder(fileIdsToCommit, filePathsToCommit, username, () -> {
-            String hash = gitCommit(filePathsToCommit, Collections.emptyList(), dto.getMessage()).getName();
+            String hash = gitCommit(filePathsToCommit, Collections.emptyList(), message).getName();
             fileIndexService.updateCommitHashByIds(fileIdsToCommit, hash);
 
             CommitResultVO commitResult = new CommitResultVO();
@@ -525,7 +540,7 @@ public class GitFileService {
      * 回收站文件树。返回指定父路径下 deleted_at &gt; 0 的文件/文件夹。
      */
     public List<FileTreeNode> trash(String parentPath) {
-        if (parentPath != null && !parentPath.isEmpty()) {
+        if (!StringUtils.isEmpty(parentPath)) {
             validatePath(parentPath);
         }
         parentPath = parentPath == null ? "" : parentPath;
@@ -732,17 +747,21 @@ public class GitFileService {
     }
 
     /**
-     * 计算指定文件在两个 commit 之间的 unified diff。from/to 均为完整 commit SHA，
-     * 由 Controller 层 @NotBlank 保证非空；非法 SHA 转 PARAM_INVALID（10001）；
-     * 文件在两边 commit 中均不存在时抛 FILE_NOT_FOUND（30702）。
+     * 计算指定文件在两个 commit 之间的 unified diff。
+     * 支持新增文件（from == null）和删除文件（to == null），
+     * 使用 JGit EmptyTreeIterator 处理空树场景。
+     *
+     * @param fileId 文件 ID
+     * @param from   起始 Commit SHA，传 null 代表空树（新增文件，全量 ADD）
+     * @param to     目标 Commit SHA，传 null 代表空树（删除文件，全量 DELETE）
      */
     public String diff(Long fileId, String from, String to) {
         String path = resolvePathByFileId(fileId);
         validatePath(path);
-        if (from == null || to == null) {
-            throw new BusinessException(CommonResultCode.PARAM_INVALID, "from 和 to 不能为空");
+        if (from == null && to == null) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID, "from 和 to 不能同时为空");
         }
-        if (from.equals(to)) {
+        if (from != null && from.equals(to)) {
             return "";
         }
         Path root = workspaceService.getDefaultWorkspaceRoot();
@@ -750,24 +769,21 @@ public class GitFileService {
              RevWalk walk = new RevWalk(git.getRepository());
              ByteArrayOutputStream out = new ByteArrayOutputStream();
              DiffFormatter formatter = new DiffFormatter(out)) {
-            ObjectId fromId = ObjectId.fromString(from);
-            ObjectId toId = ObjectId.fromString(to);
-            RevCommit fromCommit = walk.parseCommit(fromId);
-            RevCommit toCommit = walk.parseCommit(toId);
-            CanonicalTreeParser oldTree = prepareTreeParser(git.getRepository(), fromCommit);
-            CanonicalTreeParser newTree = prepareTreeParser(git.getRepository(), toCommit);
-            formatter.setRepository(git.getRepository());
+
+            Repository repository = git.getRepository();
+            AbstractTreeIterator oldTree = from == null ? new EmptyTreeIterator() : prepareTreeParser(repository, walk, from);
+            AbstractTreeIterator newTree = to == null ? new EmptyTreeIterator() : prepareTreeParser(repository, walk, to);
+
+            formatter.setRepository(repository);
             List<DiffEntry> diffs = git.diff()
                     .setOldTree(oldTree)
                     .setNewTree(newTree)
                     .setPathFilter(PathFilter.create(path))
                     .call();
+
             if (diffs.isEmpty()) {
-                // 两边都不存在 → FILE_NOT_FOUND；内容没变化 → 返回空字符串
-                boolean existsInFrom = TreeWalk.forPath(
-                        git.getRepository(), path, fromCommit.getTree()) != null;
-                boolean existsInTo = TreeWalk.forPath(
-                        git.getRepository(), path, toCommit.getTree()) != null;
+                boolean existsInFrom = from != null && existsInCommit(repository, walk, from, path);
+                boolean existsInTo = to != null && existsInCommit(repository, walk, to, path);
                 if (!existsInFrom && !existsInTo) {
                     throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
                 }
@@ -777,7 +793,7 @@ public class GitFileService {
                 formatter.format(entry);
             }
             return out.toString(StandardCharsets.UTF_8);
-        } catch (org.eclipse.jgit.errors.InvalidObjectIdException e) {
+        } catch (InvalidObjectIdException e) {
             throw new BusinessException(CommonResultCode.PARAM_INVALID,
                     "非法的 commit hash: " + e.getMessage());
         } catch (IOException | GitAPIException e) {
@@ -786,14 +802,26 @@ public class GitFileService {
     }
 
     /**
-     * 将 commit 的树包装为 diff 命令需要的 Treeparser（JGit diff API 的样板代码）。
+     * 将 commit 解析为 Diff 所需的 TreeParser。
      */
-    private CanonicalTreeParser prepareTreeParser(Repository repository, RevCommit commit) throws IOException {
+    private AbstractTreeIterator prepareTreeParser(Repository repository, RevWalk walk, String commitHash)
+            throws IOException {
         CanonicalTreeParser treeParser = new CanonicalTreeParser();
+        ObjectId commitId = ObjectId.fromString(commitHash);
+        RevCommit commit = walk.parseCommit(commitId);
         try (org.eclipse.jgit.lib.ObjectReader reader = repository.newObjectReader()) {
             treeParser.reset(reader, commit.getTree());
         }
         return treeParser;
+    }
+
+    /**
+     * 检查指定 commit 中是否存在该文件。
+     */
+    private boolean existsInCommit(Repository repository, RevWalk walk, String commitHash, String path)
+            throws IOException {
+        RevCommit commit = walk.parseCommit(ObjectId.fromString(commitHash));
+        return TreeWalk.forPath(repository, path, commit.getTree()) != null;
     }
 
     /**
@@ -829,79 +857,9 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
         } catch (BusinessException e) {
             throw e;
-        }catch (Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * 发布当前 HEAD。自动生成 release-YYYYMMDDHHmmss-abcdef（时间戳 + 短 hash）。
-     * <p>
-     * commitHash 是 HEAD 的 SHA；磁盘上未提交的变更不影响发布内容（静默忽略，见 spec）。
-     * FIXME: publish的意义在哪里？真的能够根据tag来部署吗？如果tag中包含了一次commit（临时）那会怎么样？tag是部分文件的tag还是全部文件的tag？我需要是单个文件的稳定commit_id，而不是全部文件的一个tag
-     */
-    public PublishVO publish(PublishDTO dto) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
-        return withWorkspaceLock(() -> {
-            try (Git git = Git.open(root.toFile());
-                 RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId headId = git.getRepository().resolve(Constants.HEAD);
-                if (headId == null) {
-                    throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, "HEAD 不存在");
-                }
-                RevCommit headCommit = walk.parseCommit(headId);
-                String tagName = generateTagName(git);
-                String message = "release: " + tagName;
-                git.tag().setObjectId(headCommit).setName(tagName).setMessage(message).call();
-                PublishVO vo = new PublishVO();
-                vo.setTagName(tagName);
-                vo.setDisplayName(dto.getDisplayName());
-                vo.setCommitHash(headId.getName());
-                vo.setTimestamp(System.currentTimeMillis());
-                return vo;
-            } catch (IOException | GitAPIException e) {
-                throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
-            }
-        });
-    }
-
-    /**
-     * 删除 tag。用于发布记录落库失败时的补偿，删除失败仅记录日志不再抛出，
-     * 避免掩盖原始异常。
-     * FIXME：publish
-     */
-    public void deleteTag(String tagName) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
-        withWorkspaceLock(() -> {
-            try (Git git = Git.open(root.toFile())) {
-                git.tagDelete().setTags(tagName).call();
-            } catch (IOException | GitAPIException e) {
-                log.error("补偿删除 tag 失败：{}", tagName, e);
-            }
-            return null;
-        });
-    }
-
-    /**
-     * 生成 tag 名：release-YYYYMMDDHHmmss-abcdef。
-     * <p>
-     * 时间戳精确到秒 + 短 commit hash（前 6 位），天然唯一，无需递增序号。
-     * 即使同秒内并发（工作空间锁预防），不同 HEAD 产生不同 commit hash 也能区分。
-     * 调用方需持有工作空间锁。
-     * FIXME：publish
-     */
-    private String generateTagName(Git git) throws IOException {
-        String prefix = "release-";
-
-        // 格式：release-20260704153012-abc3f1
-        // 时间戳到秒级保证基本唯一，短 commit hash 兜底极端并发冲突
-        String timestamp = LocalDateTime.now().format(
-                DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        ObjectId headId = git.getRepository().resolve(Constants.HEAD);
-        String shortHash = headId != null
-                ? headId.abbreviate(6).name()
-                : "000000";
-        return prefix + timestamp + "-" + shortHash;
     }
 
     /* ----------------------------- Git 基础工具方法 ----------------------------- */
@@ -942,6 +900,22 @@ public class GitFileService {
                 throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
             }
         });
+    }
+
+    /**
+     * 执行 git status，通过 configurer 配置需要检查的文件路径。
+     */
+    private Status gitStatus(List<String> filePaths) {
+        Path root = workspaceService.getDefaultWorkspaceRoot();
+        try (Git git = Git.open(root.toFile())) {
+            StatusCommand cmd = git.status();
+            if (filePaths != null && !filePaths.isEmpty()) {
+                filePaths.forEach(cmd::addPath);
+            }
+            return cmd.call();
+        } catch (IOException | GitAPIException e) {
+            throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
+        }
     }
 
     /**

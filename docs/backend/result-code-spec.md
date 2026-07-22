@@ -63,6 +63,8 @@ public interface ResultCode {
 | 30601–30699 | ai |
 | 30701–30799 | file |
 | 30801–30899 | monitor |
+| 30901–30999 | test    |
+| 31001–31099 | publish（含 review） |
 
 > 新增模块时在此表追加区间，避免不同模块的开发者各自瞎编号导致冲突。
 

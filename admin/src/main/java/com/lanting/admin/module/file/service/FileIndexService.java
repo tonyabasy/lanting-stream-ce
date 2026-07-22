@@ -1,6 +1,7 @@
 package com.lanting.admin.module.file.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.apache.commons.lang3.StringUtils;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
@@ -39,6 +40,24 @@ public class FileIndexService {
     }
 
     /**
+     * 根据 IDs 查询索引
+     */
+    public List<FileIndexEntity> listByIds(Collection<Long> ids) {
+        return listByIds(ids, EXCLUDE_DELETED);
+    }
+
+    public List<FileIndexEntity> listByIds(Collection<Long> ids, String deletedQueryCondition) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        LambdaQueryWrapper<FileIndexEntity> queryWrapper = new LambdaQueryWrapper<FileIndexEntity>()
+                .in(FileIndexEntity::getId, new HashSet<>(ids));
+        queryWrapper = buildQueryWrapper(queryWrapper, deletedQueryCondition);
+        return fileIndexMapper.selectList(queryWrapper);
+    }
+
+    /**
      * 按父路径查询直接子节点，仅返回未删除记录。
      *
      * @param parentPath 父路径
@@ -48,32 +67,13 @@ public class FileIndexService {
         return listDirectlyChildren(parentPath, EXCLUDE_DELETED);
     }
 
-    public List<FileIndexEntity> listDirectlyChildren(String parentPath, String queryType) {
+    public List<FileIndexEntity> listDirectlyChildren(String parentPath, String deletedQueryCondition) {
         LambdaQueryWrapper<FileIndexEntity> queryWrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .eq(FileIndexEntity::getParentPath, parentPath);
-        queryWrapper = buildQueryWrapper(queryWrapper, queryType);
+        queryWrapper = buildQueryWrapper(queryWrapper, deletedQueryCondition);
 
         return fileIndexMapper.selectList(queryWrapper);
     }
-
-    /**
-     * 根据 IDs 查询索引
-     */
-    public List<FileIndexEntity> listByIds(Collection<Long> ids) {
-        return listByIds(ids, EXCLUDE_DELETED);
-    }
-
-    public List<FileIndexEntity> listByIds(Collection<Long> ids, String queryType) {
-        if (ids == null || ids.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        LambdaQueryWrapper<FileIndexEntity> queryWrapper = new LambdaQueryWrapper<FileIndexEntity>()
-                .in(FileIndexEntity::getId, new HashSet<>(ids));
-        queryWrapper = buildQueryWrapper(queryWrapper, queryType);
-        return fileIndexMapper.selectList(queryWrapper);
-    }
-
 
     /**
      * 根据路径前缀查找未删除的文件列表。
@@ -85,11 +85,11 @@ public class FileIndexService {
         return listAllChildren(pathPrefix, EXCLUDE_DELETED);
     }
 
-    public List<FileIndexEntity> listAllChildren(String pathPrefix, String queryType) {
+    public List<FileIndexEntity> listAllChildren(String pathPrefix, String deletedQueryCondition) {
         // 只返回严格子孙节点，不包含 pathPrefix 自身
         LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .likeRight(FileIndexEntity::getPath, pathPrefix + "/");
-        wrapper = buildQueryWrapper(wrapper, queryType);
+        wrapper = buildQueryWrapper(wrapper, deletedQueryCondition);
         return fileIndexMapper.selectList(wrapper);
     }
 
@@ -103,10 +103,10 @@ public class FileIndexService {
         return getByPath(path, EXCLUDE_DELETED);
     }
 
-    public FileIndexEntity getByPath(String path, String queryType) {
+    public FileIndexEntity getByPath(String path, String deletedQueryCondition) {
         LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .eq(FileIndexEntity::getPath, path);
-        wrapper = buildQueryWrapper(wrapper, queryType);
+        wrapper = buildQueryWrapper(wrapper, deletedQueryCondition);
 
         return fileIndexMapper.selectOne(wrapper);
     }
@@ -118,10 +118,10 @@ public class FileIndexService {
         return getById(id, EXCLUDE_DELETED);
     }
 
-    public FileIndexEntity getById(Long id, String queryType) {
+    public FileIndexEntity getById(Long id, String deletedQueryCondition) {
         LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
                 .eq(FileIndexEntity::getId, id);
-        wrapper = buildQueryWrapper(wrapper, queryType);
+        wrapper = buildQueryWrapper(wrapper, deletedQueryCondition);
         return fileIndexMapper.selectOne(wrapper);
     }
 
@@ -357,7 +357,7 @@ public class FileIndexService {
                 @Override
                 public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                     String relative = relativePath(dir, root);
-                    if (relative.isEmpty() || ".git".equals(relative) || ".lanting".equals(relative)
+                    if (StringUtils.isEmpty(relative) || ".git".equals(relative) || ".lanting".equals(relative)
                             || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
                         return FileVisitResult.CONTINUE;
                     }
@@ -378,7 +378,7 @@ public class FileIndexService {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                     String relative = relativePath(file, root);
-                    if (relative.isEmpty() || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
+                    if (StringUtils.isEmpty(relative) || relative.startsWith(".git/") || relative.startsWith(".lanting/")) {
                         return FileVisitResult.CONTINUE;
                     }
                     // scope 过滤：不在 scope 范围内的文件跳过
@@ -453,10 +453,10 @@ public class FileIndexService {
     }
 
     /**
-     * 根据不同的 QueryType 组件包含不同 DeleteAt 条件的 QueryWrapper
+     * 根据不同的 deletedQueryCondition 组件包含不同 DeleteAt 条件的 QueryWrapper
      */
-    private static LambdaQueryWrapper<FileIndexEntity> buildQueryWrapper(LambdaQueryWrapper<FileIndexEntity> queryWrapper, String queryType) {
-        switch (queryType) {
+    private static LambdaQueryWrapper<FileIndexEntity> buildQueryWrapper(LambdaQueryWrapper<FileIndexEntity> queryWrapper, String deletedQueryCondition) {
+        switch (deletedQueryCondition) {
             case ONLY_DELETED:
                 queryWrapper = queryWrapper.lt(FileIndexEntity::getDeletedAt, 0L);
                 break;
@@ -466,7 +466,7 @@ public class FileIndexService {
             case INCLUDE_DELETED:
                 break;
             default:
-                throw new IllegalArgumentException("Query Type 不合法：" + queryType);
+                throw new IllegalArgumentException("Query Type 不合法：" + deletedQueryCondition);
         }
         return queryWrapper;
     }
