@@ -5,6 +5,7 @@ import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileLockService;
+import com.lanting.admin.module.file.service.FileIndexService;
 import com.lanting.admin.module.file.service.GitFileService;
 import com.lanting.admin.module.file.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 
@@ -34,9 +36,13 @@ public class FileController {
 
     private final FileLockService fileLockService;
 
-    public FileController(GitFileService gitFileService, FileLockService fileLockService) {
+    private final FileIndexService fileIndexService;
+
+    public FileController(GitFileService gitFileService, FileLockService fileLockService,
+                          FileIndexService fileIndexService) {
         this.gitFileService = gitFileService;
         this.fileLockService = fileLockService;
+        this.fileIndexService = fileIndexService;
     }
 
     // ==================== 通用文件操作 ====================
@@ -54,6 +60,18 @@ public class FileController {
     }
 
     /**
+     * 按文件名模糊搜索。
+     * <p>
+     * 返回扁平列表，不含 children 嵌套；
+     * 前端根据结果中的 path 自行定位到对应目录。
+     */
+    @Operation(summary = "搜索文件")
+    @GetMapping("/search")
+    public Result<List<FileTreeNode>> search(@RequestParam("q") @NotBlank String query) {
+        return Result.success(gitFileService.search(query));
+    }
+
+    /**
      * 读取文件内容。返回磁盘当前内容，包含自动保存但未提交的数据。
      */
     @Operation(summary = "读取文件内容")
@@ -68,7 +86,7 @@ public class FileController {
     @Operation(summary = "创建文件")
     @PostMapping("/create")
     public Result<FileCreatedVO> create(@Valid @RequestBody CreateFileDTO dto) {
-        return Result.success(gitFileService.create(dto));
+        return Result.success(gitFileService.create(dto.getPath(), currentUser()));
     }
 
     /**
@@ -77,7 +95,7 @@ public class FileController {
     @Operation(summary = "自动保存文件")
     @PostMapping("/save")
     public Result<Void> save(@Valid @RequestBody SaveFileDTO dto) {
-        gitFileService.save(dto);
+        gitFileService.save(dto.getFileId(), dto.getContent(), currentUser());
         return Result.success();
     }
 
@@ -87,7 +105,7 @@ public class FileController {
     @Operation(summary = "创建文件夹")
     @PostMapping("/folder")
     public Result<FileCreatedVO> folder(@Valid @RequestBody CreateFolderDTO dto) {
-        return Result.success(gitFileService.createFolder(dto));
+        return Result.success(gitFileService.createFolder(dto.getPath(), currentUser()));
     }
 
     /**
@@ -96,7 +114,16 @@ public class FileController {
     @Operation(summary = "重命名文件或文件夹")
     @PostMapping("/rename")
     public Result<PathRenamedVO> rename(@Valid @RequestBody RenameDTO dto) {
-        return Result.success(gitFileService.rename(dto));
+        return Result.success(gitFileService.rename(dto.getFileId(), dto.getNewName(), currentUser()));
+    }
+
+    /**
+     * 重命名文件或文件夹。文件重命名需持锁，文件夹重命名不检查锁，不产生 commit。
+     */
+    @Operation(summary = "移动文件或文件夹")
+    @PostMapping("/move")
+    public Result<PathRenamedVO> move(@Valid @RequestBody MoveDTO dto) {
+        return Result.success(gitFileService.move(dto.getFileId(), dto.getNewPath(), currentUser()));
     }
 
     /**
@@ -105,7 +132,7 @@ public class FileController {
     @Operation(summary = "删除文件或文件夹")
     @DeleteMapping
     public Result<Void> delete(@RequestParam @NotNull Long fileId) {
-        gitFileService.delete(fileId);
+        gitFileService.delete(fileId, currentUser());
         return Result.success();
     }
 
@@ -124,7 +151,7 @@ public class FileController {
     @Operation(summary = "恢复文件或文件夹")
     @PostMapping("/trash/restore")
     public Result<Void> restore(@Valid @RequestBody RestoreFileDTO dto) {
-        gitFileService.restore(dto);
+        gitFileService.restore(dto.getFileIds(), dto.getCommitHash(), currentUser());
         return Result.success();
     }
 
@@ -134,7 +161,7 @@ public class FileController {
     @Operation(summary = "彻底删除文件或文件夹")
     @DeleteMapping("/trash/purge")
     public Result<Void> purge(@RequestParam @NotNull Long fileId) {
-        gitFileService.purge(fileId);
+        gitFileService.purge(fileId, currentUser());
         return Result.success();
     }
 
@@ -144,7 +171,7 @@ public class FileController {
     @Operation(summary = "提交文件")
     @PostMapping("/commit")
     public Result<CommitResultVO> commit(@Valid @RequestBody CommitFileDTO dto) {
-        CommitResultVO result = gitFileService.commit(dto.getFileIds(), dto.getMessage());
+        CommitResultVO result = gitFileService.commit(dto.getFileIds(), dto.getMessage(), currentUser());
         if (result.getCommitted().isEmpty()) {
             return Result.error(FileResultCode.NOTHING_TO_COMMIT, result);
         }
@@ -157,7 +184,7 @@ public class FileController {
     @Operation(summary = "查询历史记录")
     @GetMapping("/history")
     public Result<PageResult<FileHistoryVO>> history(@Valid HistoryPageQuery query) {
-        return Result.success(gitFileService.history(query));
+        return Result.success(gitFileService.historyPaged(query));
     }
 
     /**
@@ -177,7 +204,7 @@ public class FileController {
     @Operation(summary = "文件级回滚")
     @PostMapping("/revert")
     public Result<Void> revert(@Valid @RequestBody RevertFileDTO dto) {
-        gitFileService.revert(dto);
+        gitFileService.revert(dto.getFileId(), dto.getCommitHash(), currentUser());
         return Result.success();
     }
 

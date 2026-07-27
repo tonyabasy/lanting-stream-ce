@@ -40,14 +40,14 @@ public class PublishController {
     @Operation(summary = "提交文件（git commit + 加入待发布池）")
     @PostMapping("/committed")
     public Result<Void> addCommittedList(@Valid @RequestBody PublishDTO dto) {
-        publishService.addCommittedList(dto.getFileIds(), dto.getMessage());
+        publishService.addCommittedList(dto.getFileIds(), dto.getMessage(), currentUser());
         return Result.success();
     }
 
     @Operation(summary = "取消提交（撤销候选）")
     @PostMapping("/committed/cancel")
     public Result<Void> cancelCommitted(@Valid @RequestBody PublishDTO dto) {
-        publishService.cancelPublish(dto.getFileIds());
+        publishService.cancelPublish(dto.getFileIds(), currentUser());
         return Result.success();
     }
 
@@ -66,7 +66,7 @@ public class PublishController {
     @Operation(summary = "执行发布")
     @PostMapping
     public Result<PublishVO> publish(@Valid @RequestBody PublishDTO dto) {
-        return Result.success(publishService.publish(dto.getFileIds(), dto.getDisplayName()));
+        return Result.success(publishService.publish(dto.getFileIds(), dto.getDisplayName(), currentUser()));
     }
 
     @Operation(summary = "已发布批次列表")

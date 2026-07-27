@@ -4,14 +4,16 @@ import com.lanting.admin.common.exception.BusinessException;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.vo.AcquireLockVO;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -31,9 +33,20 @@ import java.util.function.Supplier;
  *
  * @author wangzhao
  */
+@Slf4j
 @Service
 public class FileLockService {
 
+    /**
+     * 抢 RT 锁 timeout
+     */
+    private static final int LOCK_TIMEOUT_MILLIS = 1000;
+    /**
+     * 锁 Map 触发被清理的阈值
+     */
+    private static final int MAX_LOCK_CLEAN_INIT_THRESHOLD = 10_000;
+    private static final int MAX_LOCK_CLEAN_BETWEEN_MS = 3600_000;
+    private long lastCleanAt = System.currentTimeMillis();
     /**
      * fileId -> 持锁信息。
      */
@@ -43,7 +56,6 @@ public class FileLockService {
      * 文件夹硬锁：path -> LockInfo，10s TTL 惰性清理。
      */
     private final Map<String, LockInfo> folderHardLocks = new ConcurrentHashMap<>();
-    private static final long FOLDER_LOCK_TTL_MS = 10_000;
 
     /**
      * 固定大小的 segments 锁数组。把文件 ID 按 hash 映射到某一把锁，
@@ -72,30 +84,23 @@ public class FileLockService {
     }
 
     /**
-     * 持锁信息。
+     * 获取分段锁，超时或中断时抛 {@link FileResultCode#FILE_OPERATION_BUSY}。
+     *
+     * @return 已持有的锁，调用方需在 {@code finally} 中 {@link ReentrantLock#unlock()}
      */
-    private record LockInfo(String holder, long lockedAt) {
-        boolean isExpired() {
-            return System.currentTimeMillis() - lockedAt > FOLDER_LOCK_TTL_MS;
-        }
-
-        public static LockInfo of(String holder) {
-            return new LockInfo(holder, 0);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (o == null || getClass() != o.getClass()) {
-                return false;
+    private ReentrantLock acquireSegmentLock(Long fileId) {
+        ReentrantLock lock = segmentFor(fileId);
+        try {
+            if (!lock.tryLock(LOCK_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)) {
+                log.warn("分段锁获取超时, fileId={}", fileId);
+                throw new BusinessException(FileResultCode.FILE_OPERATION_BUSY);
             }
-            LockInfo lockInfo = (LockInfo) o;
-            return Objects.equals(holder, lockInfo.holder);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("分段锁获取被中断, fileId={}", fileId, e);
+            throw new BusinessException(FileResultCode.FILE_OPERATION_BUSY);
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(holder);
-        }
+        return lock;
     }
 
     /**
@@ -115,8 +120,7 @@ public class FileLockService {
      * @return action 的返回值
      */
     public <T> T doIfHolder(Long fileId, String filePath, String username, Callable<T> action) throws Exception {
-        ReentrantLock lock = segmentFor(fileId);
-        lock.lock();
+        ReentrantLock lock = acquireSegmentLock(fileId);
         try {
             // 目录硬锁隔离检查
             if (!folderHardLocks.isEmpty()) {
@@ -202,22 +206,23 @@ public class FileLockService {
      * @return 抢锁结果
      */
     public AcquireLockVO acquire(Long fileId, String filePath, String holder) {
+        String key = key(fileId);
+        LockInfo currentLockInfo = getFileLock(key);
+        if (currentLockInfo != null && currentLockInfo.getHolder().equals(holder)) {
+            return AcquireLockVO.success(currentLockInfo);
+        }
         if (!folderHardLocks.isEmpty()) {
             ensureFolderLocksSafety(filePath, holder);
         }
-        String key = key(fileId);
-        ReentrantLock lock = segmentFor(fileId);
-        lock.lock();
+        ReentrantLock lock;
         try {
-            AcquireLockVO vo = new AcquireLockVO();
-            vo.setAcquired(true);
-
-            LockInfo previous = fileSoftLocks.put(key, new LockInfo(holder, System.currentTimeMillis()));
-            if (previous != null && !previous.holder.equals(holder)) {
-                vo.setPreviousHolder(previous.holder);
-                vo.setPreviousHolderAt(previous.lockedAt);
-            }
-            return vo;
+            lock = acquireSegmentLock(fileId);
+        } catch (BusinessException e) {
+            return AcquireLockVO.failed(currentLockInfo);
+        }
+        try {
+            LockInfo previous = putFileLock(key, LockInfo.of(holder, Long.MAX_VALUE));
+            return AcquireLockVO.success(previous);
         } finally {
             lock.unlock();
         }
@@ -240,14 +245,14 @@ public class FileLockService {
         ReentrantLock lock = segmentFor(fileId);
         lock.lock();
         try {
-            LockInfo current = fileSoftLocks.get(key);
+            LockInfo current = getFileLock(key);
             if (current == null) {
                 return true;
             }
-            if (!current.holder.equals(holder)) {
+            if (!current.getHolder().equals(holder)) {
                 return false;
             }
-            fileSoftLocks.remove(key);
+            removeFileLock(key);
             return true;
         } finally {
             lock.unlock();
@@ -267,7 +272,7 @@ public class FileLockService {
         ReentrantLock lock = segmentFor(fileId);
         lock.lock();
         try {
-            fileSoftLocks.remove(key);
+            removeFileLock(key);
         } finally {
             lock.unlock();
         }
@@ -281,8 +286,8 @@ public class FileLockService {
      * （commit 不要求原子性）。
      */
     public boolean isHolder(Long fileId, String holder) {
-        LockInfo current = fileSoftLocks.get(key(fileId));
-        return current != null && current.holder.equals(holder);
+        LockInfo current = getFileLock(key(fileId));
+        return current != null && current.getHolder().equals(holder);
     }
 
     /**
@@ -292,8 +297,8 @@ public class FileLockService {
      * @return 持锁人 username，未锁定返回 null
      */
     public String getHolder(Long fileId) {
-        LockInfo current = fileSoftLocks.get(key(fileId));
-        return current == null ? null : current.holder;
+        LockInfo current = getFileLock(key(fileId));
+        return current == null ? null : current.getHolder();
     }
 
     /**
@@ -303,8 +308,8 @@ public class FileLockService {
      * @return 持锁时间戳，未锁定返回 null
      */
     public Long getLockedAt(Long fileId) {
-        LockInfo current = fileSoftLocks.get(key(fileId));
-        return current == null ? null : current.lockedAt;
+        LockInfo current = getFileLock(key(fileId));
+        return current == null ? null : current.getLockedAt();
     }
 
     // ==================== 目录锁（硬锁） ====================
@@ -326,7 +331,7 @@ public class FileLockService {
                 continue;
             }
             // 同一持锁人放行
-            if (lock.holder().equals(holder)) {
+            if (lock.getHolder().equals(holder)) {
                 continue;
             }
             // lockedPath 是 path 的祖先？
@@ -354,13 +359,13 @@ public class FileLockService {
         // 2. 先封门 — 注册目录锁
         folderHardLocks.compute(path, (k, existing) -> {
             if (existing == null || existing.isExpired()) {
-                return new LockInfo(holder, System.currentTimeMillis());
+                return LockInfo.of(holder);
             }
-            if (existing.holder().equals(holder)) {
+            if (existing.getHolder().equals(holder)) {
                 return existing;
             }
             throw new BusinessException(FileResultCode.FILE_LOCKED,
-                    "目录 " + path + " 正在被 " + existing.holder() + " 操作");
+                    "目录 " + path + " 正在被 " + existing.getHolder() + " 操作");
         });
 
         // 3. 再清场 — 抢子文件锁
@@ -387,5 +392,34 @@ public class FileLockService {
 
     public void forceReleaseFolderLock(String path) {
         folderHardLocks.remove(path);
+    }
+
+    private LockInfo getFileLock(String key) {
+        clearExpiredLocks(fileSoftLocks);
+        return fileSoftLocks.get(key);
+    }
+
+    private LockInfo putFileLock(String key, LockInfo val) {
+        clearExpiredLocks(fileSoftLocks);
+        return fileSoftLocks.put(key, val);
+    }
+
+    private LockInfo removeFileLock(String key) {
+        clearExpiredLocks(fileSoftLocks);
+        return fileSoftLocks.remove(key);
+    }
+
+    private void clearExpiredLocks(Map<String, LockInfo> lockContainer) {
+
+        if (lockContainer.size() > MAX_LOCK_CLEAN_INIT_THRESHOLD
+                || (System.currentTimeMillis() - lastCleanAt) > MAX_LOCK_CLEAN_BETWEEN_MS) {
+            for (Map.Entry<String, LockInfo> entry : lockContainer.entrySet()) {
+                if (entry.getValue().isExpired()) {
+                    LockInfo removed = lockContainer.remove(entry.getKey());
+                    log.info("清理过期的 Lock，key={}, holder={}, lockedAt={}, lastUsedTime={}", entry.getKey(), removed.getHolder(), DateFormatUtils.format(removed.getLockedAt(), "yyyy-MM-dd HH:mm:ss"), DateFormatUtils.format(removed.getLastUseTime(), "yyyy-MM-dd HH:mm:ss"));
+                }
+            }
+            lastCleanAt = System.currentTimeMillis();
+        }
     }
 }

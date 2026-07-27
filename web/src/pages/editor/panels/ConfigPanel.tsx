@@ -1,4 +1,4 @@
-import type { RightTab } from '../hooks/useEditorPanels';
+import type { RightTab } from '@/models/editorPanels';
 import '../index.css';
 
 interface ConfigPanelProps {

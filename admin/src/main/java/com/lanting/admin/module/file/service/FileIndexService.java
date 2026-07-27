@@ -94,6 +94,19 @@ public class FileIndexService {
     }
 
     /**
+     * 按文件名模糊搜索未删除的记录。
+     *
+     * @param keyword 搜索关键词
+     * @return 匹配的文件/文件夹列表
+     */
+    public List<FileIndexEntity> search(String keyword) {
+        LambdaQueryWrapper<FileIndexEntity> wrapper = new LambdaQueryWrapper<FileIndexEntity>()
+                .like(FileIndexEntity::getName, keyword);
+        wrapper = buildQueryWrapper(wrapper, EXCLUDE_DELETED);
+        return fileIndexMapper.selectList(wrapper);
+    }
+
+    /**
      * 按路径查询单个未删除的索引记录。
      *
      * @param path 文件相对路径
@@ -240,10 +253,11 @@ public class FileIndexService {
      * @param oldPrefix 原文件夹路径
      * @param newPrefix 新文件夹路径
      */
-    public void indexOnFolderRename(String oldPrefix, String newPrefix) {
+    public void indexOnFolderRename(Long fileId, String oldPrefix, String newPrefix) {
         if (oldPrefix.equals(newPrefix)) {
             return;
         }
+        indexOnRename(fileId, newPrefix);
         fileIndexMapper.updatePathsByPrefix(oldPrefix, newPrefix);
     }
 

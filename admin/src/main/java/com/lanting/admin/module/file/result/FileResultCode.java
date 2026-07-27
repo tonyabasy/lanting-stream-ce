@@ -26,7 +26,8 @@ public enum FileResultCode implements ResultCode {
     ROLLBACK_TARGET_NOT_FOUND(30711, "回滚目标不存在", 404),
     FILES_LOCKED(30712, "回滚或删除文件夹时部分文件被锁定", 423),
     NOTHING_TO_COMMIT(30713, "无可提交的文件", 400),
-    FILE_CONTENT_INCONSISTENT(30714, "文件内容与索引不一致", 200);
+    FILE_CONTENT_INCONSISTENT(30714, "文件内容与索引不一致", 200),
+    FILE_OPERATION_BUSY(30715, "文件操作繁忙，请稍后重试", 409);
 
     private final int code;
     private final String message;

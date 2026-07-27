@@ -100,7 +100,7 @@ class PublishMediumTest extends BaseIntegrationTest {
             Path file = root.resolve(repoDir).resolve("test.sql");
             try { Files.writeString(file, "SELECT 2;"); } catch (Exception ignored) {}
 
-            publishService.addCommittedList(List.of(fileId), "test commit");
+            publishService.addCommittedList(List.of(fileId), "test commit", "user1");
 
             PublishFileEntity pf = publishFileMapper.selectOne(
                     new LambdaQueryWrapper<PublishFileEntity>()
@@ -119,7 +119,7 @@ class PublishMediumTest extends BaseIntegrationTest {
 
             // 刚 commit 完，内容无变更 → uncommit 返回空
             assertThrows(BusinessException.class, () ->
-                    publishService.addCommittedList(List.of(fileId), "msg"));
+                    publishService.addCommittedList(List.of(fileId), "msg", "user1"));
         }
     }
 
@@ -132,7 +132,7 @@ class PublishMediumTest extends BaseIntegrationTest {
             // 先入池
             Path file = root.resolve(repoDir).resolve("test.sql");
             Files.writeString(file, "SELECT 2;");
-            publishService.addCommittedList(List.of(fileId), "first");
+            publishService.addCommittedList(List.of(fileId), "first", "user1");
             long firstTime = publishFileMapper.selectOne(
                     new LambdaQueryWrapper<PublishFileEntity>()
                             .eq(PublishFileEntity::getFileId, fileId)
@@ -141,7 +141,7 @@ class PublishMediumTest extends BaseIntegrationTest {
 
             // 再修改 + 再提交
             Files.writeString(file, "SELECT 3;");
-            publishService.addCommittedList(List.of(fileId), "second");
+            publishService.addCommittedList(List.of(fileId), "second", "user1");
 
             // 仍是 1 条 COMMITTED
             long count = publishFileMapper.selectCount(
@@ -168,8 +168,8 @@ class PublishMediumTest extends BaseIntegrationTest {
             sec.when(SecurityUtils::currentUser).thenReturn("user1");
 
             Files.writeString(root.resolve(repoDir).resolve("test.sql"), "SELECT 2;");
-            publishService.addCommittedList(List.of(fileId), "msg");
-            publishService.cancelPublish(List.of(fileId));
+            publishService.addCommittedList(List.of(fileId), "msg", "user1");
+            publishService.cancelPublish(List.of(fileId), "user1");
 
             PublishFileEntity canceled = publishFileMapper.selectOne(
                     new LambdaQueryWrapper<PublishFileEntity>()
@@ -189,10 +189,10 @@ class PublishMediumTest extends BaseIntegrationTest {
 
             // 入池
             Files.writeString(root.resolve(repoDir).resolve("test.sql"), "SELECT 2;");
-            publishService.addCommittedList(List.of(fileId), "msg");
+            publishService.addCommittedList(List.of(fileId), "msg", "user1");
 
             // 发布
-            PublishVO result = publishService.publish(List.of(fileId), "Pub1");
+            PublishVO result = publishService.publish(List.of(fileId), "Pub1", "user1");
 
             assertNotNull(result.getPublishId());
             assertEquals("Pub1", result.getDisplayName());
@@ -218,7 +218,7 @@ class PublishMediumTest extends BaseIntegrationTest {
 
             // fileId 有 commitHash 但不在池中
             assertThrows(BusinessException.class, () ->
-                    publishService.publish(List.of(fileId), "Pub1"));
+                    publishService.publish(List.of(fileId), "Pub1", "user1"));
         }
     }
 
@@ -231,7 +231,7 @@ class PublishMediumTest extends BaseIntegrationTest {
             sec.when(SecurityUtils::currentUser).thenReturn("user1");
 
             Files.writeString(root.resolve(repoDir).resolve("test.sql"), "SELECT 2;");
-            publishService.addCommittedList(List.of(fileId), "msg");
+            publishService.addCommittedList(List.of(fileId), "msg", "user1");
 
             String diff = publishService.diff(fileId);
 

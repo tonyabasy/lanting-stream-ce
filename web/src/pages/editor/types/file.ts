@@ -4,6 +4,8 @@
  * 后端接口：GET /api/files/tree?parentPath=&sort=name
  */
 export interface FileTreeNode {
+  /** 文件/文件夹 ID */
+  fileId: number;
   /** 文件/文件夹名 */
   name: string;
   /** 相对路径 */

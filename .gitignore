@@ -10,6 +10,8 @@ dependency-reduced-pom.xml
 *.iml
 .vscode/
 .DS_Store
+.reasonix/
+reasonix.toml
 
 # 运行时数据（SQLite 数据库、工作空间、UDF jar 等）
 .data/

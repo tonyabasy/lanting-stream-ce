@@ -221,9 +221,9 @@ class FileIndexServiceTest extends BaseIntegrationTest {
             String l2 = l1 + "/l2";
             String l3 = l2 + "/l3";
 
-            gitFileService.createFolder(new CreateFolderDTO(l1));
-            gitFileService.createFolder(new CreateFolderDTO(l2));
-            gitFileService.createFolder(new CreateFolderDTO(l3));
+            gitFileService.createFolder(l1, "user1");
+            gitFileService.createFolder(l2, "user1");
+            gitFileService.createFolder(l3, "user1");
 
             // 10 个文件
             String[] files = {
@@ -239,7 +239,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
                     l3 + "/f10.sql"
             };
             for (String file : files) {
-                gitFileService.create(new CreateFileDTO(file));
+                gitFileService.create(file, "user1");
             }
 
             // 根据前缀 l1 查找所有 children，不包括 l1 目录本身

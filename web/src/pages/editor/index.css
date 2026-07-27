@@ -196,6 +196,30 @@
   flex-shrink: 0;
 }
 
+/* 节点行（标题 + 三点按钮） */
+.lt-filetree-node-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 三点按钮：默认隐藏，hover 节点时出现 */
+.lt-filetree-more-btn.lt-filetree-more-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  opacity: 0;
+  color: var(--lt-color-text-description);
+  flex-shrink: 0;
+  transition: opacity 0.12s;
+}
+.lt-filetree-body .ant-tree-treenode:hover .lt-filetree-more-btn {
+  opacity: 1;
+}
+.lt-filetree-more-btn:hover {
+  background: var(--lt-color-bg-muted) !important;
+}
+
 /* ── 右键菜单 ── */
 .lt-filetree-ctxmenu .ant-dropdown-menu {
   min-width: 140px;
@@ -224,6 +248,50 @@
 }
 .lt-filetree-ctxmenu .ant-dropdown-menu-item-divider {
   margin: 3px 0;
+}
+
+/* ── 文件树搜索结果列表 ── */
+.lt-filetree-search-results {
+  padding: 2px 0;
+}
+.lt-filetree-search-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 20px;
+}
+.lt-filetree-search-item:hover,
+.lt-filetree-search-item-active {
+  background: var(--lt-color-bg-hover);
+}
+.lt-filetree-search-item-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--lt-color-text-description);
+}
+.lt-filetree-search-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lt-filetree-search-item-name mark {
+  background: var(--lt-color-warning-bg, #fff3cd);
+  color: inherit;
+  padding: 0;
+  border-radius: 1px;
+}
+.lt-filetree-search-item-path {
+  flex-shrink: 0;
+  font-size: 10px;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── 底部状态栏：高 22px ── */

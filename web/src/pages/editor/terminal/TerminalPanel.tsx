@@ -1,4 +1,4 @@
-import type { LeftBottomTab } from '../hooks/useEditorPanels';
+import type { LeftBottomTab } from '@/models/editorPanels';
 import '../index.css';
 
 interface TerminalPanelProps {

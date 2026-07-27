@@ -1,6 +1,6 @@
 import { IconAdjustments, IconFlower } from '@tabler/icons-react';
 import { Button, Tooltip } from 'antd';
-import type { RightTab, RightKey } from '../hooks/useEditorPanels';
+import type { RightTab, RightKey } from '@/models/editorPanels';
 import '../index.css';
 
 interface RightSidebarProps {

@@ -27,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 import static com.lanting.admin.module.publish.entity.PublishFileEntity.*;
 
 /**
@@ -157,7 +156,7 @@ public class PublishService {
      * 无变更 → 抛异常；有变更 → git commit → 已池中则更新，否则新增。
      */
     @Transactional(rollbackFor = Exception.class)
-    public void addCommittedList(List<Long> fileIds, String message) {
+    public void addCommittedList(List<Long> fileIds, String message, String currentUser) {
         // 1. 无变更直接拒绝
         UncommitVO uv = gitFileService.uncommit(fileIds);
         if (uv.isEmpty()) {
@@ -165,10 +164,9 @@ public class PublishService {
         }
 
         // 2. git commit
-        gitFileService.commit(fileIds, message);
+        gitFileService.commit(fileIds, message, currentUser);
 
         // 3. 已池中 → 更新；未池中 → 新增
-        String currentUser = currentUser();
         List<PublishFileEntity> existing = listPublishFileByIds(fileIds, ONLY_COMMITTED);
         Set<Long> existingFileIds = existing.stream()
                 .map(PublishFileEntity::getFileId).collect(Collectors.toSet());
@@ -201,10 +199,10 @@ public class PublishService {
      * 取消发布：COMMITTED 行转为 CANCELED（仅影响未发布文件）。
      */
     @Transactional(rollbackFor = Exception.class)
-    public void cancelPublish(List<Long> fileIds) {
+    public void cancelPublish(List<Long> fileIds, String currentUser) {
         publishFileMapper.update(new LambdaUpdateWrapper<PublishFileEntity>()
                 .set(PublishFileEntity::getStatus, STATUS_CANCELED)
-                .set(PublishFileEntity::getUpdatedBy, currentUser())
+                .set(PublishFileEntity::getUpdatedBy, currentUser)
                 .in(PublishFileEntity::getFileId, fileIds)
                 .eq(PublishFileEntity::getStatus, STATUS_COMMITTED));
     }
@@ -213,11 +211,10 @@ public class PublishService {
      * 发布线上，发布只与 commit 绑定
      */
     @Transactional(rollbackFor = Exception.class)
-    public PublishVO publish(List<Long> fileIds, String displayName) {
+    public PublishVO publish(List<Long> fileIds, String displayName, String currentUser) {
         if (fileIds == null || fileIds.isEmpty()) {
             throw new BusinessException(PublishResultCode.EMPTY_PUBLISH);
         }
-        String currentUser = currentUser();
 
         // 新增 publish 记录
         PublishEntity publish = new PublishEntity();

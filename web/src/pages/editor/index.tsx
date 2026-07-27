@@ -5,19 +5,18 @@ import { useModel } from 'umi';
 import { toAntdTheme } from '@/themes';
 import type { LantingToken } from '@/themes';
 import CollapsibleSplitter from '@/components/CollapsibleSplitter';
-import TopBar from './components/TopBar';
-import LeftSidebar from './components/LeftSidebar';
-import ProjectPanel from './components/ProjectPanel';
-import EditorPanel from './components/EditorPanel';
-import ConfigPanel from './components/ConfigPanel';
-import TerminalPanel from './components/TerminalPanel';
-import RightSidebar from './components/RightSidebar';
-import StatusBar from './components/StatusBar';
-import { useEditorPanels } from './hooks/useEditorPanels';
+import TopBar from './panels/TopBar';
+import LeftSidebar from './leftSidebar/LeftSidebar';
+import ProjectPanel from './panels/ProjectPanel';
+import EditorPanel from './panels/EditorPanel';
+import ConfigPanel from './panels/ConfigPanel';
+import TerminalPanel from './terminal/TerminalPanel';
+import RightSidebar from './rightSidebar/RightSidebar';
+import StatusBar from './status/StatusBar';
 
 const EditorPage: React.FC = () => {
   const token = useModel('theme') as LantingToken;
-  const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useEditorPanels();
+  const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useModel('editorPanels');
 
   return (
     <ConfigProvider theme={toAntdTheme(token)}>

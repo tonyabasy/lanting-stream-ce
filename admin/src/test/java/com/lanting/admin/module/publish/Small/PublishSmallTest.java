@@ -40,13 +40,13 @@ class PublishSmallTest {
         when(gitFileService.uncommit(List.of(1L))).thenReturn(empty);
 
         assertThrows(BusinessException.class, () ->
-                service.addCommittedList(List.of(1L), "msg"));
+                service.addCommittedList(List.of(1L), "msg", "user1"));
     }
 
     @Test
     @DisplayName("空 fileIds 发布 → 抛 EMPTY_PUBLISH")
     void publishEmptyFileIds_throwsException() {
         assertThrows(BusinessException.class, () ->
-                service.publish(Collections.emptyList(), "Pub1"));
+                service.publish(Collections.emptyList(), "Pub1", "user1"));
     }
 }
