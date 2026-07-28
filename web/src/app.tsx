@@ -1,4 +1,7 @@
+import React from 'react';
+import { ConfigProvider } from 'antd';
 import { getToken, removeToken } from '@/utils/request';
+import { useThemeMode } from '@/hooks/useThemeMode';
 import '@/global.css';
 
 /**
@@ -28,4 +31,16 @@ export async function getInitialState() {
     removeToken();
     return { currentUser: null };
   }
+}
+
+/**
+ * 全局主题包裹
+ */
+function ThemeWrapper({ children }: { children: React.ReactNode }) {
+  const { themeConfig } = useThemeMode();
+  return <ConfigProvider theme={themeConfig}>{children}</ConfigProvider>;
+}
+
+export function rootContainer(container: React.ReactNode) {
+  return <ThemeWrapper>{container}</ThemeWrapper>;
 }

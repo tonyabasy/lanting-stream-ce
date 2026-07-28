@@ -179,7 +179,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
           </div>
         )}
         {!searchLoading && searchResults.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 16, color: '#999' }}>
+          <div style={{ textAlign: 'center', padding: 16, color: 'var(--ant-color-text-description)' }}>
             未找到匹配的文件
           </div>
         )}

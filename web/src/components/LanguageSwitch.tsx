@@ -1,26 +1,23 @@
 import React from 'react';
 import { setLocale, useIntl } from 'umi';
-import type { LantingToken } from '@/themes';
-
-interface LanguageSwitchProps {
-  token: LantingToken;
-}
+import { theme } from 'antd';
 
 const languages = [
   { label: '中', value: 'zh-CN' },
   { label: 'En', value: 'en-US' },
 ];
 
-const LanguageSwitch: React.FC<LanguageSwitchProps> = ({ token }) => {
+const LanguageSwitch: React.FC = () => {
   const { locale } = useIntl();
+  const { token } = theme.useToken();
 
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: token.sizeXS,
-        fontSize: token.fontSizeCaption,
+        gap: token.sizeXXS,
+        fontSize: token.fontSizeSM,
       }}
     >
       {languages.map(({ label, value }) => {
@@ -31,13 +28,13 @@ const LanguageSwitch: React.FC<LanguageSwitchProps> = ({ token }) => {
             type="button"
             onClick={() => setLocale(value, false)}
             style={{
-              padding: `${token.sizeXS}px ${token.sizeSM}px`,
+              padding: `${token.sizeXXS}px ${token.sizeXS}px`,
               borderRadius: token.borderRadius,
               border: 'none',
               background: active ? token.colorPrimary : 'transparent',
               color: active ? token.colorTextLightSolid : token.colorTextSecondary,
               cursor: 'pointer',
-              fontSize: token.fontSizeCaption,
+              fontSize: token.fontSizeSM,
               lineHeight: 1,
               transition: 'all 0.2s',
             }}

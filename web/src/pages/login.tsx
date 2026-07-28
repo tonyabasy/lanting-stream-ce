@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams, useModel } from 'umi';
-import { Button, Checkbox, ConfigProvider, Input, message } from 'antd';
+import { useNavigate, useSearchParams } from 'umi';
+import { Button, Checkbox, Input, message, theme } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import request, { setToken } from '@/utils/request';
-import { toAntdTheme } from '@/themes';
-import type { LantingToken } from '@/themes';
 
 const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
@@ -13,7 +11,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const token = useModel('theme') as LantingToken;
+  const { token } = theme.useToken();
 
   const handleLogin = async () => {
     if (!username || !password) return;
@@ -33,7 +31,7 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <ConfigProvider theme={toAntdTheme(token)}>
+    <>
       {/* 页面背景：中性浅灰，衬托白色卡片 */}
       <div style={{
         height: '100vh',
@@ -46,20 +44,20 @@ const LoginPage: React.FC = () => {
         <div style={{
           width: 400,
           background: token.colorBgContainer,
-          borderRadius: token.borderRadiusXL,
-          boxShadow: token.boxShadowCard,
-          padding: `${token.size4XL}px ${token.size3XL}px`,
+          borderRadius: token.borderRadiusLG,
+          boxShadow: token.boxShadowTertiary,
+          padding: `${token.sizeXXL}px ${token.sizeXL}px`,
         }}>
 
           {/* 品牌区：只有文字，Serif，无 Logo 图标 */}
-          <div style={{ textAlign: 'center', marginBottom: token.size4XL }}>
+          <div style={{ textAlign: 'center', marginBottom: token.sizeXXL }}>
             <div style={{
               fontFamily: 'var(--font-serif)',
-              fontSize: token.fontSizeHeading,
-              fontWeight: token.fontWeightRegular,
+              fontSize: token.fontSizeXL,
+              fontWeight: 400,
               color: token.colorText,
               letterSpacing: '0.02em',
-              marginBottom: token.sizeXS,
+              marginBottom: token.sizeXXS,
             }}>
               Lanting Stream
             </div>
@@ -73,7 +71,7 @@ const LoginPage: React.FC = () => {
             value={username}
             onChange={e => setUsername(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.sizeLG, borderRadius: token.borderRadius }}
+            style={{ marginBottom: token.size, borderRadius: token.borderRadius }}
           />
           <Input.Password
             size="large"
@@ -82,10 +80,10 @@ const LoginPage: React.FC = () => {
             value={password}
             onChange={e => setPassword(e.target.value)}
             onPressEnter={handleLogin}
-            style={{ marginBottom: token.sizeLG, borderRadius: token.borderRadius }}
+            style={{ marginBottom: token.size, borderRadius: token.borderRadius }}
           />
 
-          {/* <div style={{ marginBottom: token.sizeLG }}>
+          {/* <div style={{ marginBottom: token.size }}>
             <Checkbox
               checked={remember}
               onChange={e => setRemember(e.target.checked)}
@@ -111,7 +109,7 @@ const LoginPage: React.FC = () => {
           </Button>
         </div>
       </div>
-    </ConfigProvider>
+    </>
   );
 };
 

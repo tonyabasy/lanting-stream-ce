@@ -1,19 +1,16 @@
 import React, { useState } from 'react';
-import { ConfigProvider, Layout, Menu } from 'antd';
-import { Outlet, useNavigate, useLocation, useModel, useIntl } from 'umi';
+import { Layout, Menu, theme } from 'antd';
+import { Outlet, useNavigate, useLocation, useIntl } from 'umi';
 import type { MenuProps } from 'antd';
 import {
   HomeOutlined,
   CodeOutlined,
   RocketOutlined,
   ToolOutlined,
-  EyeOutlined,
   SafetyOutlined,
   ThunderboltOutlined,
   CloudServerOutlined,
 } from '@ant-design/icons';
-import type { LantingToken } from '@/themes';
-import {toAntdTheme} from '@/themes';
 import LanguageSwitch from '@/components/LanguageSwitch';
 
 const { Header, Content, Sider } = Layout;
@@ -39,31 +36,19 @@ const getMenuItems = (formatMessage: ReturnType<typeof useIntl>['formatMessage']
     icon: <SafetyOutlined />,
     label: formatMessage({ id: 'menu.auth' }),
   },
-  {
-    key: 'design',
-    icon: <EyeOutlined />,
-    label: formatMessage({ id: 'menu.design' }),
-    children: [
-      { key: '/design/login', label: formatMessage({ id: 'menu.design.login' }) },
-      { key: '/design/cluster', label: formatMessage({ id: 'menu.design.cluster' }) },
-      { key: '/design/editor', label: formatMessage({ id: 'menu.design.editor' }) },
-      { key: '/design/theme-preview', label: formatMessage({ id: 'menu.design.theme' }) },
-    ],
-  },
 ];
 
 const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
-  const token = useModel('theme') as LantingToken;
+  const { token } = theme.useToken();
   const { formatMessage } = useIntl();
 
   const selectedKey = location.pathname;
   const menuItems = getMenuItems(formatMessage);
 
   return (
-    <ConfigProvider theme={toAntdTheme(token)}>
       <Layout style={{ height: '100vh', overflow: 'hidden' }}>
         {/* 顶栏 */}
         <Header
@@ -88,8 +73,8 @@ const AppLayout: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: token.fontSizeCaption,
-              fontWeight: token.fontWeightMedium,
+              fontSize: token.fontSizeSM,
+              fontWeight: 500,
               fontFamily: 'var(--font-serif)',
               flexShrink: 0,
             }}
@@ -99,22 +84,22 @@ const AppLayout: React.FC = () => {
           {/* 顶栏品牌名 */}
           <span style={{
             fontFamily: 'var(--font-serif)',
-            fontSize: token.fontSizeBody,
-            fontWeight: token.fontWeightRegular,  // 400，不加粗
+            fontSize: token.fontSize,
+            fontWeight: 400,  // 400，不加粗
             color: token.colorText,
           }}>
             Lanting
           </span>
           <span
             style={{
-              fontSize: token.fontSizeCaption,
+              fontSize: token.fontSizeSM,
               color: token.colorTextDescription,
             }}
           >
             {formatMessage({ id: 'menu.userGroup' })}
           </span>
           <div style={{ marginLeft: 'auto' }}>
-            <LanguageSwitch token={token} />
+            <LanguageSwitch />
           </div>
         </Header>
 
@@ -141,7 +126,7 @@ const AppLayout: React.FC = () => {
               <Menu
                 mode="inline"
                 selectedKeys={[selectedKey]}
-                defaultOpenKeys={['dev', 'auth', 'design']}
+                defaultOpenKeys={['dev', 'auth']}
                 items={menuItems}
                 onClick={({ key }) => nav(key)}
                 style={{
@@ -157,8 +142,8 @@ const AppLayout: React.FC = () => {
                   borderTop: `0.5px solid ${token.colorBorder}`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.sizeSM,
-                  fontSize: token.fontSizeCaption,
+                  gap: token.sizeXS,
+                  fontSize: token.fontSizeSM,
                   color: token.colorTextSecondary,
                 }}
               >
@@ -167,11 +152,11 @@ const AppLayout: React.FC = () => {
                     width: 24,
                     height: 24,
                     borderRadius: '50%',
-                    background: token.colorBgSubtle,
+                    background: token.colorFillQuaternary,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: token.fontSizeCaption,
+                    fontSize: token.fontSizeSM,
                     color: token.colorTextDescription,
                   }}
                 >
@@ -187,14 +172,13 @@ const AppLayout: React.FC = () => {
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            padding: `${token.sizeXL}px ${token.size2XL}px`,
+            padding: `${token.sizeXL}px ${token.sizeLG}px`,
             background: token.colorBgContainer,  // 白色，不用 colorBgLayout
           }}>
             <Outlet />
           </Content>
         </Layout>
       </Layout>
-    </ConfigProvider>
   );
 };
 

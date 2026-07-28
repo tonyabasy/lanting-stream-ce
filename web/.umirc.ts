@@ -29,10 +29,6 @@ export default defineConfig({
     { path: '/cluster', component: 'cluster/index' },
     { path: '/users', component: 'index' },
     { path: '/ops', component: 'ops/index' },
-    { path: '/design/login', component: 'design/login' },
-    { path: '/design/cluster', component: 'design/cluster' },
-    { path: '/design/editor', component: 'design/editor' },
-    { path: '/design/theme-preview', component: 'design/theme-preview' },
   ],
 
   // 代理：开发时 /api 转发到后端 8080

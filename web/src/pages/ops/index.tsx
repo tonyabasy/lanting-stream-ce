@@ -1,5 +1,5 @@
 import React from 'react';
-import { useModel } from 'umi';
+import { theme } from 'antd';
 import {
   CheckCircleOutlined,
   WarningOutlined,
@@ -8,7 +8,6 @@ import {
   ClusterOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
-import type { LantingToken } from '@/themes';
 
 /** 集群状态卡片 */
 const clusters = [
@@ -33,7 +32,7 @@ const recentJobs = [
 ];
 
 const OpsPage: React.FC = () => {
-  const token = useModel('theme') as LantingToken;
+  const { token } = theme.useToken();
 
   /** 根据 colorKey 取对应 color + bg */
   const colorPair = (key: 'success' | 'error' | 'disabled') => {
@@ -48,25 +47,25 @@ const OpsPage: React.FC = () => {
   return (
     <div>
       {/* 页头 */}
-      <div style={{ marginBottom: token.sizeXL }}>
+      <div style={{ marginBottom: token.sizeXXS }}>
         <h2
           style={{
             fontFamily: 'Georgia, "Noto Serif SC", serif',
-            fontSize: token.fontSizeTitle,
-            fontWeight: token.fontWeightMedium,
+            fontSize: token.fontSizeLG,
+            fontWeight: 500,
             color: token.colorText,
             margin: '0 0 4px',
           }}
         >
           运维中心
         </h2>
-        <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription }}>
+        <div style={{ fontSize: token.fontSizeSM, color: token.colorTextDescription }}>
           实时监控集群与作业运行状态
         </div>
       </div>
 
       {/* 统计卡片 */}
-      <div style={{ display: 'flex', gap: token.sizeMD, marginBottom: token.sizeXL }}>
+      <div style={{ display: 'flex', gap: token.sizeXXS, marginBottom: token.sizeXXS }}>
         {jobStats.map((s) => {
           const { color } = colorPair(s.colorKey);
           return (
@@ -74,13 +73,13 @@ const OpsPage: React.FC = () => {
               key={s.label}
               style={{
                 flex: 1,
-                background: token.colorBgSubtle,
+                background: token.colorFillQuaternary,
                 border: `0.5px solid ${token.colorBorder}`,
                 borderRadius: token.borderRadius,
-                padding: `${token.sizeMD}px ${token.sizeLG}px`,
+                padding: `${token.sizeXXS}px ${token.size}px`,
                 display: 'flex',
                 alignItems: 'center',
-                gap: token.sizeMD,
+                gap: token.sizeXXS,
               }}
             >
               <div
@@ -91,22 +90,22 @@ const OpsPage: React.FC = () => {
                   background: s.colorKey === 'success'
                     ? token.colorSuccessBg
                     : s.colorKey === 'disabled'
-                      ? token.colorBgSubtle
+                      ? token.colorFillQuaternary
                       : '#FCEBEB',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: token.fontSizeTitle,
+                  fontSize: token.fontSizeLG,
                   color,
                 }}
               >
                 {s.icon}
               </div>
               <div>
-                <div style={{ fontSize: token.fontSizeHeading, fontWeight: token.fontWeightMedium, color: token.colorText, lineHeight: 1 }}>
+                <div style={{ fontSize: token.fontSizeXL, fontWeight: 500, color: token.colorText, lineHeight: 1 }}>
                   {s.value}
                 </div>
-                <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: token.sizeXS }}>
+                <div style={{ fontSize: token.fontSizeSM, color: token.colorTextDescription, marginTop: token.sizeXXS }}>
                   {s.label}
                 </div>
               </div>
@@ -121,26 +120,26 @@ const OpsPage: React.FC = () => {
           background: token.colorBgContainer,
           border: `0.5px solid ${token.colorBorder}`,
           borderRadius: token.borderRadius,
-          marginBottom: token.sizeXL,
+          marginBottom: token.sizeXXS,
           overflow: 'hidden',
         }}
       >
         <div
           style={{
-            padding: `${token.sizeMD}px ${token.sizeLG}px`,
+            padding: `${token.sizeXXS}px ${token.size}px`,
             borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
-            fontWeight: token.fontWeightMedium,
+            fontWeight: 500,
             color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: token.sizeSM,
+            gap: token.sizeXXS,
           }}
         >
           <ClusterOutlined style={{ color: token.colorPrimary }} />
           集群状态
         </div>
-        <div style={{ padding: `${token.sizeMD}px ${token.sizeLG}px` }}>
+        <div style={{ padding: `${token.sizeXXS}px ${token.size}px` }}>
           {clusters.map((c) => {
             const isHealthy = c.status === 'healthy';
             return (
@@ -149,13 +148,13 @@ const OpsPage: React.FC = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.sizeMD,
+                  gap: token.sizeXXS,
                   padding: '10px 0',
-                  borderBottom: `0.5px solid ${token.colorBgMuted}`,
-                  fontSize: token.fontSizeCaption,
+                  borderBottom: `0.5px solid ${token.colorFillSecondary}`,
+                  fontSize: token.fontSizeSM,
                 }}
               >
-                <span style={{ flex: 1, fontWeight: token.fontWeightMedium, color: token.colorText }}>
+                <span style={{ flex: 1, fontWeight: 500, color: token.colorText }}>
                   {c.name}
                 </span>
                 <span style={{ color: token.colorTextDescription, flex: 1 }}>{c.type}</span>
@@ -165,10 +164,10 @@ const OpsPage: React.FC = () => {
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: token.sizeXS,
+                    gap: token.sizeXXS,
                     padding: '2px 8px',
                     borderRadius: token.borderRadiusSM,
-                    fontSize: token.fontSizeCaption,
+                    fontSize: token.fontSizeSM,
                     background: isHealthy ? token.colorSuccessBg : '#FCEBEB',
                     color: isHealthy ? token.colorSuccess : token.colorError,
                   }}
@@ -193,20 +192,20 @@ const OpsPage: React.FC = () => {
       >
         <div
           style={{
-            padding: `${token.sizeMD}px ${token.sizeLG}px`,
+            padding: `${token.sizeXXS}px ${token.size}px`,
             borderBottom: `0.5px solid ${token.colorBorder}`,
             fontSize: 13,
-            fontWeight: token.fontWeightMedium,
+            fontWeight: 500,
             color: token.colorText,
             display: 'flex',
             alignItems: 'center',
-            gap: token.sizeSM,
+            gap: token.sizeXXS,
           }}
         >
           <CodeOutlined style={{ color: token.colorPrimary }} />
           近期作业
         </div>
-        <div style={{ padding: `${token.sizeMD}px ${token.sizeLG}px` }}>
+        <div style={{ padding: `${token.sizeXXS}px ${token.size}px` }}>
           {recentJobs.map((j) => {
             const badge =
               j.status === 'running'
@@ -220,13 +219,13 @@ const OpsPage: React.FC = () => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: token.sizeMD,
+                  gap: token.sizeXXS,
                   padding: '9px 0',
-                  borderBottom: `0.5px solid ${token.colorBgMuted}`,
-                  fontSize: token.fontSizeCaption,
+                  borderBottom: `0.5px solid ${token.colorFillSecondary}`,
+                  fontSize: token.fontSizeSM,
                 }}
               >
-                <span style={{ flex: 1, fontWeight: token.fontWeightMedium, color: token.colorText }}>
+                <span style={{ flex: 1, fontWeight: 500, color: token.colorText }}>
                   {j.name}
                 </span>
                 <span style={{ color: token.colorTextDescription, width: 80 }}>运行 {j.uptime}</span>
@@ -235,7 +234,7 @@ const OpsPage: React.FC = () => {
                   style={{
                     padding: '2px 8px',
                     borderRadius: token.borderRadiusSM,
-                    fontSize: token.fontSizeCaption,
+                    fontSize: token.fontSizeSM,
                     background: badge.bg,
                     color: badge.color,
                   }}

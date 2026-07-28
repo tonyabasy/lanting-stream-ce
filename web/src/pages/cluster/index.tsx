@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useIntl, useModel } from 'umi';
-import { Modal, Form, Input, Select, Switch, Popconfirm, Button, Spin, message } from 'antd';
+import { useIntl } from 'umi';
+import { Modal, Form, Input, Select, Switch, Popconfirm, Button, Spin, message, theme } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -18,7 +18,6 @@ import {
 } from '@/services/cluster';
 import { ApiError } from '@/utils/request';
 import type { ClusterVO, CreateClusterDTO, UpdateClusterDTO } from '@/types/cluster';
-import type { LantingToken } from '@/themes';
 
 type ModalMode = 'create' | 'edit';
 
@@ -49,7 +48,7 @@ function resourceTypeFromTarget(deployTarget: string): string {
 }
 
 const ClusterPage: React.FC = () => {
-  const token = useModel('theme') as LantingToken;
+  const { token } = theme.useToken();
   const { formatMessage } = useIntl();
 
   // 列表状态
@@ -179,12 +178,12 @@ const ClusterPage: React.FC = () => {
         <div>
           <h2 style={{
             fontFamily: 'Georgia, "Noto Serif SC", serif',
-            fontSize: token.fontSizeTitle, fontWeight: token.fontWeightMedium,
+            fontSize: token.fontSizeLG, fontWeight: 500,
             color: token.colorText, margin: '0 0 4px',
           }}>
             集群管理
           </h2>
-          <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription }}>
+          <div style={{ fontSize: token.fontSizeSM, color: token.colorTextDescription }}>
             管理 Flink 集群配置，新建、编辑、启停
           </div>
         </div>
@@ -196,13 +195,12 @@ const ClusterPage: React.FC = () => {
       {/* 卡片网格 */}
       <Spin spinning={loading}>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: token.sizeLG,
+          display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: token.size,
         }}>
           {clusters.map((c) => (
             <ClusterCard
               key={c.id}
               cluster={c}
-              token={token}
               onEdit={() => openEdit(c)}
               onDelete={() => handleDelete(c.id, c.name)}
               onToggleStatus={() => handleToggleStatus(c.id)}
@@ -214,10 +212,10 @@ const ClusterPage: React.FC = () => {
       {/* 空状态 */}
       {!loading && clusters.length === 0 && (
         <div style={{
-          textAlign: 'center', padding: `${token.size4XL}px 0`,
-          color: token.colorTextDescription, fontSize: token.fontSizeBody,
+          textAlign: 'center', padding: `${token.sizeXXL}px 0`,
+          color: token.colorTextDescription, fontSize: token.fontSize,
         }}>
-          <CloudServerOutlined style={{ fontSize: 32, marginBottom: token.sizeMD, display: 'block' }} />
+          <CloudServerOutlined style={{ fontSize: 32, marginBottom: token.sizeSM, display: 'block' }} />
           暂无集群，点击右上角「新建集群」开始
         </div>
       )}
@@ -232,7 +230,7 @@ const ClusterPage: React.FC = () => {
         destroyOnHidden
         width={420}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: token.sizeSM }}>
+        <Form form={form} layout="vertical" style={{ marginTop: token.sizeXS }}>
           <Form.Item
             name="name"
             label="集群名称"
@@ -255,8 +253,8 @@ const ClusterPage: React.FC = () => {
           </Form.Item>
           {detectedVersion && (
             <div style={{
-              fontSize: token.fontSizeCaption, color: token.colorSuccess,
-              marginTop: -token.sizeSM, marginBottom: token.sizeSM,
+              fontSize: token.fontSizeSM, color: token.colorSuccess,
+              marginTop: -token.sizeXS, marginBottom: token.sizeXS,
             }}>
               ✓ 检测到 Flink {detectedVersion}
             </div>
@@ -287,13 +285,13 @@ const ClusterPage: React.FC = () => {
 
 interface ClusterCardProps {
   cluster: ClusterVO;
-  token: LantingToken;
   onEdit: () => void;
   onDelete: () => void;
   onToggleStatus: () => void;
 }
 
-const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDelete, onToggleStatus }) => {
+const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, onEdit, onDelete, onToggleStatus }) => {
+  const { token } = theme.useToken();
   const isActive = cluster.status === 'ACTIVE';
   const resourceType = cluster.resourceType || resourceTypeFromTarget(cluster.deployTarget);
   const colors = RESOURCE_COLORS[resourceType] ?? RESOURCE_COLORS.LOCAL;
@@ -303,18 +301,18 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
       background: token.colorBgContainer,
       border: `0.5px solid ${token.colorBorder}`,
       borderRadius: token.borderRadius,
-      padding: `${token.sizeLG}px`,
+      padding: `${token.size}px`,
       opacity: isActive ? 1 : 0.45,
       transition: 'opacity 0.2s',
       display: 'flex', flexDirection: 'column',
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: token.sizeSM }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: token.sizeXS }}>
         <div style={{
           width: 36, height: 36, borderRadius: token.borderRadius,
           background: colors.bg, color: colors.text,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 11, fontWeight: 500, flexShrink: 0,
-          marginRight: token.sizeMD,
+          marginRight: token.sizeSM,
         }}>
           {resourceType.slice(0, 3)}
         </div>
@@ -322,7 +320,7 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
           <div style={{ fontSize: 15, fontWeight: 500, color: token.colorText, lineHeight: 1.3 }}>
             {cluster.name}
           </div>
-          <div style={{ fontSize: token.fontSizeCaption, color: token.colorTextDescription, marginTop: 2 }}>
+          <div style={{ fontSize: token.fontSizeSM, color: token.colorTextDescription, marginTop: 2 }}>
             {resourceType} · {cluster.deployTarget.replace('-', ' ')}
           </div>
         </div>
@@ -330,8 +328,8 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
       </div>
 
       <div style={{
-        fontSize: token.fontSizeCaption, color: token.colorTextDescription,
-        paddingLeft: 48, marginBottom: token.sizeSM,
+        fontSize: token.fontSizeSM, color: token.colorTextDescription,
+        paddingLeft: 48, marginBottom: token.sizeXS,
       }}>
         Flink {cluster.flinkVersion || '未知'}
       </div>
@@ -339,8 +337,8 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
       {isActive && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: token.fontSizeCaption, color: token.colorTextDescription,
-          paddingLeft: 48, marginBottom: token.sizeMD,
+          fontSize: token.fontSizeSM, color: token.colorTextDescription,
+          paddingLeft: 48, marginBottom: token.sizeSM,
         }}>
           <MinusCircleOutlined style={{ fontSize: 7, color: token.colorTextDisabled }} />
           未知（未检测连通性）
@@ -348,8 +346,8 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
       )}
 
       <div style={{
-        display: 'flex', borderTop: `0.5px solid ${token.colorBgMuted}`,
-        margin: `0 -${token.sizeLG}px -${token.sizeLG}px`,
+        display: 'flex', borderTop: `0.5px solid ${token.colorFillSecondary}`,
+        margin: `0 -${token.size}px -${token.size}px`,
         marginTop: 'auto',
       }}>
         <button disabled={!isActive} onClick={onEdit} style={actionBtnStyle(token, isActive)}>
@@ -371,10 +369,10 @@ const ClusterCard: React.FC<ClusterCardProps> = ({ cluster, token, onEdit, onDel
   );
 };
 
-function actionBtnStyle(token: LantingToken, enabled: boolean): React.CSSProperties {
+function actionBtnStyle(token: { colorFillSecondary: string; colorTextSecondary: string; colorTextDisabled: string }, enabled: boolean): React.CSSProperties {
   return {
     flex: 1, height: 40,
-    border: 'none', borderRight: `0.5px solid ${token.colorBgMuted}`,
+    border: 'none', borderRight: `0.5px solid ${token.colorFillSecondary}`,
     background: 'transparent', fontSize: 16,
     color: enabled ? token.colorTextSecondary : token.colorTextDisabled,
     cursor: enabled ? 'pointer' : 'not-allowed',

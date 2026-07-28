@@ -1,9 +1,6 @@
 import React from 'react';
-import { Flex } from 'antd';
-import { ConfigProvider } from 'antd';
+import { Flex, theme } from 'antd';
 import { useModel } from 'umi';
-import { toAntdTheme } from '@/themes';
-import type { LantingToken } from '@/themes';
 import CollapsibleSplitter from '@/components/CollapsibleSplitter';
 import TopBar from './panels/TopBar';
 import LeftSidebar from './leftSidebar/LeftSidebar';
@@ -15,16 +12,15 @@ import RightSidebar from './rightSidebar/RightSidebar';
 import StatusBar from './status/StatusBar';
 
 const DevPage: React.FC = () => {
-  const token = useModel('theme') as LantingToken;
+  const { token } = theme.useToken();
   const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useModel('devPanels');
 
   return (
-    <ConfigProvider theme={toAntdTheme(token)}>
       <Flex
         vertical
         style={{
           height: '100%',
-          background: token.colorBgSubtle,
+          background: token.colorBgLayout,
           overflow: 'auto',
         }}
       >
@@ -52,7 +48,7 @@ const DevPage: React.FC = () => {
                   collapsed={!leftTop}
                   defaultSize="16%"
                   min={24}
-                  style={{ paddingRight: token.sizeXS, paddingBottom: token.sizeXS }}
+                  style={{ paddingRight: token.sizeXXS, paddingBottom: token.sizeXXS }}
                 >
                   <ProjectPanel active={leftTop} />
                 </CollapsibleSplitter.Panel>
@@ -61,7 +57,7 @@ const DevPage: React.FC = () => {
                 <CollapsibleSplitter.Panel
                   panelKey="editor"
                   defaultSize="auto"
-                  style={{ paddingLeft: token.sizeXS, paddingRight: token.sizeXS, paddingBottom: token.sizeXS }}
+                  style={{ paddingLeft: token.sizeXXS, paddingRight: token.sizeXXS, paddingBottom: token.sizeXXS }}
                 >
                   <EditorPanel />
                 </CollapsibleSplitter.Panel>
@@ -72,7 +68,7 @@ const DevPage: React.FC = () => {
                   collapsed={!right}
                   defaultSize={240}
                   min={24}
-                  style={{ paddingLeft: token.sizeXS, paddingBottom: token.sizeXS }}
+                  style={{ paddingLeft: token.sizeXXS, paddingBottom: token.sizeXXS }}
                 >
                   <ConfigPanel active={right} />
                 </CollapsibleSplitter.Panel>
@@ -85,7 +81,7 @@ const DevPage: React.FC = () => {
               collapsed={!leftBottom}
               defaultSize="24%"
               min={24}
-              style={{ paddingTop: token.sizeXS }}
+              style={{ paddingTop: token.sizeXXS }}
             >
               <TerminalPanel active={leftBottom} />
             </CollapsibleSplitter.Panel>
@@ -99,7 +95,6 @@ const DevPage: React.FC = () => {
         <StatusBar />
 
       </Flex>
-    </ConfigProvider>
   );
 };
 
