@@ -100,14 +100,11 @@
   width: var(--ant-size-sm);
 }
 .lt-filetree-body .ant-tree-switcher {
-  position: relative;
-  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   color: var(--ant-color-text-description);
-  background: transparent;
 }
 /* 去掉 antd 默认在 :before 上画的悬停背景 */
 .lt-filetree-body .ant-tree-switcher:not(.ant-tree-switcher-noop):hover:before {
@@ -144,28 +141,13 @@
   display: flex !important;
   align-items: center;
   justify-content: center;
-  width: 24px;
   height: auto;
   color: var(--ant-color-text-description);
-}
-.lt-filetree-body .ant-tree-iconEle svg {
-  display: block;
 }
 .lt-filetree-body .ant-tree-title {
   flex: 1;
   min-width: 0;
 }
-/* 节点标题（含持锁图标） */
-.lt-filetree-node-title {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ant-size-xxs);
-}
-.lt-filetree-lock {
-  color: var(--ant-color-primary);
-  flex-shrink: 0;
-}
-
 /* 节点行（标题 + 三点按钮） */
 .lt-filetree-node-row {
   display: flex;
@@ -228,7 +210,7 @@
   white-space: nowrap;
 }
 .lt-filetree-search-item-name mark {
-  background: var(--ant-color-warning-bg);
+  font-weight: var(--ant-font-weight-strong);
   color: inherit;
   padding: 0;
   border-radius: 1px;

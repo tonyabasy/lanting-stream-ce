@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Tree, Button, Dropdown, Modal, message, Spin, Typography } from 'antd';
 import type { TreeDataNode, TreeProps } from 'antd';
 import { useModel } from 'umi';
-import { IconChevronDown, IconDots, IconFolder } from '@tabler/icons-react';
+import { IconChevronDown, IconDotsVertical, IconFolder } from '@tabler/icons-react';
 import { toTreeDataNode, leafName, parentOf, findNode, TREE_ICON_SIZE, getFileIcon, highlightMatch } from './treeUtils';
 import { getFileMenuItems, folderMenuItems } from './FileMenuItems';
 import type { FileTreeNode } from '../types/file';
@@ -175,7 +175,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
             type="text"
             size="small"
             className="lt-filetree-more-btn"
-            icon={<IconDots size={TREE_ICON_SIZE} />}
+            icon={<IconDotsVertical size={TREE_ICON_SIZE} />}
             onClick={(e) => e.stopPropagation()}
           />
         </Dropdown>

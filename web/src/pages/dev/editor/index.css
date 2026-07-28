@@ -24,22 +24,24 @@
 .lt-editor-body .cm-editor {
   height: 100%;
 }
+/* 滚动容器：控制代码区 + 行号区的字体、字号、行高 */
 .lt-editor-body .cm-editor .cm-scroller {
   overflow: auto;
-  font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: var(--ant-font-size-sm);
+  font-family: var(--ant-font-family-code), monospace;
+  font-size: var(--ant-font-size);
   line-height: 1.6;
 }
+/* 行号区域：控制左侧行号列的字体、字号 */
 .lt-editor-body .cm-editor .cm-gutters {
-  font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: var(--ant-font-size-sm);
+  font-family: var(--ant-font-family-code), monospace;
+  font-size: var(--ant-font-size);
 }
 
 /* ── 编辑器只读提示条 ── */
 .lt-editor-readonly-banner {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ant-size-xxs);
   padding: 4px 12px;
   font-size: var(--ant-font-size-sm);
   color: var(--ant-color-text-description);
@@ -57,4 +59,12 @@
 .lt-editor-tab-lock {
   color: var(--ant-color-text-description);
   flex-shrink: 0;
+}
+
+/* ── 空白页：无 Tab 打开时居中显示 Empty ── */
+.lt-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }

@@ -3,26 +3,52 @@ import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { sql } from '@codemirror/lang-sql';
-import { useModel } from 'umi';
-import { Modal, Button, message } from 'antd';
-import { IconLock } from '@tabler/icons-react';
-import FileTabs from './FileTabs';
-import '../index.css';
-import './index.css';
+import { Modal, message } from 'antd';
+import type { FileTreeNode } from '@/pages/dev/types/file';
 
 const editableCompartment = new Compartment();
 
-const EditorPanel: React.FC = () => {
-  const editor = useModel('editor');
-  const { openTabs, activeTabId, fileContents, isFileEditable, saveFile, acquireLock, switchTab, closeTab } = editor;
+interface CodeEditorProps {
+  activeTabId: number | null;
+  editable: boolean;
+  fileContents: Record<number, string>;
+  openTabs: FileTreeNode[];
+  isFileEditable: (fileId: number) => boolean;
+  saveFile: (fileId: number, content: string) => Promise<boolean>;
+  acquireLock: (fileId: number, path: string) => Promise<void>;
+}
 
+const CodeEditor: React.FC<CodeEditorProps> = ({
+  activeTabId,
+  editable,
+  fileContents,
+  openTabs,
+  isFileEditable,
+  saveFile,
+  acquireLock,
+}) => {
   const editorHostRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView | null>(null);
-  const editorRef = useRef(editor);
-  editorRef.current = editor;
 
-  const editable = activeTabId !== null && isFileEditable(activeTabId);
-  const activeTab = openTabs.find((t) => t.fileId === activeTabId);
+  // 用 ref 保存最新 props，供 keymap 回调读取
+  const propsRef = useRef<CodeEditorProps>({
+    activeTabId,
+    editable,
+    fileContents,
+    openTabs,
+    isFileEditable,
+    saveFile,
+    acquireLock,
+  });
+  propsRef.current = {
+    activeTabId,
+    editable,
+    fileContents,
+    openTabs,
+    isFileEditable,
+    saveFile,
+    acquireLock,
+  };
 
   useEffect(() => {
     if (!editorHostRef.current) return;
@@ -42,8 +68,7 @@ const EditorPanel: React.FC = () => {
               run: () => {
                 const id = view.dom.dataset.activeFileId;
                 if (!id) return true;
-                const e = editorRef.current;
-                handleSave(Number(id), view, e);
+                handleSave(Number(id), view, propsRef.current);
                 return true;
               },
               preventDefault: true,
@@ -90,11 +115,11 @@ const EditorPanel: React.FC = () => {
     }
   }, [activeTabId, fileContents]);
 
-  const handleSave = async (fileId: number, view: EditorView, e: typeof editor) => {
-    const tab = e.openTabs.find((t) => t.fileId === fileId);
+  const handleSave = async (fileId: number, view: EditorView, props: CodeEditorProps) => {
+    const tab = props.openTabs.find((t) => t.fileId === fileId);
     if (!tab) return;
 
-    if (!e.isFileEditable(fileId)) {
+    if (!props.isFileEditable(fileId)) {
       Modal.confirm({
         title: '未锁定文件',
         content: '你未锁定此文件，当前修改无法保存。是否抢锁并保存？',
@@ -102,9 +127,9 @@ const EditorPanel: React.FC = () => {
         cancelText: '取消',
         onOk: async () => {
           try {
-            await e.acquireLock(fileId, tab.path);
+            await props.acquireLock(fileId, tab.path);
             message.success('抢锁成功');
-            const ok = await e.saveFile(fileId, view.state.doc.toString());
+            const ok = await props.saveFile(fileId, view.state.doc.toString());
             if (ok) message.success('保存成功');
           } catch (err: any) {
             message.error(err?.message || '抢锁失败');
@@ -114,7 +139,7 @@ const EditorPanel: React.FC = () => {
       return;
     }
 
-    const ok = await e.saveFile(fileId, view.state.doc.toString());
+    const ok = await props.saveFile(fileId, view.state.doc.toString());
     if (ok) {
       message.success('保存成功');
     } else {
@@ -122,38 +147,7 @@ const EditorPanel: React.FC = () => {
     }
   };
 
-  return (
-    <div className="lt-panel-base lt-editor-panel">
-      <FileTabs
-        tabs={openTabs}
-        activeTabId={activeTabId}
-        onSwitch={switchTab}
-        onClose={closeTab}
-      />
-      <div className="lt-editor-divider" />
-      {activeTab && !editable && (
-        <div className="lt-editor-readonly-banner">
-          <IconLock size={12} />
-          <span>只读模式{activeTab.lockedBy ? ` · ${activeTab.lockedBy} 正在编辑` : ''}</span>
-          <Button
-            type="link"
-            size="small"
-            onClick={async () => {
-              try {
-                await acquireLock(activeTab.fileId, activeTab.path);
-                message.success('抢锁成功，现在可以编辑了');
-              } catch (err: any) {
-                message.error(err?.message || '抢锁失败');
-              }
-            }}
-          >
-            抢锁
-          </Button>
-        </div>
-      )}
-      <div className="lt-editor-body" ref={editorHostRef} />
-    </div>
-  );
+  return <div className="lt-editor-body" ref={editorHostRef} />;
 };
 
-export default EditorPanel;
+export default CodeEditor;

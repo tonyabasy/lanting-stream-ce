@@ -6,7 +6,6 @@ import {
   IconDatabase,
   IconJson,
   IconHtml,
-  IconLockOpen2,
 } from '@tabler/icons-react';
 import type { TreeDataNode } from 'antd';
 import type { ReactNode } from 'react';

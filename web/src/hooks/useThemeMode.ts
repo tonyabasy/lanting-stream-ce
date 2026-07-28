@@ -10,6 +10,7 @@ const THEME_CONFIGS: Record<ThemeMode, ThemeConfig> = {
     algorithm: theme.defaultAlgorithm,
     token: {
       colorPrimary: '#1677ff',
+      fontFamilyCode: "'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
     },
   },
   dark: {
@@ -17,6 +18,7 @@ const THEME_CONFIGS: Record<ThemeMode, ThemeConfig> = {
     algorithm: theme.darkAlgorithm,
     token: {
       colorPrimary: '#1677ff',
+      fontFamilyCode: "'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace",
     },
   },
 };

@@ -5,9 +5,9 @@ import CollapsibleSplitter from '@/components/CollapsibleSplitter';
 import TopBar from './panels/TopBar';
 import LeftSidebar from './leftSidebar/LeftSidebar';
 import ProjectPanel from './panels/ProjectPanel';
-import EditorPanel from './editor/EditorPanel';
+import EditorPanel from './panels/EditorPanel';
 import ConfigPanel from './panels/ConfigPanel';
-import TerminalPanel from './terminal/TerminalPanel';
+import TerminalPanel from './panels/TerminalPanel';
 import RightSidebar from './rightSidebar/RightSidebar';
 import StatusBar from './status/StatusBar';
 
