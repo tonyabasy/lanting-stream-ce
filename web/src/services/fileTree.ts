@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { FileTreeNode } from '@/pages/editor/types/file';
+import type { FileTreeNode } from '@/pages/dev/types/file';
 
 /**
  * 获取文件树。
@@ -41,3 +41,11 @@ export const createFolder = (path: string): Promise<{ fileId: number; path: stri
 /** 移动文件或文件夹 */
 export const moveFile = (fileId: number, newPath: string): Promise<{ fileId: number; oldPath: string; newPath: string }> =>
   request.post('/files/move', { fileId, newPath });
+
+/** 读取文件内容 */
+export const loadContent = (fileId: number): Promise<string> =>
+  request.get('/files/content', { params: { fileId } });
+
+/** 保存文件内容 */
+export const saveContent = (fileId: number, content: string): Promise<void> =>
+  request.post('/files/save', { fileId, content });

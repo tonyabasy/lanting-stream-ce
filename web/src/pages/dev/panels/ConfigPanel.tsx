@@ -1,4 +1,4 @@
-import type { RightTab } from '@/models/editorPanels';
+import type { RightTab } from '@/models/devPanels';
 import '../index.css';
 
 interface ConfigPanelProps {

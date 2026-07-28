@@ -18,7 +18,7 @@ const cards: EntryCard[] = [
     icon: '⚡',
     color: '#2A5CA0',
     bg: '#F0F5FC',
-    path: '/editor',
+    path: '/dev',
   },
   {
     title: '数据源管理',

@@ -1,6 +1,6 @@
 import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch, IconTable } from '@tabler/icons-react';
 import { Button, Tooltip } from 'antd';
-import type { LeftTopKey, LeftBottomKey, LeftTopTab, LeftBottomTab } from '@/models/editorPanels';
+import type { LeftTopKey, LeftBottomKey, LeftTopTab, LeftBottomTab } from '@/models/devPanels';
 import '../index.css';
 
 interface LeftSidebarProps {

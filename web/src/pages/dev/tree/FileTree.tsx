@@ -13,7 +13,7 @@ import '../index.css';
  */
 const FileTree: React.FC = () => {
   const { refresh, collapseAll, createFileNode, createFolderNode, selectedNode } = useModel('fileTree');
-  const { toggleLeftTop } = useModel('editorPanels');
+  const { toggleLeftTop } = useModel('devPanels');
 
   // 通用输入弹窗状态
   const [modalVisible, setModalVisible] = useState(false);

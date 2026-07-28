@@ -9,7 +9,7 @@ export type RightKey = NonNullable<RightTab>;
 export type LeftBottomKey = NonNullable<LeftBottomTab>;
 
 /**
- * 编辑器面板状态 model。
+ * 研发面板状态 model。
  *
  * 管理三组侧边栏激活状态：
  * - 左栏上：控制 ProjectPanel 内容

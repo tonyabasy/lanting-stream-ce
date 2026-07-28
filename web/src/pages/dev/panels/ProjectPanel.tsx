@@ -1,4 +1,4 @@
-import type { LeftTopTab } from '@/models/editorPanels';
+import type { LeftTopTab } from '@/models/devPanels';
 import FileTree from '../tree/FileTree';
 import '../index.css';
 

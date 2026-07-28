@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { FileTreeNode } from '@/pages/editor/types/file';
+import type { FileTreeNode } from '@/pages/dev/types/file';
 import {
   tree,
   searchFiles,

@@ -8,15 +8,15 @@ import CollapsibleSplitter from '@/components/CollapsibleSplitter';
 import TopBar from './panels/TopBar';
 import LeftSidebar from './leftSidebar/LeftSidebar';
 import ProjectPanel from './panels/ProjectPanel';
-import EditorPanel from './panels/EditorPanel';
+import EditorPanel from './editor/EditorPanel';
 import ConfigPanel from './panels/ConfigPanel';
 import TerminalPanel from './terminal/TerminalPanel';
 import RightSidebar from './rightSidebar/RightSidebar';
 import StatusBar from './status/StatusBar';
 
-const EditorPage: React.FC = () => {
+const DevPage: React.FC = () => {
   const token = useModel('theme') as LantingToken;
-  const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useModel('editorPanels');
+  const { leftTop, right, leftBottom, toggleLeftTop, toggleRight, toggleLeftBottom } = useModel('devPanels');
 
   return (
     <ConfigProvider theme={toAntdTheme(token)}>
@@ -103,4 +103,4 @@ const EditorPage: React.FC = () => {
   );
 };
 
-export default EditorPage;
+export default DevPage;

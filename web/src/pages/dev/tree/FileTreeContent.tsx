@@ -36,8 +36,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     createFolderNode,
     moveNode,
   } = useModel('fileTree');
-  const { initialState } = useModel('@@initialState');
-  const currentUserId = initialState?.currentUser?.id != null ? String(initialState.currentUser.id) : undefined;
+  const { openFile } = useModel('editor');
 
   useEffect(() => {
     if (treeData.length === 0) {
@@ -93,6 +92,10 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     const path = String(node.key);
     const found = findNode(treeData, path);
     selectNode(found ?? null);
+    // 文件节点：打开到编辑器
+    if (found && found.type === 'file') {
+      openFile(found);
+    }
   };
 
   /** 三点按钮菜单点击 */
@@ -218,7 +221,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
   return (
     <div className="lt-filetree-body">
       <Tree
-        treeData={treeData.map((node) => toTreeDataNode(node, currentUserId))}
+        treeData={treeData.map((node) => toTreeDataNode(node))}
         loadData={onLoadData}
         showIcon
         switcherIcon={<IconChevronDown size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}

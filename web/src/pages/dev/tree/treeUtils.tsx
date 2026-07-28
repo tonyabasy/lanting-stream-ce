@@ -28,25 +28,15 @@ export const getFileIcon = (name: string) => {
 /** 将 FileTreeNode 转换为 TreeDataNode */
 export const toTreeDataNode = (
   node: FileTreeNode,
-  currentUserId?: string,
 ): TreeDataNode => {
   const isFolder = node.type === 'folder';
-  const isMyLock = !!node.lockedBy && String(node.lockedBy) === String(currentUserId);
   return {
     key: node.path,
     fileId: node.fileId,
-    isMyLock,
-    title: isMyLock ? (
-      <span className="lt-filetree-node-title">
-        {node.name}
-        <IconLockOpen2 size={TREE_ICON_SIZE} className="lt-filetree-lock" />
-      </span>
-    ) : (
-      node.name
-    ),
+    title: node.name,
     icon: isFolder ? <IconFolder size={TREE_ICON_SIZE} /> : getFileIcon(node.name),
     isLeaf: !isFolder,
-    children: node.children?.map((child) => toTreeDataNode(child, currentUserId)),
+    children: node.children?.map((child) => toTreeDataNode(child)),
   } as TreeDataNode & { fileId: number; isMyLock: boolean };
 };
 

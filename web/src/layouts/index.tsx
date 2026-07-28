@@ -27,7 +27,7 @@ const getMenuItems = (formatMessage: ReturnType<typeof useIntl>['formatMessage']
     icon: <CodeOutlined />,
     label: formatMessage({ id: 'menu.dev' }),
     children: [
-      { key: '/editor', label: formatMessage({ id: 'menu.task' }) },
+      { key: '/dev', label: formatMessage({ id: 'menu.task' }) },
       { key: '/datasource', label: formatMessage({ id: 'menu.datasource' }) },
     ],
   },
