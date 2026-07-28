@@ -10,7 +10,6 @@ import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
 import com.lanting.admin.module.file.service.FileLockService;
 import com.lanting.admin.module.file.service.WorkspaceService;
-import com.lanting.admin.module.publish.entity.PublishEntity;
 import com.lanting.admin.module.publish.entity.PublishFileEntity;
 import com.lanting.admin.module.publish.mapper.PublishFileMapper;
 import com.lanting.admin.module.publish.mapper.PublishMapper;

@@ -31,11 +31,6 @@ public class PublishVO {
     @Schema(description = "本批次包含的文件（含各自 commit SHA）")
     private List<PublishFileItem> files;
 
-    // 以下字段为兼容遗留 GitFileService.publish（基于 git tag）保留，v2 流程不使用，恒为 null
-    @Deprecated
-    @Schema(description = "遗留字段：git tag 名（v2 不使用）")
-    private String tagName;
-
     @Deprecated
     @Schema(description = "遗留字段：tag 对应 commit hash（v2 不使用）")
     private String commitHash;

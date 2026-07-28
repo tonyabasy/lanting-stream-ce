@@ -1,6 +1,5 @@
 package com.lanting.admin.module.file.vo;
 
-import com.lanting.admin.module.file.service.FileLockService;
 import com.lanting.admin.module.file.service.LockInfo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;

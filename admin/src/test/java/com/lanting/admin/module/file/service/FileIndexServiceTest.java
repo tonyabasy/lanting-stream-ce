@@ -2,8 +2,6 @@ package com.lanting.admin.module.file.service;
 
 import com.lanting.admin.BaseIntegrationTest;
 import com.lanting.admin.common.util.SecurityUtils;
-import com.lanting.admin.module.file.dto.CreateFileDTO;
-import com.lanting.admin.module.file.dto.CreateFolderDTO;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.mapper.FileIndexMapper;
 import org.junit.jupiter.api.*;

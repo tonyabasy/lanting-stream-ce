@@ -9,8 +9,6 @@ import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileIndexService;
 import com.lanting.admin.module.file.service.WorkspaceService;
 import com.lanting.admin.module.file.vo.CommitResultVO;
-import com.lanting.admin.module.publish.vo.PublishVO;
-import com.lanting.admin.module.publish.dto.PublishDTO;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -18,7 +16,6 @@ import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.treewalk.filter.PathFilter;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
@@ -291,73 +288,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
     }
 
-    // ==================== 4.4 发布与回滚边界 ====================
-
-    @Nested
-    @DisplayName("4.4 发布与回滚边界")
-    class PublishAndRollbackEdgeCases {
-
-        @Test
-        @DisplayName("发布时磁盘有未提交变更，tag 不含未提交内容")
-        void publishShouldNotIncludeUncommittedChanges() throws Exception {
-            createFolder(uniquePath);
-            String filePath = uniquePath + "/uncommitted.sql";
-            Long fileId = createFile(filePath);
-            acquireLock(fileId);
-
-            // 先提交一个基准版本
-            saveFile(fileId, "committed baseline");
-            commit(List.of(fileId), "committed baseline");
-            // 保存到磁盘但不 commit
-            saveFile(fileId, "uncommitted content");
-
-            // 发布
-            PublishVO pub = publish("should not include uncommitted");
-
-            // 验证 tag 的 tree 中不含该文件（未 commit，不应进入 tag）
-            Path root = workspaceService.getDefaultWorkspaceRoot();
-            // 不验证文件是否存在，而是验证 tag 里的内容是已提交版本
-            try (Git git = Git.open(root.toFile());
-                 RevWalk walk = new RevWalk(git.getRepository())) {
-                ObjectId tagCommit = git.getRepository()
-                        .resolve(Constants.R_TAGS + pub.getTagName());
-                RevCommit commit = walk.parseCommit(tagCommit);
-                try (TreeWalk treeWalk = new TreeWalk(git.getRepository())) {
-                    treeWalk.addTree(commit.getTree());
-                    treeWalk.setRecursive(true);
-                    treeWalk.setFilter(PathFilter.create(filePath));
-                    assertThat(treeWalk.next()).isTrue();
-                    ObjectLoader loader = git.getRepository().open(treeWalk.getObjectId(0));
-                    String contentInTag = new String(loader.getBytes(), StandardCharsets.UTF_8);
-                    // tag 里的内容是已提交的版本，不是磁盘上未提交的内容
-                    assertThat(contentInTag).isEqualTo("committed baseline");
-                    assertThat(contentInTag).isNotEqualTo("uncommitted content");
-                }
-            }
-        }
-
-        @Test
-        @DisplayName("同一 HEAD 连续发布两次，生成两个不同 tag，都指向同一 commit")
-        void twoPublishesOnSameHeadShouldGenerateDifferentTags() throws Exception {
-            createFolder(uniquePath);
-            String filePath = uniquePath + "/base.sql";
-            Long fileId = createFile(filePath);
-            acquireLock(fileId);
-
-            // 先提交一个基准版本
-            saveFile(fileId, "committed baseline");
-            commit(List.of(fileId), "committed baseline");
-            // 第一次发布
-            PublishVO pub1 = publish("first");
-            Thread.sleep(1000);
-            // 第二次发布（同一 HEAD）
-            PublishVO pub2 = publish("second");
-
-            assertThat(pub1.getTagName()).isNotEqualTo(pub2.getTagName());
-            assertThat(pub1.getCommitHash()).isEqualTo(pub2.getCommitHash());
-        }
-    }
-
     // ==================== 重命名文件夹 ====================
 
     @Nested
@@ -480,11 +410,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             // 提交
             commit(List.of(fileId), "add test.sql");
-
-            // 发布
-            PublishVO publish = publish("test release");
-            assertThat(publish.getTagName()).startsWith("release-");
-            assertThat(publish.getCommitHash()).isNotBlank();
         }
     }
 
@@ -571,8 +496,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             acquireLock(fileId, tokenA);
             saveFile(fileId, "A-content", tokenA);
             commit(List.of(fileId), "c1 by A", tokenA);
-            PublishVO publishA = publish("A release", tokenA);
-            String hashC1 = publishA.getCommitHash();
 
             // 2. 用户 B 修改 f1，提交 c2
             String userB = "user-b-revert";
@@ -589,7 +512,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
 
             RevertFileDTO dto = new RevertFileDTO();
             dto.setFileId(fileId);
-            dto.setCommitHash(hashC1);
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(tokenB)), JsonNode.class);
@@ -911,18 +833,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         return vo;
     }
 
-    private PublishVO publish(String displayName) {
-        PublishDTO dto = new PublishDTO();
-        dto.setDisplayName(displayName);
-        ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/publish", HttpMethod.POST,
-                new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-        JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
-        PublishVO vo = new PublishVO();
-        vo.setTagName(data.path("tagName").asText());
-        vo.setCommitHash(data.path("commitHash").asText());
-        return vo;
-    }
-
     private String lastCommitHash(Long fileId) {
         return lastCommitHash(fileId, token);
     }
@@ -964,18 +874,6 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         dto.setMessage(message);
         restTemplate.exchange("/api/files/commit", HttpMethod.POST,
                 new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
-    }
-
-    private PublishVO publish(String displayName, String userToken) {
-        PublishDTO dto = new PublishDTO();
-        dto.setDisplayName(displayName);
-        ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/publish", HttpMethod.POST,
-                new HttpEntity<>(dto, authHeaders(userToken)), JsonNode.class);
-        JsonNode data = Objects.requireNonNull(response.getBody()).path("data");
-        PublishVO vo = new PublishVO();
-        vo.setTagName(data.path("tagName").asText());
-        vo.setCommitHash(data.path("commitHash").asText());
-        return vo;
     }
 
     private String content(Long fileId, String userToken) {

@@ -5,7 +5,6 @@ import com.lanting.admin.common.result.Result;
 import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileLockService;
-import com.lanting.admin.module.file.service.FileIndexService;
 import com.lanting.admin.module.file.service.GitFileService;
 import com.lanting.admin.module.file.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +16,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static com.lanting.admin.common.util.SecurityUtils.currentUser;
 
@@ -36,13 +34,9 @@ public class FileController {
 
     private final FileLockService fileLockService;
 
-    private final FileIndexService fileIndexService;
-
-    public FileController(GitFileService gitFileService, FileLockService fileLockService,
-                          FileIndexService fileIndexService) {
+    public FileController(GitFileService gitFileService, FileLockService fileLockService) {
         this.gitFileService = gitFileService;
         this.fileLockService = fileLockService;
-        this.fileIndexService = fileIndexService;
     }
 
     // ==================== 通用文件操作 ====================
