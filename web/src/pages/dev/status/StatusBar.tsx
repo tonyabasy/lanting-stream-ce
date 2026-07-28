@@ -1,7 +1,7 @@
 import React from 'react';
 import { useModel } from 'umi';
 import { IconLock, IconLockOpen } from '@tabler/icons-react';
-import '../index.css';
+import './index.css';
 
 const StatusBar: React.FC = () => {
   const { selectedNode } = useModel('fileTree');

@@ -50,7 +50,7 @@ const DevPage: React.FC = () => {
                   min={24}
                   style={{ paddingRight: token.sizeXXS, paddingBottom: token.sizeXXS }}
                 >
-                  <ProjectPanel active={leftTop} />
+                  {leftTop && <ProjectPanel active={leftTop} />}
                 </CollapsibleSplitter.Panel>
 
                 {/* 编辑区 */}

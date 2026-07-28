@@ -1,0 +1,243 @@
+/* ── 文件树 ── */
+
+.lt-filetree {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+/* 顶部操作区：高 32px */
+.lt-filetree-header {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px 0 10px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.lt-filetree-title {
+  flex: 1;
+  font-size: 13px !important; /* 视觉上13px最合适，不再使用antd的token */
+  color: var(--ant-color-text-heading);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+/* 操作按钮：22×22 · 圆角 4px · 默认隐藏，hover 文件树区域时出现 */
+.lt-filetree-hbtn.lt-filetree-hbtn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: var(--ant-border-radius-sm);
+  color: var(--ant-color-text-description);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.lt-filetree:hover .lt-filetree-hbtn {
+  opacity: 1;
+}
+.lt-filetree-hbtn.lt-filetree-hbtn:hover {
+  background: var(--ant-color-fill-secondary) !important;
+  color: var(--ant-color-text-secondary);
+}
+
+/* 搜索框：高 32px · 圆角 5px */
+.lt-filetree-search {
+  padding: var(--ant-padding-xxs);
+  flex-shrink: 0;
+}
+.lt-filetree-search .ant-input-affix-wrapper {
+  height: var(--ant-control-height-sm);
+  border-radius: var(--ant-border-radius);
+  background: var(--ant-color-fill-quaternary);
+  border: none;
+  box-shadow: none;
+}
+.lt-filetree-search .ant-input {
+  background: transparent;
+  font-size: var(--ant-font-size-sm);
+  color: var(--ant-color-text-secondary);
+}
+.lt-filetree-search .ant-input::placeholder {
+  color: var(--ant-color-text-description);
+}
+.lt-filetree-search .ant-input-prefix {
+  color: var(--ant-color-text-description);
+}
+
+/* 底板内部极细分隔线 */
+.lt-filetree-divider {
+  height: 0.5px;
+  background: var(--ant-color-split);
+  flex-shrink: 0;
+}
+
+/* 树内容区 */
+.lt-filetree-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--ant-size-xs);
+}
+.lt-filetree-body .ant-tree {
+  background: transparent;
+  color: var(--ant-color-text-secondary);
+  user-select: none; /* 禁用选中 */
+}
+
+/* 树节点：高 24px · 左右留白 4px · 圆角 4px · 激活/hover 用 colorBgActive，文字不变 */
+.lt-filetree-body .ant-tree-treenode {
+  border-radius: var(--ant-border-radius-sm);
+  width: 100%;
+}
+.lt-filetree-body .ant-tree-treenode:hover,
+.lt-filetree-body .ant-tree-treenode-selected {
+  background: var(--ant-control-item-bg-active);
+}
+
+/* 缩进 12px / 级 */
+.lt-filetree-body .ant-tree-indent-unit {
+  width: var(--ant-size-sm);
+}
+.lt-filetree-body .ant-tree-switcher {
+  position: relative;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  color: var(--ant-color-text-description);
+  background: transparent;
+}
+/* 去掉 antd 默认在 :before 上画的悬停背景 */
+.lt-filetree-body .ant-tree-switcher:not(.ant-tree-switcher-noop):hover:before {
+  background: transparent;
+}
+.lt-filetree-body .ant-tree-switcher .ant-tree-switcher-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.lt-filetree-body .ant-tree-switcher_close .lt-filetree-chevron {
+  transform: rotate(-90deg);
+}
+
+.lt-filetree-body .ant-tree-node-content-wrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: var(--ant-size-xxs);
+  font-size: var(--ant-font-size);
+  color: var(--ant-color-text);
+  padding: 0;
+  cursor: default;
+}
+/* 激活/hover 背景画在整行（treenode）上，内容层保持透明、文字不跳变 */
+.lt-filetree-body .ant-tree-node-content-wrapper:hover,
+.lt-filetree-body .ant-tree-node-content-wrapper.ant-tree-node-selected {
+  background: transparent;
+  color: var(--ant-color-text);
+}
+.lt-filetree-body .ant-tree-iconEle {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: auto;
+  color: var(--ant-color-text-description);
+}
+.lt-filetree-body .ant-tree-iconEle svg {
+  display: block;
+}
+.lt-filetree-body .ant-tree-title {
+  flex: 1;
+  min-width: 0;
+}
+/* 节点标题（含持锁图标） */
+.lt-filetree-node-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ant-size-xxs);
+}
+.lt-filetree-lock {
+  color: var(--ant-color-primary);
+  flex-shrink: 0;
+}
+
+/* 节点行（标题 + 三点按钮） */
+.lt-filetree-node-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+}
+.lt-filetree-node-row > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 三点按钮：默认隐藏，hover 节点时出现 */
+.lt-filetree-more-btn.lt-filetree-more-btn {
+  width: 20px;
+  height: 20px;
+  margin-left: auto;
+  opacity: 0;
+  color: var(--ant-color-text-description);
+  flex-shrink: 0;
+  transition: opacity 0.12s;
+}
+.lt-filetree-body .ant-tree-treenode:hover .lt-filetree-more-btn {
+  opacity: 1;
+}
+.lt-filetree-more-btn:hover {
+  background: var(--ant-color-fill-secondary) !important;
+}
+
+/* ── 文件树搜索结果列表 ── */
+.lt-filetree-search-results {
+  padding: 2px 0;
+}
+.lt-filetree-search-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: var(--ant-font-size-sm);
+  line-height: 20px;
+}
+.lt-filetree-search-item:hover,
+.lt-filetree-search-item-active {
+  background: var(--ant-color-bg-text-hover);
+}
+.lt-filetree-search-item-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--ant-color-text-description);
+}
+.lt-filetree-search-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lt-filetree-search-item-name mark {
+  background: var(--ant-color-warning-bg);
+  color: inherit;
+  padding: 0;
+  border-radius: 1px;
+}
+.lt-filetree-search-item-path {
+  flex-shrink: 0;
+  font-size: var(--ant-font-size-sm);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

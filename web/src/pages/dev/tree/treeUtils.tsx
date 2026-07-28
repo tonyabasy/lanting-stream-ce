@@ -13,8 +13,8 @@ import type { ReactNode } from 'react';
 import type { FileTreeNode } from '../types/file';
 
 /* 设计稿规范为 11px，奇数尺寸 SVG 渲染发虚，取 12px */
-export const TREE_ICON_SIZE = 12;
-export const CTX_ICON_SIZE = 14;
+export const TREE_ICON_SIZE = 16;
+export const CTX_ICON_SIZE = 16;
 
 export const getFileIcon = (name: string) => {
   if (name.endsWith('.md')) return <IconMarkdown size={TREE_ICON_SIZE} />;

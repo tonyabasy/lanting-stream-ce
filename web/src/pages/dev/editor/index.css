@@ -1,0 +1,60 @@
+/* ── 编辑器面板 ── */
+
+.lt-editor-panel {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+.lt-editor-tabs {
+  margin-bottom: 0;
+}
+.lt-editor-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+.lt-editor-divider {
+  height: 0.5px;
+  background: var(--ant-color-split);
+  flex-shrink: 0;
+}
+.lt-editor-body {
+  height: 100%;
+  overflow: auto;
+}
+.lt-editor-body.cm-editor,
+.lt-editor-body .cm-editor {
+  height: 100%;
+}
+.lt-editor-body .cm-editor .cm-scroller {
+  overflow: auto;
+  font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: var(--ant-font-size-sm);
+  line-height: 1.6;
+}
+.lt-editor-body .cm-editor .cm-gutters {
+  font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: var(--ant-font-size-sm);
+}
+
+/* ── 编辑器只读提示条 ── */
+.lt-editor-readonly-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: var(--ant-font-size-sm);
+  color: var(--ant-color-text-description);
+  background: var(--ant-color-warning-bg);
+  border-bottom: 0.5px solid var(--ant-color-split);
+  flex-shrink: 0;
+}
+
+/* ── Tab 锁图标 ── */
+.lt-editor-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lt-editor-tab-lock {
+  color: var(--ant-color-text-description);
+  flex-shrink: 0;
+}

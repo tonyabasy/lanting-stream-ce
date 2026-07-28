@@ -8,12 +8,9 @@ interface ProjectPanelProps {
 
 const ProjectPanel: React.FC<ProjectPanelProps> = ({ active }) => (
   <div className="lt-panel-base">
-    <div style={{ display: active === 'files' ? undefined : 'none', width: '100%', height: '100%' }}>
-      <FileTree />
-    </div>
-    <div style={{ display: active === 'tables' ? undefined : 'none' }}>ProjectPanel（模型区）</div>
-    <div style={{ display: active === 'changes' ? undefined : 'none' }}>ChangesPanel（变更区）</div>
-    <div style={{ display: active === null ? undefined : 'none' }}>ProjectPanel（已关闭）</div>
+    {active === 'files' && (<FileTree />)}
+    {active === 'tables' && <div>ProjectPanel（模型区）</div>}
+    {active === 'changes' && <div>ChangesPanel（变更区）</div>}
   </div>
 );
 

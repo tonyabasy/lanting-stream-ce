@@ -1,0 +1,36 @@
+/* ── 底部状态栏：高 22px ── */
+
+.lt-statusbar {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: var(--ant-size-xxs);
+  padding: 0 10px;
+  flex-shrink: 0;
+  font-size: var(--ant-font-size-sm);
+  color: var(--ant-color-text-description);
+  user-select: none;
+}
+.lt-statusbar-current {
+  color: var(--ant-color-text-secondary);
+}
+
+.lt-statusbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--ant-size-xxs);
+}
+.lt-statusbar-sep {
+  color: var(--ant-color-text-description);
+}
+.lt-statusbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--ant-size-sm);
+}
+.lt-statusbar-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ant-size-xxs);
+}

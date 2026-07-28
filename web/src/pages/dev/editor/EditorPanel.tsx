@@ -8,6 +8,7 @@ import { Modal, Button, message } from 'antd';
 import { IconLock } from '@tabler/icons-react';
 import FileTabs from './FileTabs';
 import '../index.css';
+import './index.css';
 
 const editableCompartment = new Compartment();
 

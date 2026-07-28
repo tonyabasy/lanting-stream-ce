@@ -38,21 +38,22 @@ const FileTreeHeader: React.FC<FileTreeHeaderProps> = ({
 
   return (
     <div className="lt-filetree-header">
-      <span className="lt-filetree-title">SQL 文件</span>
+      {/* 目录快捷操作按钮 */}
+      <span className="lt-filetree-title">Project</span>
       <Tooltip title="刷新">
-        <Button type="text" className="lt-filetree-hbtn" icon={<IconRefresh size={13} />} onClick={onRefresh} />
+        <Button type="text" className="lt-filetree-hbtn" icon={<IconRefresh size={16} strokeWidth={1.5} />} onClick={onRefresh} />
       </Tooltip>
       <Dropdown menu={{ items: addMenuItems, onClick: handleAddMenuClick }} trigger={['click']}>
-        <Button type="text" className="lt-filetree-hbtn" icon={<IconPlus size={13} />} />
+        <Button type="text" className="lt-filetree-hbtn" icon={<IconPlus size={16} strokeWidth={1.5} />} />
       </Dropdown>
       <Tooltip title="定位">
-        <Button type="text" className="lt-filetree-hbtn" icon={<IconFocusCentered size={13} />} />
+        <Button type="text" className="lt-filetree-hbtn" icon={<IconFocusCentered size={16} strokeWidth={1.5} />} />
       </Tooltip>
       <Tooltip title="收起全部">
-        <Button type="text" className="lt-filetree-hbtn" icon={<IconArrowsMinimize size={13} />} onClick={onCollapseAll} />
+        <Button type="text" className="lt-filetree-hbtn" icon={<IconArrowsMinimize size={16} strokeWidth={1.5} />} onClick={onCollapseAll} />
       </Tooltip>
       <Tooltip title="收起面板">
-        <Button type="text" className="lt-filetree-hbtn" icon={<IconLayoutSidebarLeftCollapse size={13} />} onClick={onCollapsePanel} />
+        <Button type="text" className="lt-filetree-hbtn" icon={<IconLayoutSidebarLeftCollapse size={16} strokeWidth={1.5} />} onClick={onCollapsePanel} />
       </Tooltip>
     </div>
   );

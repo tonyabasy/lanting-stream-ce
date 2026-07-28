@@ -4,7 +4,7 @@ import { useModel } from 'umi';
 import FileTreeHeader from './FileTreeHeader';
 import FileTreeSearch from './FileTreeSearch';
 import FileTreeContent from './FileTreeContent';
-import '../index.css';
+import './index.css';
 
 /**
  * 文件树组件。
@@ -68,8 +68,8 @@ const FileTree: React.FC = () => {
         onCollapseAll={collapseAll}
         onCollapsePanel={() => toggleLeftTop('files')}
       />
-      <FileTreeSearch />
       <div className="lt-filetree-divider" />
+      <FileTreeSearch />
       <FileTreeContent openInputModal={openInputModal} />
       <Modal
         open={modalVisible}

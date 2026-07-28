@@ -88,13 +88,28 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     toggleExpand(String(node.key), expanded);
   };
 
+  /**
+   * 单击选中 TreeNode
+   */
   const onSelect: TreeProps['onSelect'] = (_keys, { node }) => {
     const path = String(node.key);
     const found = findNode(treeData, path);
     selectNode(found ?? null);
-    // 文件节点：打开到编辑器
-    if (found && found.type === 'file') {
+  };
+
+  /**
+   * 双击打开 TreeNode
+   */
+  const onDoubleClick: TreeProps['onDoubleClick'] = (_event, node) => {
+    const path = String(node.key);
+    const found = findNode(treeData, path);
+    if (!found) return;
+
+    if (found.type === 'file') {
       openFile(found);
+    } else {
+      const expanded = expandedKeys.includes(path);
+      toggleExpand(path, !expanded);
     }
   };
 
@@ -230,6 +245,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
         selectedKeys={selectedKeys}
         onExpand={onExpand}
         onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
         titleRender={titleRender}
       />
     </div>

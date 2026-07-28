@@ -18,7 +18,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
 }) => (
   <div className="lt-sidebar">
     <div className="lt-sidebar-group">
-      <Tooltip title="SQL文件" placement="right">
+      <Tooltip title="Project" placement="right">
         <Button
           className="lt-sidebar-btn"
           type="text"
@@ -27,7 +27,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           onClick={() => onToggleTop('files')}
         />
       </Tooltip>
-      <Tooltip title="表模型" placement="right">
+      <Tooltip title="Tables" placement="right">
         <Button
           className="lt-sidebar-btn"
           type="text"
