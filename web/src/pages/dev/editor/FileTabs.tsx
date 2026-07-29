@@ -1,17 +1,15 @@
 import { Tabs } from 'antd';
-import { IconLock } from '@tabler/icons-react';
-import { useModel } from 'umi';
 import type { FileTreeNode } from '../types/file';
 
 export interface FileTabsProps {
   tabs: FileTreeNode[];
   activeTabId: number | null;
+  dirtyFlags: Record<number, boolean>;
   onSwitch: (fileId: number) => void;
   onClose: (fileId: number) => void;
 }
 
-const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, onSwitch, onClose }) => {
-
+const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, dirtyFlags, onSwitch, onClose }) => {
   if (tabs.length === 0) return null;
 
   return (
@@ -25,11 +23,13 @@ const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, onSwitch, onClos
         if (action === 'remove') onClose(Number(key));
       }}
       items={tabs.map((tab) => {
+        const isDirty = dirtyFlags[tab.fileId];
         return {
           key: String(tab.fileId),
           label: (
             <span className="lt-editor-tab-label">
               <span>{tab.name}</span>
+              {isDirty && <span className="lt-editor-tab-dirty" />}
             </span>
           ),
           closable: true,

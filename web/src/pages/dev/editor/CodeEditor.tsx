@@ -1,153 +1,140 @@
-import { useEffect, useRef } from 'react';
-import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers, highlightActiveLine } from '@codemirror/view';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { sql } from '@codemirror/lang-sql';
-import { Modal, message } from 'antd';
-import type { FileTreeNode } from '@/pages/dev/types/file';
+import {forwardRef, useEffect, useImperativeHandle, useRef} from 'react';
+import type {Text} from '@codemirror/state';
+import {Compartment, EditorState, Transaction} from '@codemirror/state';
+import {EditorView, highlightActiveLine, keymap, lineNumbers} from '@codemirror/view';
+import {defaultKeymap, history, historyKeymap} from '@codemirror/commands';
+import {sql} from '@codemirror/lang-sql';
+import {message} from 'antd';
+import {autoSaveExtension} from './autoSaveExtension';
 
 const editableCompartment = new Compartment();
+
+export interface CodeEditorRef {
+  /** 立即保存指定 tab 的当前内容（用于切换/关闭 tab 前兜底） */
+  saveTab: (fileId: number) => Promise<boolean>;
+}
 
 interface CodeEditorProps {
   activeTabId: number | null;
   editable: boolean;
-  fileContents: Record<number, string>;
-  openTabs: FileTreeNode[];
-  isFileEditable: (fileId: number) => boolean;
-  saveFile: (fileId: number, content: string) => Promise<boolean>;
-  acquireLock: (fileId: number, path: string) => Promise<void>;
+  baselineDocs: Record<number, Text>;
+  setDirtyFlags: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
+  checkClean: (fileId: number, doc: Text) => boolean;
+  autoSave: (fileId: number, snapshot: Text, force?: boolean) => Promise<boolean>;
 }
 
-const CodeEditor: React.FC<CodeEditorProps> = ({
-  activeTabId,
-  editable,
-  fileContents,
-  openTabs,
-  isFileEditable,
-  saveFile,
-  acquireLock,
-}) => {
-  const editorHostRef = useRef<HTMLDivElement>(null);
-  const editorViewRef = useRef<EditorView | null>(null);
+const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
+  ({ activeTabId, editable, baselineDocs, setDirtyFlags, checkClean, autoSave }, ref) => {
+    const editorHostRef = useRef<HTMLDivElement>(null);
+    const editorViewRef = useRef<EditorView | null>(null);
+    const lastLoadedTabRef = useRef<number | null>(null);
+    const propsRef = useRef<CodeEditorProps>({
+      activeTabId,
+      editable,
+      baselineDocs,
+      setDirtyFlags,
+      checkClean,
+      autoSave,
+    });
+    propsRef.current = { activeTabId, editable, baselineDocs, setDirtyFlags, checkClean, autoSave };
 
-  // 用 ref 保存最新 props，供 keymap 回调读取
-  const propsRef = useRef<CodeEditorProps>({
-    activeTabId,
-    editable,
-    fileContents,
-    openTabs,
-    isFileEditable,
-    saveFile,
-    acquireLock,
-  });
-  propsRef.current = {
-    activeTabId,
-    editable,
-    fileContents,
-    openTabs,
-    isFileEditable,
-    saveFile,
-    acquireLock,
-  };
+    useImperativeHandle(ref, () => ({
+      saveTab: async (fileId: number) => {
+        const view = editorViewRef.current;
+        if (!view || Number(view.dom.dataset.activeFileId) !== fileId) return false;
+        return propsRef.current.autoSave(fileId, view.state.doc);
+      },
+    }));
 
-  useEffect(() => {
-    if (!editorHostRef.current) return;
+    useEffect(() => {
+      if (!editorHostRef.current) return;
 
-    const view = new EditorView({
-      state: EditorState.create({
-        doc: '',
-        extensions: [
-          lineNumbers(),
-          highlightActiveLine(),
-          history(),
-          keymap.of([
-            ...defaultKeymap,
-            ...historyKeymap,
-            {
-              key: 'Mod-s',
-              run: () => {
-                const id = view.dom.dataset.activeFileId;
-                if (!id) return true;
-                handleSave(Number(id), view, propsRef.current);
-                return true;
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: '',
+          extensions: [
+            lineNumbers(),
+            highlightActiveLine(),
+            history(),
+            keymap.of([
+              ...defaultKeymap,
+              ...historyKeymap,
+              {
+                key: 'Mod-s',
+                run: () => {
+                  const id = view.dom.dataset.activeFileId;
+                  if (!id) return true;
+                  const fileId = Number(id);
+                  propsRef.current
+                    .autoSave(fileId, view.state.doc, true)
+                    .then((ok) => {
+                      if (!ok) message.warning('文件只读，请先抢锁');
+                    });
+                  return true;
+                },
+                preventDefault: true, // 阻止浏览器默认行为（保存网页）
               },
-              preventDefault: true,
-            },
-          ]),
-          sql(),
-          editableCompartment.of(EditorView.editable.of(false)),
-          EditorView.updateListener.of(() => {}),
-        ],
-      }),
-      parent: editorHostRef.current,
-    });
+            ]),
+            sql(),
+            editableCompartment.of(EditorView.editable.of(false)),
+            autoSaveExtension({
+              onDirty: (fileId) =>
+                propsRef.current.setDirtyFlags((prev) => ({ ...prev, [fileId]: true })),
+              onClean: (fileId, doc) => propsRef.current.checkClean(fileId, doc),
+              onSave: (fileId, snapshot) => propsRef.current.autoSave(fileId, snapshot),
+            }),
+          ],
+        }),
+        parent: editorHostRef.current,
+      });
 
-    editorViewRef.current = view;
+      editorViewRef.current = view;
 
-    return () => {
-      view.destroy();
-      editorViewRef.current = null;
-    };
-  }, []);
+      return () => {
+        view.destroy();
+        editorViewRef.current = null;
+      };
+    }, []);
 
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view) return;
-    view.dispatch({
-      effects: editableCompartment.reconfigure(EditorView.editable.of(editable)),
-    });
-  }, [editable]);
-
-  useEffect(() => {
-    const view = editorViewRef.current;
-    if (!view || activeTabId === null) return;
-
-    view.dom.dataset.activeFileId = String(activeTabId);
-
-    const content = fileContents[activeTabId];
-    if (content === undefined) return;
-
-    const current = view.state.doc.toString();
-    if (current !== content) {
+    useEffect(() => {
+      const view = editorViewRef.current;
+      if (!view) return;
       view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: content },
+        effects: editableCompartment.reconfigure(EditorView.editable.of(editable)),
       });
-    }
-  }, [activeTabId, fileContents]);
+    }, [editable]);
 
-  const handleSave = async (fileId: number, view: EditorView, props: CodeEditorProps) => {
-    const tab = props.openTabs.find((t) => t.fileId === fileId);
-    if (!tab) return;
+    useEffect(() => {
+      const view = editorViewRef.current;
+      if (!view) return;
 
-    if (!props.isFileEditable(fileId)) {
-      Modal.confirm({
-        title: '未锁定文件',
-        content: '你未锁定此文件，当前修改无法保存。是否抢锁并保存？',
-        okText: '抢锁并保存',
-        cancelText: '取消',
-        onOk: async () => {
-          try {
-            await props.acquireLock(fileId, tab.path);
-            message.success('抢锁成功');
-            const ok = await props.saveFile(fileId, view.state.doc.toString());
-            if (ok) message.success('保存成功');
-          } catch (err: any) {
-            message.error(err?.message || '抢锁失败');
-          }
-        },
-      });
-      return;
-    }
+      if (activeTabId === null) {
+        lastLoadedTabRef.current = null;
+        return;
+      }
 
-    const ok = await props.saveFile(fileId, view.state.doc.toString());
-    if (ok) {
-      message.success('保存成功');
-    } else {
-      message.error('保存失败：锁已被他人接管，编辑器已切换为只读');
-    }
-  };
+      view.dom.dataset.activeFileId = String(activeTabId);
 
-  return <div className="lt-editor-body" ref={editorHostRef} />;
-};
+      const baseline = baselineDocs[activeTabId];
+      if (!baseline) return;
+
+      // 只有真正切换/打开 tab 时才 dispatch；保存引起的 baseline 更新不触发，
+      // 避免覆盖用户在保存期间的新输入。
+      if (lastLoadedTabRef.current === activeTabId) return;
+
+      if (!view.state.doc.eq(baseline)) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: baseline },
+          annotations: Transaction.userEvent.of('programmatic'),
+        });
+      }
+      lastLoadedTabRef.current = activeTabId;
+    }, [activeTabId, baselineDocs]);
+
+    return <div className="lt-editor-body" ref={editorHostRef} />;
+  },
+);
+
+CodeEditor.displayName = 'CodeEditor';
 
 export default CodeEditor;
