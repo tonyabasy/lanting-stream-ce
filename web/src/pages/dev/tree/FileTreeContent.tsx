@@ -247,6 +247,13 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
         onSelect={onSelect}
         onDoubleClick={onDoubleClick}
         titleRender={titleRender}
+        classNames={{
+          root: 'lt-filetree-tree',
+          item: 'lt-filetree-treenode',
+          itemIcon: 'lt-filetree-icon',
+          itemTitle: 'lt-filetree-title',
+          itemSwitcher: 'lt-filetree-switcher',
+        }}
       />
     </div>
   );

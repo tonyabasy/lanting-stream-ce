@@ -5,16 +5,21 @@
   justify-content: flex-start;
   align-items: stretch;
 }
-.lt-editor-tabs {
+.lt-editor-tab,
+.lt-editor-tab-header {
   margin-bottom: 0;
+  height: 36px;
 }
-.lt-editor-tabs .ant-tabs-nav {
-  margin-bottom: 0;
+.lt-editor-tab-header {
+  padding: var(--ant-padding-xxs);
 }
-.lt-editor-divider {
-  height: 0.5px;
-  background: var(--ant-color-split);
-  flex-shrink: 0;
+.lt-editor-tab-item {
+  border: 1px solid var(--ant-color-bg-container) !important;
+  border-radius: var(--ant-border-radius-sm) !important;
+}
+.lt-editor-tab-item.ant-tabs-tab-active {
+  border: 1px solid var(--ant-color-primary-border) !important;
+  background: var(--ant-color-primary-bg) !important;
 }
 .lt-editor-body {
   height: 100%;
@@ -31,10 +36,11 @@
   font-size: var(--ant-font-size);
   line-height: 1.6;
 }
-/* 行号区域：控制左侧行号列的字体、字号 */
+/* 行号区域：控制左侧行号列的字体、字号、背景色 */
 .lt-editor-body .cm-editor .cm-gutters {
-  font-family: var(--ant-font-family-code), monospace;
-  font-size: var(--ant-font-size);
+  font-family: var(--ant-font-family-code), monospace !important;
+  font-size: var(--ant-font-size) !important;
+  background: var(--ant-color-bg-container) !important;
 }
 
 /* ── 编辑器只读提示条 ── */

@@ -59,7 +59,6 @@ const EditorPanel: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="lt-editor-divider" />
           {activeTab && !editable && (
             <ReadOnlyBanner activeTab={activeTab} acquireLock={acquireLock} />
           )}

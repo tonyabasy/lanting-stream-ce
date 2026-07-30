@@ -35,7 +35,11 @@ const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, dirtyFlags, onSw
           closable: true,
         };
       })}
-      className="lt-editor-tabs"
+      classNames={{
+        root: 'lt-editor-tab',
+        header: 'lt-editor-tab-header',
+        item: 'lt-editor-tab-item',
+      }}
     />
   );
 };

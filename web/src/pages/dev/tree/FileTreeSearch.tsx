@@ -13,6 +13,11 @@ const FileTreeSearch: React.FC = () => {
         value={searchQuery}
         onChange={(e) => setSearchQuery(e.target.value)}
         allowClear
+        classNames={{
+          root: 'lt-filetree-search-wrapper',
+          input: 'lt-filetree-search-input',
+          prefix: 'lt-filetree-search-prefix',
+        }}
       />
     </div>
   );

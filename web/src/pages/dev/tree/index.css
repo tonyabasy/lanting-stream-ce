@@ -7,25 +7,23 @@
   height: 100%;
 }
 
-/* 顶部操作区：高 32px */
+/* 顶部操作区 */
 .lt-filetree-header {
-  height: 34px;
+  height: 36px; /* 36px 视觉效果最好，这里写死，和 .lt-editor-tab-header 必须保持一致 */
   display: flex;
   align-items: center;
   padding: 0 8px 0 10px;
   gap: 2px;
   flex-shrink: 0;
 }
-.lt-filetree-title {
+.lt-filetree-header-title {
   flex: 1;
-  font-size: 13px !important; /* 视觉上13px最合适，不再使用antd的token */
-  color: var(--ant-color-text-heading);
-  font-weight: 500;
+  font-weight: var(--ant-font-weight-strong);
   letter-spacing: 0.04em;
 }
 
 /* 操作按钮：22×22 · 圆角 4px · 默认隐藏，hover 文件树区域时出现 */
-.lt-filetree-hbtn.lt-filetree-hbtn {
+.lt-filetree-header-btn.lt-filetree-header-btn {
   width: 22px;
   height: 22px;
   padding: 0;
@@ -34,10 +32,10 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.lt-filetree:hover .lt-filetree-hbtn {
+.lt-filetree:hover .lt-filetree-header-btn {
   opacity: 1;
 }
-.lt-filetree-hbtn.lt-filetree-hbtn:hover {
+.lt-filetree-header-btn.lt-filetree-header-btn:hover {
   background: var(--ant-color-fill-secondary) !important;
   color: var(--ant-color-text-secondary);
 }
@@ -47,23 +45,31 @@
   padding: var(--ant-padding-xxs);
   flex-shrink: 0;
 }
-.lt-filetree-search .ant-input-affix-wrapper {
+.lt-filetree-search-wrapper {
   height: var(--ant-control-height-sm);
   border-radius: var(--ant-border-radius);
-  background: var(--ant-color-fill-quaternary);
+  background: var(--ant-color-fill-quaternary) !important;
   border: none;
   box-shadow: none;
 }
-.lt-filetree-search .ant-input {
+.lt-filetree-search-input {
   background: transparent;
   font-size: var(--ant-font-size-sm);
   color: var(--ant-color-text-secondary);
 }
-.lt-filetree-search .ant-input::placeholder {
+.lt-filetree-search-input::placeholder {
   color: var(--ant-color-text-description);
 }
-.lt-filetree-search .ant-input-prefix {
+.lt-filetree-search-prefix {
   color: var(--ant-color-text-description);
+}
+
+/* focus 时去掉 antd 默认的蓝色外框 */
+.lt-filetree-search-wrapper.lt-filetree-search-wrapper:focus-within,
+.lt-filetree-search-wrapper.ant-input-affix-wrapper-focused {
+  border-color: transparent !important;
+  box-shadow: none !important;
+  outline: none;
 }
 
 /* 底板内部极细分隔线 */
@@ -79,18 +85,18 @@
   overflow: auto;
   padding: var(--ant-size-xs);
 }
-.lt-filetree-body .ant-tree {
+.lt-filetree-body .lt-filetree-tree {
   background: transparent;
   color: var(--ant-color-text-secondary);
-  user-select: none; /* 禁用选中 */
+  user-select: none;
 }
 
 /* 树节点：高 24px · 左右留白 4px · 圆角 4px · 激活/hover 用 colorBgActive，文字不变 */
-.lt-filetree-body .ant-tree-treenode {
+.lt-filetree-body .lt-filetree-treenode {
   border-radius: var(--ant-border-radius-sm);
   width: 100%;
 }
-.lt-filetree-body .ant-tree-treenode:hover,
+.lt-filetree-body .lt-filetree-treenode:hover,
 .lt-filetree-body .ant-tree-treenode-selected {
   background: var(--ant-control-item-bg-active);
 }
@@ -99,7 +105,7 @@
 .lt-filetree-body .ant-tree-indent-unit {
   width: var(--ant-size-sm);
 }
-.lt-filetree-body .ant-tree-switcher {
+.lt-filetree-body .lt-filetree-switcher {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,16 +113,16 @@
   color: var(--ant-color-text-description);
 }
 /* 去掉 antd 默认在 :before 上画的悬停背景 */
-.lt-filetree-body .ant-tree-switcher:not(.ant-tree-switcher-noop):hover:before {
+.lt-filetree-body .lt-filetree-switcher:not(.ant-tree-switcher-noop):hover:before {
   background: transparent;
 }
-.lt-filetree-body .ant-tree-switcher .ant-tree-switcher-icon {
+.lt-filetree-body .lt-filetree-switcher .ant-tree-switcher-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
 }
-.lt-filetree-body .ant-tree-switcher_close .lt-filetree-chevron {
+.lt-filetree-body .lt-filetree-switcher.ant-tree-switcher_close .lt-filetree-chevron {
   transform: rotate(-90deg);
 }
 
@@ -126,8 +132,6 @@
   flex: 1;
   min-width: 0;
   gap: var(--ant-size-xxs);
-  font-size: var(--ant-font-size);
-  color: var(--ant-color-text);
   padding: 0;
   cursor: default;
 }
@@ -137,14 +141,14 @@
   background: transparent;
   color: var(--ant-color-text);
 }
-.lt-filetree-body .ant-tree-iconEle {
+.lt-filetree-icon {
   display: flex !important;
   align-items: center;
   justify-content: center;
   height: auto;
   color: var(--ant-color-text-description);
 }
-.lt-filetree-body .ant-tree-title {
+.lt-filetree-title {
   flex: 1;
   min-width: 0;
 }
@@ -173,7 +177,7 @@
   flex-shrink: 0;
   transition: opacity 0.12s;
 }
-.lt-filetree-body .ant-tree-treenode:hover .lt-filetree-more-btn {
+.lt-filetree-body .lt-filetree-treenode:hover .lt-filetree-more-btn {
   opacity: 1;
 }
 .lt-filetree-more-btn:hover {
