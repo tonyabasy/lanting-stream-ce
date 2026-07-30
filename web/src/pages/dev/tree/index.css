@@ -22,7 +22,7 @@
   letter-spacing: 0.04em;
 }
 
-/* 操作按钮：22×22 · 圆角 4px · 默认隐藏，hover 文件树区域时出现 */
+/* 操作按钮：默认隐藏，hover 文件树区域时出现 */
 .lt-filetree-header-btn.lt-filetree-header-btn {
   width: 22px;
   height: 22px;
@@ -40,7 +40,7 @@
   color: var(--ant-color-text-secondary);
 }
 
-/* 搜索框：高 32px · 圆角 5px */
+/* 搜索框 */
 .lt-filetree-search {
   padding: var(--ant-padding-xxs);
   flex-shrink: 0;
@@ -134,12 +134,12 @@
   gap: var(--ant-size-xxs);
   padding: 0;
   cursor: default;
+  color: var(--ant-color-text);
 }
-/* 激活/hover 背景画在整行（treenode）上，内容层保持透明、文字不跳变 */
+/* 激活/hover 内容层保持透明、文字不跳变 */
 .lt-filetree-body .ant-tree-node-content-wrapper:hover,
 .lt-filetree-body .ant-tree-node-content-wrapper.ant-tree-node-selected {
   background: transparent;
-  color: var(--ant-color-text);
 }
 .lt-filetree-icon {
   display: flex !important;

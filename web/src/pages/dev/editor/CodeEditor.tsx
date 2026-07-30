@@ -9,6 +9,20 @@ import {autoSaveExtension} from './autoSaveExtension';
 
 const editableCompartment = new Compartment();
 
+const cmTheme = EditorView.theme({
+  '.cm-scroller': {
+    overflow: 'auto',
+    fontFamily: 'var(--ant-font-family-code), monospace',
+    fontSize: 'var(--ant-font-size)',
+    lineHeight: '1.6',
+  },
+  '.cm-gutters': {
+    fontFamily: 'var(--ant-font-family-code), monospace !important',
+    fontSize: 'var(--ant-font-size) !important',
+    background: 'var(--ant-color-bg-container) !important',
+  },
+});
+
 export interface CodeEditorRef {
   /** 立即保存指定 tab 的当前内容（用于切换/关闭 tab 前兜底） */
   saveTab: (fileId: number) => Promise<boolean>;
@@ -83,6 +97,7 @@ const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
               onClean: (fileId, doc) => propsRef.current.checkClean(fileId, doc),
               onSave: (fileId, snapshot) => propsRef.current.autoSave(fileId, snapshot),
             }),
+            cmTheme,
           ],
         }),
         parent: editorHostRef.current,

@@ -21,26 +21,10 @@
   border: 1px solid var(--ant-color-primary-border) !important;
   background: var(--ant-color-primary-bg) !important;
 }
-.lt-editor-body {
-  height: 100%;
-  overflow: auto;
-}
+.lt-editor-body,
 .lt-editor-body.cm-editor,
 .lt-editor-body .cm-editor {
   height: 100%;
-}
-/* 滚动容器：控制代码区 + 行号区的字体、字号、行高 */
-.lt-editor-body .cm-editor .cm-scroller {
-  overflow: auto;
-  font-family: var(--ant-font-family-code), monospace;
-  font-size: var(--ant-font-size);
-  line-height: 1.6;
-}
-/* 行号区域：控制左侧行号列的字体、字号、背景色 */
-.lt-editor-body .cm-editor .cm-gutters {
-  font-family: var(--ant-font-family-code), monospace !important;
-  font-size: var(--ant-font-size) !important;
-  background: var(--ant-color-bg-container) !important;
 }
 
 /* ── 编辑器只读提示条 ── */
