@@ -130,6 +130,37 @@ CREATE INDEX IF NOT EXISTS idx_fr_file ON lanting_file_review(file_id);
 -- 初始化数据
 -- ============================================================
 
+-- ============================================================
+-- 表索引：DDL 文件的结构化缓存
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lanting_table_index (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id         INTEGER       NOT NULL UNIQUE,
+    table_name      VARCHAR(100)  NOT NULL UNIQUE,
+    connector_type  VARCHAR(50)   NOT NULL,
+    partition_field VARCHAR(200),
+    create_time     BIGINT        NOT NULL DEFAULT 0,
+    update_time     BIGINT        NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_table_index_file_id ON lanting_table_index(file_id);
+
+-- ============================================================
+-- 字段索引：表字段缓存
+-- ============================================================
+CREATE TABLE IF NOT EXISTS lanting_column_index (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    table_id    INTEGER       NOT NULL,
+    name        VARCHAR(100)  NOT NULL,
+    type        VARCHAR(50)   NOT NULL,
+    comment     VARCHAR(500),
+    ordinal     INTEGER       NOT NULL DEFAULT 0,
+    create_time BIGINT        NOT NULL DEFAULT 0,
+    update_time BIGINT        NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_column_index_table_id ON lanting_column_index(table_id);
+
 -- 初始管理员账号
 -- 密码为占位符，应用启动时由 AdminInitializer（CommandLineRunner）替换为真实的 BCrypt 哈希
 INSERT OR IGNORE INTO lanting_user (id, username, password, nickname, super_admin_flag, auth_source, create_time, update_time)

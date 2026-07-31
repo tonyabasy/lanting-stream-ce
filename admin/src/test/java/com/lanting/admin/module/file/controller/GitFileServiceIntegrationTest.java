@@ -22,11 +22,14 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -52,6 +55,8 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     private WorkspaceService workspaceService;
     @Autowired
     private FileIndexService fileIndexService;
+    @Autowired
+    private com.lanting.admin.module.file.mapper.FileIndexMapper fileIndexMapper;
 
     private String token;
     private String uniquePath;
@@ -510,8 +515,23 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
             // 3. B 再次修改后发现改坏，回滚到 A 的 c1
             saveFile(fileId, "B-bad-content", tokenB);
 
+            ResponseEntity<JsonNode> historyResponse = restTemplate.exchange(
+                    "/api/files/history?fileId=" + fileId + "&page=1&size=50",
+                    HttpMethod.GET, new HttpEntity<>(authHeaders(tokenB)), JsonNode.class);
+            assertThat(Objects.requireNonNull(historyResponse.getBody()).path("code").asInt()).isEqualTo(0);
+            JsonNode records = Objects.requireNonNull(historyResponse.getBody()).path("data").path("records");
+            String c1Hash = null;
+            for (JsonNode r : records) {
+                if ("c1 by A".equals(r.path("message").asText())) {
+                    c1Hash = r.path("commitHash").asText();
+                    break;
+                }
+            }
+            assertThat(c1Hash).as("must find c1 commit hash").isNotNull();
+
             RevertFileDTO dto = new RevertFileDTO();
             dto.setFileId(fileId);
+            dto.setCommitHash(c1Hash);
             ResponseEntity<JsonNode> revertResponse = restTemplate.exchange(
                     "/api/files/revert", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(tokenB)), JsonNode.class);
@@ -772,6 +792,127 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
                 assertThat(deleteCommit.getParent(0).getName())
                         .as("delete commit 的父 commit 应为 initial commit").isEqualTo(firstCommit.getCommitHash());
             }
+        }
+    }
+
+    // ==================== 受保护目录 + 扩展名 ====================
+
+    @Nested
+    @DisplayName("受保护目录与扩展名")
+    class ProtectedDirectoryAndExtension {
+
+        @BeforeEach
+        void cleanProtectedFolders() throws IOException {
+            Path root = workspaceService.getDefaultWorkspaceRoot();
+            for (String name : List.of("ddl", "sql")) {
+                // 物理删除该目录及其子孙在 file_index 中的记录
+                fileIndexMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FileIndexEntity>()
+                        .eq(FileIndexEntity::getPath, name)
+                        .or()
+                        .likeRight(FileIndexEntity::getPath, name + "/"));
+                Path folder = root.resolve(name);
+                if (Files.exists(folder)) {
+                    Files.walk(folder)
+                            .sorted(Comparator.reverseOrder())
+                            .forEach(p -> {
+                                try {
+                                    Files.deleteIfExists(p);
+                                } catch (IOException e) {
+                                    throw new UncheckedIOException(e);
+                                }
+                            });
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("删除 ddl/ 目录应被拒绝")
+        void deleteDdlDirectoryShouldBeRejected() {
+            createFolder("ddl");
+            Long folderId = fileIdByPath("ddl");
+            assertThat(folderId).isNotNull();
+
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    "/api/files?fileId=" + folderId, HttpMethod.DELETE,
+                    new HttpEntity<>(authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
+                    .isEqualTo(FileResultCode.PROTECTED_DIRECTORY.getCode());
+        }
+
+        @Test
+        @DisplayName("删除 sql/ 目录应被拒绝")
+        void deleteSqlDirectoryShouldBeRejected() {
+            createFolder("sql");
+            Long folderId = fileIdByPath("sql");
+            assertThat(folderId).isNotNull();
+
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    "/api/files?fileId=" + folderId, HttpMethod.DELETE,
+                    new HttpEntity<>(authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
+                    .isEqualTo(FileResultCode.PROTECTED_DIRECTORY.getCode());
+        }
+
+        @Test
+        @DisplayName("重命名 sql/ 目录应被拒绝")
+        void renameSqlDirectoryShouldBeRejected() {
+            createFolder("sql");
+            Long folderId = fileIdByPath("sql");
+            assertThat(folderId).isNotNull();
+
+            RenameDTO dto = new RenameDTO();
+            dto.setFileId(folderId);
+            dto.setNewName("sql-renamed");
+            ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/rename", HttpMethod.POST,
+                    new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
+                    .isEqualTo(FileResultCode.PROTECTED_DIRECTORY.getCode());
+        }
+
+        @Test
+        @DisplayName("将其他目录重命名为 ddl 应被拒绝")
+        void renameOtherToDdlShouldBeRejected() {
+            String folder = "folder-to-ddl-" + UUID.randomUUID().toString().substring(0, 8);
+            createFolder(folder);
+            Long folderId = fileIdByPath(folder);
+            assertThat(folderId).isNotNull();
+
+            RenameDTO dto = new RenameDTO();
+            dto.setFileId(folderId);
+            dto.setNewName("ddl");
+            ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/rename", HttpMethod.POST,
+                    new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
+                    .isEqualTo(FileResultCode.PROTECTED_DIRECTORY.getCode());
+        }
+
+        @Test
+        @DisplayName("移动 ddl/ 内部文件应允许")
+        void moveFileInsideDdlShouldSucceed() {
+            createFolder("ddl");
+            String file = "ddl/move-inside.sql";
+            Long fileId = createFile(file);
+            assertThat(fileId).isNotNull();
+
+            // 移动到 ddl/sub/ 下
+            createFolder("ddl/sub");
+            MoveDTO dto = new MoveDTO();
+            dto.setFileId(fileId);
+            dto.setNewPath("ddl/sub/move-inside.sql");
+            ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/move", HttpMethod.POST,
+                    new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("创建 .flink 文件应被拒绝")
+        void createFlinkFileShouldBeRejected() {
+            CreateFileDTO dto = new CreateFileDTO();
+            dto.setPath("config.flink");
+            ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
+                    .isEqualTo(FileResultCode.LANTING_DIR_FORBIDDEN.getCode());
         }
     }
 

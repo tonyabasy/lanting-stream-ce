@@ -82,11 +82,6 @@ public class GitFileService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * 允许的文件扩展名白名单，写入时校验（读取不限制，兼容历史遗留文件）
-     */
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("sql", "md", "html", "json", "ddl");
-
-    /**
      * 单文件大小上限；文本文件超过此值基本可判定为误传或恶意请求
      */
     private static final long MAX_FILE_SIZE = 1024 * 1024; // 1MB
@@ -112,7 +107,7 @@ public class GitFileService {
     public List<FileTreeNode> tree(String parentPath, String sort) {
         // parentPath 为空字符串表示根目录，允许；非空时按普通路径校验
         if (!StringUtils.isEmpty(parentPath)) {
-            validatePath(parentPath);
+            validatePath(parentPath, workspaceService.getDefaultWorkspaceRoot());
         }
 
         parentPath = parentPath == null ? "" : parentPath;
@@ -147,7 +142,7 @@ public class GitFileService {
         }
 
         List<String> filePaths = entities.stream().map(FileIndexEntity::getPath).toList();
-        Status status = gitStatus(filePaths);
+        Status status = gitStatus(workspaceService.getDefaultWorkspaceRoot(), filePaths);
 
         UncommitVO vo = new UncommitVO();
         vo.setModified(new ArrayList<>(status.getModified()));
@@ -171,14 +166,12 @@ public class GitFileService {
         }
 
         String path = entity.getPath();
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path filePath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(filePath, root);
+        Path filePath = validatePath(path, root);
         if (!Files.exists(filePath)) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
-        // 目录不是可读内容，复用"文件类型不允许"错误码而非 404，让前端能区分两种情况
+        // 目录不是可读内容
         if (Files.isDirectory(filePath)) {
             throw new BusinessException(FileResultCode.FILE_TYPE_NOT_ALLOWED);
         }
@@ -220,12 +213,8 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
         String path = entity.getPath();
-
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path filePath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(filePath, root);
-        validateFileType(filePath);
+        Path filePath = validatePath(path, root);
         if (!Files.exists(filePath)) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
@@ -256,19 +245,28 @@ public class GitFileService {
      * 创建空文件。只写磁盘空文件 + DB INSERT，不抢锁、不写入内容、不产生 commit。
      */
     public FileCreatedVO create(String path, String currentUser) {
-        validatePath(path);
+        return create(path, currentUser, EMPTY_CONTENT);
+    }
+
+    public FileCreatedVO create(String path, String currentUser, String content) {
+        byte[] bytes = EMPTY_CONTENT;
+        if (StringUtils.isNotEmpty(content)) {
+            bytes = content.getBytes(StandardCharsets.UTF_8);
+        }
+        return create(path, currentUser, bytes);
+    }
+
+    public FileCreatedVO create(String path, String currentUser, byte[] content) {
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path filePath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(filePath, root);
-        validateFileType(filePath);
+        Path filePath = validatePath(path, root);
 
         try {
             if (Files.exists(filePath)) {
                 throw new BusinessException(FileResultCode.FILE_ALREADY_EXISTS);
             }
             Files.createDirectories(filePath.getParent());
-            Files.write(filePath, EMPTY_CONTENT, StandardOpenOption.CREATE);
-            fileIndexService.indexOnSave(path, root, EMPTY_CONTENT);
+            Files.write(filePath, content, StandardOpenOption.CREATE);
+            fileIndexService.indexOnSave(path, root, content);
             FileIndexEntity entity = fileIndexService.getByPath(path);
             // 谁创建，谁持有
             fileLockService.acquire(entity.getId(), entity.getPath(), currentUser);
@@ -283,10 +281,8 @@ public class GitFileService {
      * 目录结构由 {@link FileIndexService} 维护，不再写入 .gitkeep 占位。
      */
     public FileCreatedVO createFolder(String path, String currentUser) {
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path folderPath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(folderPath, root);
+        Path folderPath = validatePath(path, root);
 
         fileLockService.acquireFolderLock(path, currentUser);
         try {
@@ -338,14 +334,11 @@ public class GitFileService {
     private PathRenamedVO move(FileIndexEntity entity, String newPath, String currentUser) {
         Long fileId = entity.getId();
         String oldPath = entity.getPath();
-        validatePath(newPath);
-
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path oldFilePath = root.resolve(oldPath).toAbsolutePath().normalize();
-        Path newFilePath = root.resolve(newPath).toAbsolutePath().normalize();
-
-        ensureInsideWorkspace(oldFilePath, root);
-        ensureInsideWorkspace(newFilePath, root);
+        Path newFilePath = validatePath(newPath, root);
+        Path oldFilePath = validatePath(oldPath, root);
+        validateProtectedDirectory(oldPath);
+        validateProtectedDirectory(newPath);
 
         // 如果rename前后的位置相同，快速返回
         if (oldFilePath.equals(newFilePath)) {
@@ -357,10 +350,6 @@ public class GitFileService {
 
         if (!Files.exists(oldFilePath)) {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
-        }
-
-        if (entity.isFile()) {
-            validateFileType(newFilePath);
         }
 
         if (entity.isFile()) {
@@ -413,15 +402,14 @@ public class GitFileService {
 
         // 路径检查
         String path = entity.getPath();
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path absolutePath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(absolutePath, root);
+        Path absolutePath = validatePath(path, root);
+        validateProtectedDirectory(path);
 
         if (entity.isDirectory()) {
             fileLockService.acquireFolderLock(path, currentUser);
             try {
-                doDelete(path, absolutePath, currentUser);
+                doDelete(root, path, absolutePath, currentUser);
             } catch (Exception e) {
                 throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, e.getMessage());
             } finally {
@@ -430,7 +418,7 @@ public class GitFileService {
         } else {
             try {
                 fileLockService.doIfHolder(entity.getId(), entity.getPath(), currentUser, () -> {
-                    doDelete(path, absolutePath, currentUser);
+                    doDelete(root, path, absolutePath, currentUser);
                     return null;
                 });
             } catch (BusinessException e) {
@@ -441,15 +429,15 @@ public class GitFileService {
         }
     }
 
-    private void doDelete(String path, Path absolutePath, String currentUser) {
+    private void doDelete(Path root, String path, Path absolutePath, String currentUser) {
         // auto commit before delete
         if (Files.exists(absolutePath)) {
-            HappyRun.run(() -> gitCommit(Collections.singletonList(path), Collections.emptyList(), "auto commit before delete", currentUser), "删除前的自动备份：" + path, NoFilepatternException.class);
+            HappyRun.run(() -> gitCommit(root, Collections.singletonList(path), Collections.emptyList(), "auto commit before delete", currentUser), "删除前的自动备份：" + path, NoFilepatternException.class);
             HappyRun.run(() -> FileUtils.forceDelete(absolutePath.toFile()), "从磁盘删除：" + path, FileNotFoundException.class);
         }
 
         // delete commit
-        RevCommit revCommit = HappyRun.run(() -> gitCommit(Collections.emptyList(), Collections.singletonList(path), "delete " + path, currentUser), null, "删除后自动提交：" + path, NoFilepatternException.class);
+        RevCommit revCommit = HappyRun.run(() -> gitCommit(root, Collections.emptyList(), Collections.singletonList(path), "delete " + path, currentUser), null, "删除后自动提交：" + path, NoFilepatternException.class);
         String commitHash = revCommit != null ? revCommit.getName() : null;
         long deleteTimestamp = revCommit != null ? revCommit.getCommitTime() * 1000L : System.currentTimeMillis();
         // DB 软删除
@@ -470,9 +458,10 @@ public class GitFileService {
         // 乐观筛选：初步找出当前用户持有的文件（此阶段不加锁，减少锁竞争）
         Set<Long> notFoundFileIds = new HashSet<>(fileIds);
         List<FileIndexEntity> list = fileIndexService.listByIds(notFoundFileIds);
+        Path root = workspaceService.getDefaultWorkspaceRoot();
         for (FileIndexEntity entity : list) {
             String path = entity.getPath();
-            validatePath(path);
+            validatePath(path, root);
             if (fileLockService.isHolder(entity.getId(), currentUser)) {
                 committedFileEntities.add(entity);
                 fileIdsToCommit.add(entity.getId());
@@ -492,7 +481,7 @@ public class GitFileService {
         // 多文件原子加锁：按 ID 排序后对分段锁进行排他性锁定并执行二次校验，
         // 保证 gitCommit 期间他人既无法抢走锁，也无法 save 写入新数据，确保 Git 历史纯净。
         return fileLockService.doIfHolder(fileIdsToCommit, filePathsToCommit, currentUser, () -> {
-            String hash = gitCommit(filePathsToCommit, Collections.emptyList(), message, currentUser).getName();
+            String hash = gitCommit(root, filePathsToCommit, Collections.emptyList(), message, currentUser).getName();
             fileIndexService.updateCommitHashByIds(fileIdsToCommit, hash);
 
             CommitResultVO commitResult = new CommitResultVO();
@@ -507,7 +496,7 @@ public class GitFileService {
      */
     public List<FileTreeNode> trash(String parentPath) {
         if (!StringUtils.isEmpty(parentPath)) {
-            validatePath(parentPath);
+            validatePath(parentPath, workspaceService.getDefaultWorkspaceRoot());
         }
         parentPath = parentPath == null ? "" : parentPath;
         List<FileIndexEntity> children = fileIndexService.listDirectlyChildren(parentPath, FileIndexService.ONLY_DELETED);
@@ -533,10 +522,8 @@ public class GitFileService {
 
         // 路径检查
         String path = entity.getPath();
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path absolutePath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(absolutePath, root);
+        Path absolutePath = validatePath(path, root);
         try {
             if (entity.isDirectory()) {
                 // purge folder
@@ -616,9 +603,7 @@ public class GitFileService {
     private void restoreFolder(Path root, Map<String, FileIndexEntity> restoreFolderPaths, String currentUser) {
         restoreFolderPaths.forEach((path, entity) -> {
             // 路径校验
-            validatePath(path);
-            Path targetPath = root.resolve(path).toAbsolutePath().normalize();
-            ensureInsideWorkspace(targetPath, root);
+            Path targetPath = validatePath(path, root);
 
             try {
                 // 恢复目录结构
@@ -640,9 +625,7 @@ public class GitFileService {
         Map<String, byte[]> restoreFileContents = gitCatFiles(root, commitHash, restoreFilePaths.keySet());
         restoreFileContents.forEach((path, content) -> {
             // 路径校验
-            validatePath(path);
-            Path targetPath = root.resolve(path).toAbsolutePath().normalize();
-            ensureInsideWorkspace(targetPath, root);
+            Path targetPath = validatePath(path, root);
 
             // 恢复文件内容
             FileIndexEntity entity = restoreFilePaths.get(path);
@@ -679,10 +662,8 @@ public class GitFileService {
         }
         // 路径校验
         String path = resolvePathByFileId(fileId);
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path targetPath = root.resolve(path).toAbsolutePath().normalize();
-        ensureInsideWorkspace(targetPath, root);
+        validatePath(path, root);
         try (Git git = Git.open(root.toFile())) {
             LogCommand log = git.log();
             log.addPath(path);
@@ -720,14 +701,14 @@ public class GitFileService {
      */
     public String diff(Long fileId, String from, String to) {
         String path = resolvePathByFileId(fileId);
-        validatePath(path);
+        Path root = workspaceService.getDefaultWorkspaceRoot();
+        validatePath(path, root);
         if (from == null && to == null) {
             throw new BusinessException(CommonResultCode.PARAM_INVALID, "from 和 to 不能同时为空");
         }
         if (from != null && from.equals(to)) {
             return "";
         }
-        Path root = workspaceService.getDefaultWorkspaceRoot();
         try (Git git = Git.open(root.toFile()); RevWalk walk = new RevWalk(git.getRepository()); ByteArrayOutputStream out = new ByteArrayOutputStream(); DiffFormatter formatter = new DiffFormatter(out)) {
 
             Repository repository = git.getRepository();
@@ -761,7 +742,12 @@ public class GitFileService {
      */
     private AbstractTreeIterator prepareTreeParser(Repository repository, RevWalk walk, String commitHash) throws IOException {
         CanonicalTreeParser treeParser = new CanonicalTreeParser();
-        ObjectId commitId = ObjectId.fromString(commitHash);
+        ObjectId commitId;
+        try {
+            commitId = ObjectId.fromString(commitHash);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID, "非法的 commit hash: " + commitHash);
+        }
         RevCommit commit = walk.parseCommit(commitId);
         try (org.eclipse.jgit.lib.ObjectReader reader = repository.newObjectReader()) {
             treeParser.reset(reader, commit.getTree());
@@ -791,9 +777,8 @@ public class GitFileService {
             throw new BusinessException(FileResultCode.FILE_NOT_FOUND);
         }
         String path = entity.getPath();
-        validatePath(path);
         Path root = workspaceService.getDefaultWorkspaceRoot();
-        Path filePath = root.resolve(path);
+        Path filePath = validatePath(path, root);
         try {
             fileLockService.doIfHolder(entity.getId(), entity.getPath(), currentUser, () -> {
                 byte[] bytes = gitCatFile(root, commitHash, path);
@@ -821,8 +806,7 @@ public class GitFileService {
      * 对正常文件执行 {@code git add}，对已删除文件执行 {@code git rm}，
      * 从而支持软删除后通过 commit 将删除纳入 Git 历史。
      */
-    private RevCommit gitCommit(List<String> pathsToAdd, List<String> pathsToRemove, String message, String username) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
+    private RevCommit gitCommit(Path root, List<String> pathsToAdd, List<String> pathsToRemove, String message, String username) {
         return withWorkspaceLock(() -> {
             try (Git git = Git.open(root.toFile())) {
                 if (!pathsToAdd.isEmpty()) {
@@ -852,8 +836,7 @@ public class GitFileService {
     /**
      * 执行 git status，通过 configurer 配置需要检查的文件路径。
      */
-    private Status gitStatus(List<String> filePaths) {
-        Path root = workspaceService.getDefaultWorkspaceRoot();
+    private Status gitStatus(Path root, List<String> filePaths) {
         try (Git git = Git.open(root.toFile())) {
             StatusCommand cmd = git.status();
             if (filePaths != null && !filePaths.isEmpty()) {
@@ -963,12 +946,15 @@ public class GitFileService {
     }
 
     /**
-     * 路径合法性校验，所有对外接口的第一道防线。拒绝：空路径、绝对路径、
-     * 反斜杠（Windows 风格，统一只收正斜杠）、路径穿越（..）、纯 . 以及 .lanting 目录。
+     * 路径合法性校验（字符串层面 + 工作空间边界）。
      * <p>
-     * 注意此校验是字符串层面的，{@link #ensureInsideWorkspace} 是解析后路径层面的第二道防线，两者缺一不可。
+     * 拒绝：空路径、绝对路径、反斜杠、路径穿越、封禁区（.lanting/.git/.flink）、
+     * 以及解析后超出工作空间范围的路径。
+     *
+     * @return 解析后的绝对路径，调用方可直接使用
      */
-    private void validatePath(String path) {
+    private Path validatePath(String path, Path root) {
+        // ── 字符串层面 ──
         if (path == null || path.isBlank()) {
             throw new BusinessException(FileResultCode.PATH_ILLEGAL);
         }
@@ -978,33 +964,24 @@ public class GitFileService {
         if (path.equals(".") || path.equals("./")) {
             throw new BusinessException(FileResultCode.PATH_ILLEGAL);
         }
-        if (path.contains(".lanting") || path.contains(".git")) {
+        if (path.contains(".lanting") || path.contains(".git") || path.contains(".flink")) {
             throw new BusinessException(FileResultCode.LANTING_DIR_FORBIDDEN);
         }
-    }
 
-    /**
-     * 校验解析（normalize）后的绝对路径确实落在工作空间根目录内，
-     * 封堵经过编码/拼接绕过字符串校验的路径穿越。
-     */
-    private void ensureInsideWorkspace(Path target, Path root) {
-        if (!target.startsWith(root.toAbsolutePath().normalize())) {
+        // ── 工作空间边界 ──
+        Path absolute = root.resolve(path).toAbsolutePath().normalize();
+        if (!absolute.startsWith(root.toAbsolutePath().normalize())) {
             throw new BusinessException(FileResultCode.PATH_ILLEGAL);
         }
+        return absolute;
     }
 
     /**
-     * 文件扩展名白名单校验，仅在写入时调用；无扩展名或不在白名单内均拒绝。
+     * 校验目标路径是否为受保护的根目录（sql/、ddl/），这些目录本身不允许删除、重命名或移动。
      */
-    private void validateFileType(Path path) {
-        String fileName = path.getFileName().toString();
-        int dot = fileName.lastIndexOf('.');
-        if (dot == -1 || dot == fileName.length() - 1) {
-            throw new BusinessException(FileResultCode.FILE_TYPE_NOT_ALLOWED);
-        }
-        String ext = fileName.substring(dot + 1).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.contains(ext)) {
-            throw new BusinessException(FileResultCode.FILE_TYPE_NOT_ALLOWED);
+    private void validateProtectedDirectory(String path) {
+        if ("sql".equals(path) || "ddl".equals(path)) {
+            throw new BusinessException(FileResultCode.PROTECTED_DIRECTORY);
         }
     }
 }

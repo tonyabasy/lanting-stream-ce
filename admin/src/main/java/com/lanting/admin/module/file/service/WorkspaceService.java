@@ -7,6 +7,7 @@ import com.lanting.admin.module.file.result.FileResultCode;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.cache.annotation.Cacheable;
 import org.eclipse.jgit.api.Git;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -77,16 +78,14 @@ public class WorkspaceService {
     /**
      * 获取默认工作空间根目录路径。
      *
-     * TODO: 这里加一个缓存，10分钟的，提升查询效率
-     *
      * @return 根目录 Path
      */
+    @Cacheable(value = "workspaceRoot", key = "'default'")
     public Path getDefaultWorkspaceRoot() {
         String gitPath = getDefaultWorkspace().getGitPath();
         Path path = Path.of(gitPath);
         if (!path.isAbsolute()) {
-            // 如果 gitPath 配置的是相对路径（比如 ../data/workspace 或 data/workspace），就
-            // 以 JVM 启动时的工作目录 user.dir 为基准，解析出绝对路径。
+            // 如果 gitPath 配置的是相对路径（比如 ../data/workspace 或 data/workspace），就            // 以 JVM 启动时的工作目录 user.dir 为基准，解析出绝对路径。
             path = Path.of(System.getProperty("user.dir")).resolve(path);
         }
         return path.toAbsolutePath().normalize();

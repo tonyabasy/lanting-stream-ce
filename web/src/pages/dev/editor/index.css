@@ -21,7 +21,10 @@
   border: 1px solid var(--ant-color-primary-border) !important;
   background: var(--ant-color-primary-bg) !important;
 }
-.lt-editor-body,
+.lt-editor-body {
+  height: 100%;
+  overflow: auto;
+}
 .lt-editor-body.cm-editor,
 .lt-editor-body .cm-editor {
   height: 100%;

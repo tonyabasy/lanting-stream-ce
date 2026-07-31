@@ -196,25 +196,27 @@ class FileControllerTest extends BaseIntegrationTest {
     class FileTypeAndSize {
 
         @Test
-        @DisplayName(".txt 文件 → FILE_TYPE_NOT_ALLOWED（30703）")
-        void shouldRejectTxtFile() {
+        @DisplayName(".txt 文件可以创建")
+        void shouldAcceptTxtFile() {
             CreateFileDTO dto = new CreateFileDTO();
             dto.setPath(uniquePath + "/test.txt");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isZero();
+            assertThat(fileIdByPath(dto.getPath())).isNotNull();
         }
 
         @Test
-        @DisplayName("无扩展名文件 → FILE_TYPE_NOT_ALLOWED（30703）")
-        void shouldRejectFileWithNoExtension() {
+        @DisplayName("无扩展名文件可以创建")
+        void shouldAcceptFileWithNoExtension() {
             CreateFileDTO dto = new CreateFileDTO();
             dto.setPath(uniquePath + "/noext");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
-            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(30703);
+            assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isZero();
+            assertThat(fileIdByPath(dto.getPath())).isNotNull();
         }
 
         @Test
@@ -304,8 +306,21 @@ class FileControllerTest extends BaseIntegrationTest {
         @Test
         @DisplayName("非法 commit SHA → 400 + PARAM_INVALID（10001）")
         void shouldReturn400ForInvalidSha() {
+            String folderPath = uniquePath + "/diff-invalid-sha";
+            CreateFolderDTO folder = new CreateFolderDTO();
+            folder.setPath(folderPath);
+            restTemplate.exchange("/api/files/folder", HttpMethod.POST,
+                    new HttpEntity<>(folder, authHeaders(token)), JsonNode.class);
+
+            String filePath = folderPath + "/a.sql";
+            CreateFileDTO createDto = new CreateFileDTO();
+            createDto.setPath(filePath);
+            restTemplate.exchange("/api/files/create", HttpMethod.POST,
+                    new HttpEntity<>(createDto, authHeaders(token)), JsonNode.class);
+            Long fileId = fileIdByPath(filePath);
+
             ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    "/api/files/diff?fileId=1&from=invalid-sha&to=deadbeef1234567890",
+                    "/api/files/diff?fileId=" + fileId + "&from=invalid-sha&to=deadbeef1234567890",
                     HttpMethod.GET,
                     new HttpEntity<>(authHeaders(token)),
                     JsonNode.class);

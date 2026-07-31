@@ -184,18 +184,19 @@ class FileLockServiceTest {
             @SuppressWarnings("unchecked")
             var map = (java.util.Map<String, ?>) field.get(fileLockService);
 
-            // LockInfo 是 record，无法直接修改字段。通过反射构造新实例 put 回去。
-            Class<?> lockInfoClass = FileLockService.class.getDeclaredClasses()[0];
-            var constructor = lockInfoClass.getDeclaredConstructor(String.class, long.class);
-            constructor.setAccessible(true);
             Object oldLock = map.get(path);
-            if (oldLock != null) {
-                String holder = (String) lockInfoClass.getMethod("holder").invoke(oldLock);
-                Object expiredLock = constructor.newInstance(holder, System.currentTimeMillis() - 11_000);
-                @SuppressWarnings("unchecked")
-                var rawMap = (java.util.Map<String, Object>) map;
-                rawMap.put(path, expiredLock);
+            if (oldLock == null) {
+                return;
             }
+            String holder = ((LockInfo) oldLock).getHolder();
+
+            // 通过反射调用私有构造器构造过期锁
+            var constructor = LockInfo.class.getDeclaredConstructor(String.class, long.class, long.class);
+            constructor.setAccessible(true);
+            Object expiredLock = constructor.newInstance(holder, System.currentTimeMillis() - 11_000, 10_000L);
+            @SuppressWarnings("unchecked")
+            var rawMap = (java.util.Map<String, Object>) map;
+            rawMap.put(path, expiredLock);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

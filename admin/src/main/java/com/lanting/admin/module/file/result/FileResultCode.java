@@ -27,7 +27,8 @@ public enum FileResultCode implements ResultCode {
     FILES_LOCKED(30712, "回滚或删除文件夹时部分文件被锁定", 423),
     NOTHING_TO_COMMIT(30713, "无可提交的文件", 400),
     FILE_CONTENT_INCONSISTENT(30714, "文件内容与索引不一致", 200),
-    FILE_OPERATION_BUSY(30715, "文件操作繁忙，请稍后重试", 409);
+    FILE_OPERATION_BUSY(30715, "文件操作繁忙，请稍后重试", 409),
+    PROTECTED_DIRECTORY(30716, "受保护目录不可操作", 403);
 
     private final int code;
     private final String message;
