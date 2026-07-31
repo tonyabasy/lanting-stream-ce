@@ -28,7 +28,7 @@ logs/
 
 # AI 工具
 .codebuddy/
-.adrs/.claude/
+.claude/
 
 # jenv
 .java-version
