@@ -207,7 +207,7 @@ class TableServiceTest {
 
         when(tableIndexMapper.selectOne(any())).thenReturn(table);
 
-        tableService.deleteByFileId(1L);
+        tableService.deleteIndexByFileId(1L);
 
         verify(columnIndexMapper).delete(any());
         verify(tableIndexMapper).deleteById(100L);
@@ -221,7 +221,7 @@ class TableServiceTest {
     void shouldSkipDeleteWhenTableIndexNotExists() {
         when(tableIndexMapper.selectOne(any())).thenReturn(null);
 
-        tableService.deleteByFileId(1L);
+        tableService.deleteIndexByFileId(1L);
 
         verify(columnIndexMapper, never()).delete(any(LambdaQueryWrapper.class));
         verify(tableIndexMapper, never()).deleteById(any(Long.class));
@@ -293,7 +293,7 @@ class TableServiceTest {
 
         when(tableIndexMapper.selectById(tableId)).thenReturn(tableIndex);
 
-        tableService.updateTable(tableId, ddl, "user");
+        tableService.saveTable(tableId, ddl, "user");
 
         verify(gitFileService).save(fileId, ddl, "user");
         verify(tableIndexMapper).selectOne(any(LambdaQueryWrapper.class));

@@ -23,7 +23,6 @@ public class CreateTableRequest {
     private String path;
 
     /** 完整 Flink SQL DDL 文本 */
-    @NotBlank(message = "DDL 内容不能为空")
     @Schema(description = "完整 Flink SQL DDL 文本")
     private String ddl;
 }

@@ -72,10 +72,14 @@ public class TableService {
      * @param ddl         完整 Flink SQL DDL 文本
      * @param currentUser 当前用户
      */
-    public void updateTable(Long tableId, String ddl, String currentUser) {
+    public void saveTable(Long tableId, String ddl, String currentUser) {
         TableIndexEntity tableIndex = getTableIndexOrThrow(tableId);
-        gitFileService.save(tableIndex.getFileId(), ddl, currentUser);
-        updateIndex(tableIndex.getFileId(), ddl);
+        saveTableByFileId(tableIndex.getFileId(), ddl, currentUser);
+    }
+
+    public void saveTableByFileId(Long fileId, String ddl, String currentUser) {
+        gitFileService.save(fileId, ddl, currentUser);
+        updateIndex(fileId, ddl);
     }
 
     /**
@@ -86,8 +90,12 @@ public class TableService {
      */
     public void deleteTable(Long tableId, String currentUser) {
         TableIndexEntity tableIndex = getTableIndexOrThrow(tableId);
-        gitFileService.delete(tableIndex.getFileId(), currentUser);
-        deleteTableIndex(tableIndex);
+        deleteTableByFileId(tableIndex.getFileId(), currentUser);
+    }
+
+    public void deleteTableByFileId(Long fileId, String currentUser) {
+        gitFileService.delete(fileId, currentUser);
+        deleteIndexByFileId(fileId);
     }
 
     /**
@@ -100,6 +108,13 @@ public class TableService {
         TableIndexEntity tableIndex = getTableIndexOrThrow(tableId);
         List<ColumnIndexEntity> columns = columnIndexMapper.selectList(
                 new LambdaQueryWrapper<ColumnIndexEntity>().eq(ColumnIndexEntity::getTableId, tableId));
+        return toTableVO(tableIndex, columns);
+    }
+
+    public TableVO getTableByFileId(Long fileId) {
+        TableIndexEntity tableIndex = getTableIndexByFileIdOrThrow(fileId);
+        List<ColumnIndexEntity> columns = columnIndexMapper.selectList(
+                new LambdaQueryWrapper<ColumnIndexEntity>().eq(ColumnIndexEntity::getTableId, tableIndex.getId()));
         return toTableVO(tableIndex, columns);
     }
 
@@ -154,6 +169,15 @@ public class TableService {
 
     private TableIndexEntity getTableIndexOrThrow(Long tableId) {
         TableIndexEntity tableIndex = tableIndexMapper.selectById(tableId);
+        if (tableIndex == null) {
+            throw new BusinessException(CommonResultCode.PARAM_INVALID, "表不存在");
+        }
+        return tableIndex;
+    }
+
+    private TableIndexEntity getTableIndexByFileIdOrThrow(Long fileId) {
+        TableIndexEntity tableIndex = tableIndexMapper.selectOne(new LambdaQueryWrapper<TableIndexEntity>()
+                .eq(TableIndexEntity::getFileId, fileId));
         if (tableIndex == null) {
             throw new BusinessException(CommonResultCode.PARAM_INVALID, "表不存在");
         }
@@ -266,22 +290,18 @@ public class TableService {
      *
      * @param fileId 文件 ID
      */
-    public void deleteByFileId(Long fileId) {
-        if (fileId == null) {
-            return;
-        }
-
+    public void deleteIndexByFileId(Long fileId) {
         TableIndexEntity existing = getByFileId(fileId);
         if (existing == null) {
             return;
         }
-
-        deleteTableIndex(existing);
+        // 这里之所以没有用 fileId + tableMapper 直接删除是因为 ColumnIndex 的删除需要基于 TableId
+        deleteIndexByTableId(existing.getId());
     }
 
-    private void deleteTableIndex(TableIndexEntity tableIndex) {
+    private void deleteIndexByTableId(Long tableId) {
         columnIndexMapper.delete(
-                new LambdaQueryWrapper<ColumnIndexEntity>().eq(ColumnIndexEntity::getTableId, tableIndex.getId()));
-        tableIndexMapper.deleteById(tableIndex.getId());
+                new LambdaQueryWrapper<ColumnIndexEntity>().eq(ColumnIndexEntity::getTableId, tableId));
+        tableIndexMapper.deleteById(tableId);
     }
 }

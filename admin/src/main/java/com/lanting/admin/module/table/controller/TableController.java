@@ -42,17 +42,17 @@ public class TableController {
     }
 
     @Operation(summary = "更新表")
-    @PutMapping("/{tableId}")
-    public Result<Void> update(@PathVariable @NotNull Long tableId,
-                               @RequestBody @Valid UpdateTableRequest request) {
-        tableService.updateTable(tableId, request.getDdl(), currentUser());
+    @PutMapping("/{fileId}")
+    public Result<Void> save(@PathVariable @NotNull Long fileId,
+                             @RequestBody @Valid UpdateTableRequest request) {
+        tableService.saveTableByFileId(fileId, request.getDdl(), currentUser());
         return Result.success();
     }
 
     @Operation(summary = "删除表")
-    @DeleteMapping("/{tableId}")
-    public Result<Void> delete(@PathVariable @NotNull Long tableId) {
-        tableService.deleteTable(tableId, currentUser());
+    @DeleteMapping("/{fileId}")
+    public Result<Void> delete(@PathVariable @NotNull Long fileId) {
+        tableService.deleteTableByFileId(fileId, currentUser());
         return Result.success();
     }
 
@@ -63,9 +63,9 @@ public class TableController {
     }
 
     @Operation(summary = "查询表详情")
-    @GetMapping("/{tableId}")
-    public Result<TableVO> get(@PathVariable @NotNull Long tableId) {
-        return Result.success(tableService.getTable(tableId));
+    @GetMapping("/{fileId}")
+    public Result<TableVO> get(@PathVariable @NotNull Long fileId) {
+        return Result.success(tableService.getTableByFileId(fileId));
     }
 
     @Operation(summary = "搜索表")
