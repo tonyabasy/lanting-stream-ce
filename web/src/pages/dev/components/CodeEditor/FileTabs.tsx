@@ -1,5 +1,6 @@
 import { Tabs } from 'antd';
 import type { FileTreeNode } from '@/types/file';
+import './index.css';
 
 export interface FileTabsProps {
   tabs: FileTreeNode[];

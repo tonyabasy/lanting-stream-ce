@@ -1,11 +1,9 @@
 import { useRef } from 'react';
 import { Empty } from 'antd';
 import { useModel } from 'umi';
-import FileTabs from '../components/editor/FileTabs';
-import CodeEditor, { type CodeEditorRef } from '../components/editor';
-import ReadOnlyBanner from '../components/editor/ReadOnlyBanner';
+import FileTabs from '@/pages/dev/components/CodeEditor/FileTabs';
+import CodeEditor, { type CodeEditorRef } from '@/pages/dev/components/CodeEditor';
 import '../index.css';
-import '../components/editor/index.css';
 
 const EditorPanel: React.FC = () => {
   const editor = useModel('editor');
@@ -19,12 +17,10 @@ const EditorPanel: React.FC = () => {
     isFileEditable,
     checkClean,
     autoSave,
-    acquireLock,
     closeTab,
   } = editor;
 
-  const editable = activeTabId !== null && isFileEditable(activeTabId);
-  const activeTab = openTabs.find((t) => t.fileId === activeTabId);
+  const readonly = activeTabId === null || !isFileEditable(activeTabId);
 
   const codeEditorRef = useRef<CodeEditorRef>(null);
 
@@ -58,20 +54,15 @@ const EditorPanel: React.FC = () => {
           <Empty />
         </div>
       ) : (
-        <>
-          {activeTab && !editable && (
-            <ReadOnlyBanner activeTab={activeTab} acquireLock={acquireLock} />
-          )}
-          <CodeEditor
-            ref={codeEditorRef}
-            activeTabId={activeTabId}
-            editable={editable}
-            baselineDocs={baselineDocs}
-            setDirtyFlags={setDirtyFlags}
-            checkClean={checkClean}
-            autoSave={autoSave}
-          />
-        </>
+        <CodeEditor
+          ref={codeEditorRef}
+          activeTabId={activeTabId}
+          readonly={readonly}
+          baselineDocs={baselineDocs}
+          setDirtyFlags={setDirtyFlags}
+          checkClean={checkClean}
+          autoSave={autoSave}
+        />
       )}
     </div>
   );

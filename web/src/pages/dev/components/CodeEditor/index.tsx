@@ -6,6 +6,7 @@ import {defaultKeymap, history, historyKeymap} from '@codemirror/commands';
 import {sql} from '@codemirror/lang-sql';
 import {message} from 'antd';
 import {autoSaveExtension} from './autoSaveExtension';
+import './index.css';
 
 const editableCompartment = new Compartment();
 
@@ -30,7 +31,8 @@ export interface CodeEditorRef {
 
 interface CodeEditorProps {
   activeTabId: number | null;
-  editable: boolean;
+  /** 只读状态（EditorPanel 从锁状态计算传入；true = 只读不可编辑） */
+  readonly: boolean;
   baselineDocs: Record<number, Text>;
   setDirtyFlags: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
   checkClean: (fileId: number, doc: Text) => boolean;
@@ -38,19 +40,19 @@ interface CodeEditorProps {
 }
 
 const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
-  ({ activeTabId, editable, baselineDocs, setDirtyFlags, checkClean, autoSave }, ref) => {
+  ({ activeTabId, readonly, baselineDocs, setDirtyFlags, checkClean, autoSave }, ref) => {
     const editorHostRef = useRef<HTMLDivElement>(null);
     const editorViewRef = useRef<EditorView | null>(null);
     const lastLoadedTabRef = useRef<number | null>(null);
     const propsRef = useRef<CodeEditorProps>({
       activeTabId,
-      editable,
+      readonly,
       baselineDocs,
       setDirtyFlags,
       checkClean,
       autoSave,
     });
-    propsRef.current = { activeTabId, editable, baselineDocs, setDirtyFlags, checkClean, autoSave };
+    propsRef.current = { activeTabId, readonly, baselineDocs, setDirtyFlags, checkClean, autoSave };
 
     useImperativeHandle(ref, () => ({
       saveTab: async (fileId: number) => {
@@ -115,9 +117,9 @@ const CodeEditor = forwardRef<CodeEditorRef, CodeEditorProps>(
       const view = editorViewRef.current;
       if (!view) return;
       view.dispatch({
-        effects: editableCompartment.reconfigure(EditorView.editable.of(editable)),
+        effects: editableCompartment.reconfigure(EditorView.editable.of(!readonly)),
       });
-    }, [editable]);
+    }, [readonly]);
 
     useEffect(() => {
       const view = editorViewRef.current;

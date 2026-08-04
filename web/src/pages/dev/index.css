@@ -8,7 +8,8 @@
   border-radius: var(--ant-border-radius-lg);
 }
 
-/* 两侧边栏 */
+/* ── 两侧边栏（LeftSidebar / RightSidebar 共享）── */
+
 .lt-sidebar {
   width: 36px;
   display: flex;
