@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { FileTreeDataNode, FileTreeViewKey, FileTreeViewProp } from '@/types/file';
-import { toTreeDataNode, parentOf } from '@/pages/dev/tree/treeUtils';
+import { toTreeDataNode, parentOf } from '@/pages/dev/components/tree/treeUtils';
 import {
   tree,
   searchFiles,

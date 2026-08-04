@@ -1,5 +1,5 @@
 import type { LeftTopTab } from '@/models/devPanels';
-import FileTree from '../tree/FileTree';
+import FileTree from '../components/tree';
 import '../index.css';
 
 interface ProjectPanelProps {

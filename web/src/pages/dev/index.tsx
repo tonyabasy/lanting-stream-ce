@@ -3,13 +3,13 @@ import { Flex, theme } from 'antd';
 import { useModel } from 'umi';
 import CollapsibleSplitter from '@/components/CollapsibleSplitter';
 import TopBar from './panels/TopBar';
-import LeftSidebar from './leftSidebar/LeftSidebar';
+import LeftSidebar from './components/leftSidebar';
 import ProjectPanel from './panels/ProjectPanel';
 import EditorPanel from './panels/EditorPanel';
 import ConfigPanel from './panels/ConfigPanel';
 import TerminalPanel from './panels/TerminalPanel';
-import RightSidebar from './rightSidebar/RightSidebar';
-import StatusBar from './status/StatusBar';
+import RightSidebar from './components/rightSidebar';
+import StatusBar from './components/status';
 
 const DevPage: React.FC = () => {
   const { token } = theme.useToken();

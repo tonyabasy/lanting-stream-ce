@@ -1,11 +1,11 @@
 import { useRef } from 'react';
 import { Empty } from 'antd';
 import { useModel } from 'umi';
-import FileTabs from '../editor/FileTabs';
-import CodeEditor, { type CodeEditorRef } from '../editor/CodeEditor';
-import ReadOnlyBanner from '../editor/ReadOnlyBanner';
+import FileTabs from '../components/editor/FileTabs';
+import CodeEditor, { type CodeEditorRef } from '../components/editor';
+import ReadOnlyBanner from '../components/editor/ReadOnlyBanner';
 import '../index.css';
-import '../editor/index.css';
+import '../components/editor/index.css';
 
 const EditorPanel: React.FC = () => {
   const editor = useModel('editor');
