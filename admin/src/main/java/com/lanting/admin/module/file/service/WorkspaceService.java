@@ -16,6 +16,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static com.lanting.admin.module.file.service.GitFileService.PROJECT_FOLDER;
+import static com.lanting.admin.module.file.service.GitFileService.TABLES_FOLDER;
+
 /**
  * 工作空间服务。
  *
@@ -38,7 +41,7 @@ public class WorkspaceService {
     /**
      * 默认子目录。
      */
-    private static final List<String> DEFAULT_DIRS = List.of("ddl", "sql", "docs");
+    private static final List<String> DEFAULT_DIRS = List.of(TABLES_FOLDER, PROJECT_FOLDER);
 
     public WorkspaceService(WorkspaceMapper workspaceMapper) {
         this.workspaceMapper = workspaceMapper;

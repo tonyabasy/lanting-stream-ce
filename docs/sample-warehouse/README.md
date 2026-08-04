@@ -14,10 +14,10 @@
 ## Directory structure
 
 ```
-├── ddl/         # 建表 DDL
+├── tables/         # 建表 DDL
 ├── config/      # Flink 作业配置
 ├── docs/        # 设计文档
-└── sql/         # 数仓 ETL SQL
+└── project/         # 数仓 ETL SQL
     ├── ods/     # 原始数据层
     ├── dwd/     # 明细数据层
     ├── dws/     # 汇总数据层

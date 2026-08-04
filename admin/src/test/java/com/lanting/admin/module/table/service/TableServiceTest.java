@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Collections;
 import java.util.List;
 
+import static com.lanting.admin.module.file.service.GitFileService.TABLES_FOLDER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -60,7 +61,7 @@ class TableServiceTest {
     void shouldInsertTableIndexAndColumnsWhenNotExists() {
         FileIndexEntity file = new FileIndexEntity();
         file.setId(1L);
-        file.setPath("ddl/user_log.ddl");
+        file.setPath(TABLES_FOLDER + "/user_log.ddl");
 
         String ddl = """
                 CREATE TABLE user_log (
@@ -235,7 +236,7 @@ class TableServiceTest {
     @Test
     @DisplayName("创建表：创建文件并同步写入表索引")
     void shouldCreateTableFileAndIndex() {
-        String path = "ddl/user_log.ddl";
+        String path = TABLES_FOLDER + "/user_log.ddl";
         String ddl = """
                 CREATE TABLE user_log (
                     user_id STRING
@@ -289,7 +290,7 @@ class TableServiceTest {
 
         FileIndexEntity fileEntity = new FileIndexEntity();
         fileEntity.setId(fileId);
-        fileEntity.setPath("ddl/user_log.ddl");
+        fileEntity.setPath(TABLES_FOLDER + "/user_log.ddl");
 
         when(tableIndexMapper.selectById(tableId)).thenReturn(tableIndex);
 
@@ -313,6 +314,7 @@ class TableServiceTest {
         tableIndex.setFileId(fileId);
 
         when(tableIndexMapper.selectById(tableId)).thenReturn(tableIndex);
+        when(tableIndexMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(tableIndex);
 
         tableService.deleteTable(tableId, "user");
 

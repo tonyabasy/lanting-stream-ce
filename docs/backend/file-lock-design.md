@@ -22,7 +22,7 @@
 
 ### 2.2 目录锁（Folder Hard Lock，新增）
 
-- Key：目录 `path`（如 `sql/etl`）
+- Key：目录 `path`（如 `project/etl`）
 - 存储：`folderHardLocks`（`ConcurrentHashMap`），10s TTL 惰性清理
 - 语义：硬锁，目录批量操作期间注册，操作完成后必须释放。注册时自动清空所有子文件的文件锁
 - 适用场景：删除目录、恢复目录、重命名目录、移动目录
@@ -91,13 +91,13 @@ private void ensureFolderLocksSafety(String path, String holder) {
             continue;
         }
         // lockedPath 是 path 的祖先？
-        // 例: lockedPath="sql", path="sql/etl/init.sql"
+        // 例: lockedPath="sql", path="project/etl/init.sql"
         if (path.startsWith(lockedPath + "/")) {
             throw new BusinessException(FileResultCode.FILE_LOCKED,
                     "父目录 " + lockedPath + " 正在被操作");
         }
         // path 是 lockedPath 的祖先？
-        // 例: path="sql", lockedPath="sql/etl"
+        // 例: path="sql", lockedPath="project/etl"
         if (lockedPath.startsWith(path + "/")) {
             throw new BusinessException(FileResultCode.FILE_LOCKED,
                     "子目录 " + lockedPath + " 正在被操作");
@@ -150,7 +150,7 @@ public void releaseFolderLock(String path, String holder) {
 
 **关键顺序：先封门，再清场。** 注册目录锁后，任何新的文件操作都被 `ensureFolderLocksSafety` 直接拦截；`acquire` 只需等待已在 `synchronized(stripe)` 内的写入线程完成即可。抢子文件锁失败自动释放目录锁，不残留。
 
-**祖先 + 子孙双向检查：** 同一祖先链上的两个目录锁不会共存。操作 `/sql/etl` 的人会拒绝操作 `/sql`，反之亦然。
+**祖先 + 子孙双向检查：** 同一祖先链上的两个目录锁不会共存。操作 `/project/etl` 的人会拒绝操作 `/sql`，反之亦然。
 
 ## 5. 释放规则
 

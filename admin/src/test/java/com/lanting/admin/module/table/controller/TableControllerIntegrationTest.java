@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
+import static com.lanting.admin.module.file.service.GitFileService.TABLES_FOLDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -66,7 +67,7 @@ class TableControllerIntegrationTest extends BaseIntegrationTest {
     void setUp() {
         token = loginAsAdmin();
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        uniquePath = "ddl/e2e-" + suffix;
+        uniquePath = TABLES_FOLDER + "/e2e-" + suffix;
         tableName = "e2e_table_" + suffix;
     }
 

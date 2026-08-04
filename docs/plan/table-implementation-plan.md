@@ -20,7 +20,7 @@ CP1: 后端基础设施 ──► CP2: Tables 树可用 ──► CP3: 表单编
 
 | CP | 状态 | 说明 |
 |---|---|---|
-| CP1-1 保护目录 | ✅ 已完成 | `GitFileService` 已封禁 `.flink`，`ddl/` / `sql/` 目录不可删/移/重命名 |
+| CP1-1 保护目录 | ✅ 已完成 | `GitFileService` 已封禁 `.flink`，`tables/` / `project/` 目录不可删/移/重命名 |
 | CP1-2 DB 表 + Entity + Mapper | ✅ 已完成 | 建表语句追加到 `V1__init.sql`（未新建 V2），实体/Mapper 已就位 |
 | CP1-3 DDL 解析器 | ✅ 已完成 | `FlinkSqlParser` + `FlinkSqlParserTest` 已就绪 |
 | CP1-4 TableService 索引同步 | ✅ 已完成 | `updateIndex` / `deleteByFileId` 已实现并测试 |
@@ -41,7 +41,7 @@ CP1 拆成 6 个小步，每步完成后暂停 review。
 ### CP1-1: 保护目录 ✅
 
 #### 目标
-`ddl/`、`sql/` 目录本身不可删除/重命名/移动，`.flink` 扩展名完全封禁。
+`tables/`、`project/` 目录本身不可删除/重命名/移动，`.flink` 扩展名完全封禁。
 
 #### 任务
 - **文件**: `admin/.../GitFileService.java`
@@ -49,7 +49,7 @@ CP1 拆成 6 个小步，每步完成后暂停 review。
 - `delete()` 目录分支：若 `entity.getPath()` 精确等于 `ddl` 或 `sql`，抛 `PROTECTED_DIRECTORY`
 - `move()`（rename 也会进入）：若旧路径或新路径精确等于 `ddl` 或 `sql`，抛 `PROTECTED_DIRECTORY`
 - `FileResultCode` 新增 `PROTECTED_DIRECTORY(30716, "受保护目录不可操作", 403)`
-- 单测覆盖：删 `ddl/`、重命名 `sql/`、移动 `ddl/xxx` 到 `other/xxx`（应通过）
+- 单测覆盖：删 `tables/`、重命名 `project/`、移动 `tables/xxx` 到 `other/xxx`（应通过）
 
 #### 产出
 - `GitFileService.java`
@@ -158,7 +158,7 @@ Table 作为独立业务域，由 `TableService` 负责索引维护；`GitFileSe
 - `GitFileService` 只负责：创建、保存、删除、锁定、commit、revert、history、diff 等基础文件操作
 - `.ddl` 后缀的特殊业务处理由 `TableService` 承担
 - 端到端验证（通过 TableController）：
-  1. `POST /api/tables` 创建 `ddl/ods_order.ddl` → DB 出现 Table Index 记录
+  1. `POST /api/tables` 创建 `tables/ods_order.ddl` → DB 出现 Table Index 记录
   2. `PUT /api/tables/{tableId}` 修改内容保存 → Table / Column 记录更新
   3. `DELETE /api/tables/{tableId}` 删除文件 → Table / Column 记录物理删除
 
@@ -172,19 +172,19 @@ Table 作为独立业务域，由 `TableService` 负责索引维护；`GitFileSe
 ## CP2: Tables 树可用 ⏳
 
 ### 目标
-左侧栏「表」图标点击后在 ProjectPanel 中展示 Tables 视图，能浏览 `ddl/` 下的表定义文件，双击 `.ddl` 文件可在编辑器区打开。
+左侧栏「表」图标点击后在 ProjectPanel 中展示 Tables 视图，能浏览 `tables/` 下的表定义文件，双击 `.ddl` 文件可在编辑器区打开。
 
 ### 前置依赖
 - `LeftSidebar.tsx` 已存在 Tables 按钮，点击后通过 `devPanels.toggleLeftTop('tables')` 将 `leftTop` 设为 `'tables'`
 - `ProjectPanel.tsx` 已接收 `active: LeftTopTab` prop，当前 `active === 'tables'` 只有占位文字
 - `FileTree` 组件内部写死了 Header 标题 `"Project"` 和关闭面板回调 `toggleLeftTop('files')`
-- 后端 `GET /api/files/tree?parentPath=` 只支持按父路径分层加载，**不支持按根目录 `ddl/` 过滤**
+- 后端 `GET /api/files/tree?parentPath=` 只支持按父路径分层加载，**不支持按根目录 `tables/` 过滤**
 
 ### 当前已知限制
 - `FileTree` 依赖全局 `fileTree` model（`treeData`、`expandedKeys`、`selectedNode` 等），Tables 视图与 Files 视图共享同一份状态。
   - 切换两个视图时会保留/覆盖彼此的展开、选中状态。
   - CP2 先接受这一限制，CP4 或后续专项再考虑拆分独立的 `tableTree` model。
-- Tables 视图暂时展示**完整文件树**，不只是 `ddl/` 目录；真正的 `ddl/` 根路径过滤需要后端 `tree` 接口增加 `rootPath` 参数，放到 CP2 之后单独做。
+- Tables 视图暂时展示**完整文件树**，不只是 `tables/` 目录；真正的 `tables/` 根路径过滤需要后端 `tree` 接口增加 `rootPath` 参数，放到 CP2 之后单独做。
 
 ### 任务
 
@@ -213,13 +213,13 @@ Table 作为独立业务域，由 `TableService` 负责索引维护；`GitFileSe
 
 ### 验收标准
 1. 启动前端 dev server，点击左侧「Tables」图标，ProjectPanel 显示标题为 "Tables" 的文件树
-2. 可展开 `ddl/` 目录，看到 `.ddl` 文件列表
+2. 可展开 `tables/` 目录，看到 `.ddl` 文件列表
 3. 双击 `.ddl` 文件，能在中央编辑区打开并显示 DDL 文本
 4. Tables 视图右上角的「收起面板」按钮能正确关闭 tables 面板
 5. 切换回 Files 视图，Files 视图的标题、关闭面板行为保持原样
 
 ### 明确不做
-- 后端 `tree` 接口增加 `rootPath` / `ddl/` 过滤参数
+- 后端 `tree` 接口增加 `rootPath` / `tables/` 过滤参数
 - 拆分独立的 `tableTree` model
 - `.ddl` 文件打开后渲染表单编辑器（CP3 做）
 

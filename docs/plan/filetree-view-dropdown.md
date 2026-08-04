@@ -38,8 +38,8 @@ export type FileTreeViewKey = keyof typeof FileTreeViews;
 /** 视图配置表：key → 视图属性（对应 Java 的 Map<String, FileTreeViewProp>） */
 export const FileTreeViews: Record<string, FileTreeViewProp> = {
   workspace: { key: 'workspace', rootPath: '', title: 'Workspace' },
-  project:   { key: 'project',   rootPath: 'sql/', title: 'Project' },
-  tables:    { key: 'tables',    rootPath: 'ddl/', title: 'Tables' },
+  project:   { key: 'project',   rootPath: 'project/', title: 'Project' },
+  tables:    { key: 'tables',    rootPath: 'tables/', title: 'Tables' },
 };
 ```
 

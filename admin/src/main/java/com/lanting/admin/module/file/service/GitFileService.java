@@ -86,6 +86,10 @@ public class GitFileService {
      */
     private static final long MAX_FILE_SIZE = 1024 * 1024; // 1MB
 
+    public static final String TABLES_FOLDER = "tables";
+    public static final String PROJECT_FOLDER = "project";
+    public static final Set<String> PROTECTED_FOLDERS = new HashSet<>(Arrays.asList(TABLES_FOLDER, PROJECT_FOLDER));
+
     /**
      * Git 写操作锁。所有 Git 写操作（add/commit/tag）必须经过此方法串行化，
      * 避免并发 commit 导致对象库状态不一致。
@@ -337,8 +341,8 @@ public class GitFileService {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path newFilePath = validatePath(newPath, root);
         Path oldFilePath = validatePath(oldPath, root);
-        validateProtectedDirectory(oldPath);
-        validateProtectedDirectory(newPath);
+        validateProtectedFolder(oldPath);
+        validateProtectedFolder(newPath);
 
         // 如果rename前后的位置相同，快速返回
         if (oldFilePath.equals(newFilePath)) {
@@ -404,9 +408,9 @@ public class GitFileService {
         String path = entity.getPath();
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path absolutePath = validatePath(path, root);
-        validateProtectedDirectory(path);
+        validateProtectedFolder(path);
 
-        if (entity.isDirectory()) {
+        if (entity.isFolder()) {
             fileLockService.acquireFolderLock(path, currentUser);
             try {
                 doDelete(root, path, absolutePath, currentUser);
@@ -525,7 +529,7 @@ public class GitFileService {
         Path root = workspaceService.getDefaultWorkspaceRoot();
         Path absolutePath = validatePath(path, root);
         try {
-            if (entity.isDirectory()) {
+            if (entity.isFolder()) {
                 // purge folder
                 fileLockService.acquireFolderLock(path, currentUser);
 
@@ -578,7 +582,7 @@ public class GitFileService {
                 throw new BusinessException(FileResultCode.FILE_OPERATION_FAILED, "文件未删除，无需恢复");
             }
 
-            if (entity.isDirectory()) {
+            if (entity.isFolder()) {
                 restoreFolderPaths.put(entity.getPath(), entity);
             } else {
                 restoreFilePaths.put(entity.getPath(), entity);
@@ -977,10 +981,10 @@ public class GitFileService {
     }
 
     /**
-     * 校验目标路径是否为受保护的根目录（sql/、ddl/），这些目录本身不允许删除、重命名或移动。
+     * 校验目标路径是否为受保护的根目录（project/、tables/），这些目录本身不允许删除、重命名或移动。
      */
-    private void validateProtectedDirectory(String path) {
-        if ("sql".equals(path) || "ddl".equals(path)) {
+    private void validateProtectedFolder(String path) {
+        if (PROTECTED_FOLDERS.contains(path)) {
             throw new BusinessException(FileResultCode.PROTECTED_DIRECTORY);
         }
     }

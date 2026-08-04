@@ -114,11 +114,11 @@ POST /api/files/index/reconcile
   "code": 0,
   "data": {
     "total": 45,
-    "unindexedFiles": ["sql/new_file.sql"],
+    "unindexedFiles": ["project/new_file.sql"],
     "unindexedFolders": [],
     "staleFiles": ["docs/old_readme.md"],
     "staleFolders": [],
-    "mtimeMismatches": ["ddl/user_table.ddl"],
+    "mtimeMismatches": ["tables/user_table.ddl"],
     "checksumMismatches": []
   }
 }
@@ -144,9 +144,9 @@ POST /api/files/index/repair
   "data": {
     "repairedStaleFiles": ["docs/old_readme.md"],
     "repairedStaleFolders": [],
-    "repairedUnindexedFiles": ["sql/new_file.sql"],
+    "repairedUnindexedFiles": ["project/new_file.sql"],
     "repairedUnindexedFolders": [],
-    "repairedMtimeMismatches": ["ddl/user_table.ddl"],
+    "repairedMtimeMismatches": ["tables/user_table.ddl"],
     "repairedChecksumMismatches": []
   }
 }

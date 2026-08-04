@@ -19,13 +19,13 @@
 ```
 default/
 ├── .lanting/              ← 系统配置，用户不可见，所有通用文件接口跳过此目录
-├── ddl/                   ← Flink CREATE TABLE DDL，前端独立展示
-├── sql/                  ← SQL 作业脚本，前端主编辑区
+├── tables/                   ← Flink CREATE TABLE DDL，前端独立展示
+├── project/                  ← SQL 作业脚本，前端主编辑区
 └── docs/                  ← 文档、运维记录、规范，独立入口
 ```
 
-`ddl/`、`sql/`、`docs/` 三个目录是前端功能的路径依赖：
-- `ddl/` 和 `sql/` 对应前端编辑器的两栏布局
+`tables/`、`project/`、`docs/` 三个目录是前端功能的路径依赖：
+- `tables/` 和 `project/` 对应前端编辑器的两栏布局
 - `docs/` 对应独立的文档入口
 
 用户偏好按用户隔离，保存在 `lanting_user.preferences` 字段中；工作空间配置按工作空间隔离，保存在 `lanting_workspace.config` 字段中。两者均不存于 `.lanting/` 目录。

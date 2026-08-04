@@ -57,7 +57,7 @@ public class FileIndexEntity {
     private Long updateTime;
 
     @JsonIgnore
-    public boolean isDirectory() {
+    public boolean isFolder() {
         return FOLDER.equals(type);
     }
 
@@ -66,7 +66,7 @@ public class FileIndexEntity {
         return FILE.equals(type);
     }
 
-    public static boolean isDirectory(String type) {
+    public static boolean isFolder(String type) {
         return FOLDER.equals(type);
     }
 

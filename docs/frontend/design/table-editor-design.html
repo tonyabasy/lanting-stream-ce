@@ -417,7 +417,7 @@ body {
       <div class="rule-num">R1</div>
       <div>
         <div class="rule-title">Tables 树复用 FileTree 组件，仅参数差异化</div>
-        <div class="rule-desc">原则 09（一处改动，全局一致）：DDL 文件和 SQL 文件是同类资源，树组件统一。差异仅限 rootPath='ddl/'、fileExtension='.ddl'、图标 ti-database。不新建组件，不新建 model。所有样式通过 antd CSS 变量驱动，自动跟随亮/暗色主题。</div>
+        <div class="rule-desc">原则 09（一处改动，全局一致）：DDL 文件和 SQL 文件是同类资源，树组件统一。差异仅限 rootPath='tables/'、fileExtension='.ddl'、图标 ti-database。不新建组件，不新建 model。所有样式通过 antd CSS 变量驱动，自动跟随亮/暗色主题。</div>
       </div>
     </div>
     <div class="rule-item">
@@ -526,7 +526,7 @@ body {
       <div class="spec-card-title">Tables 树</div>
       <table class="spec-table">
         <tr><td>组件</td><td>复用 FileTree 组件</td></tr>
-        <tr><td>rootPath</td><td>'ddl/'</td></tr>
+        <tr><td>rootPath</td><td>'tables/'</td></tr>
         <tr><td>文件后缀</td><td>.ddl</td></tr>
         <tr><td>文件图标</td><td>ti-database · 11px · colorTextDescription</td></tr>
         <tr><td>header 高度</td><td>36px（和 SQL 文件树一致）</td></tr>
@@ -626,7 +626,7 @@ body {
 <!-- ══ 设计稿 · 状态1：Tables 树 ══ -->
 <div class="section">
   <div class="section-title">四、设计稿 · Tables 树</div>
-  <div class="section-sub">复用 FileTree 组件，rootPath='ddl/'，图标 ti-database</div>
+  <div class="section-sub">复用 FileTree 组件，rootPath='tables/'，图标 ti-database</div>
 
   <div class="mockup-row">
     <div>
@@ -728,7 +728,7 @@ body {
     <div style="max-width:220px;font-size:var(--ant-font-size-sm);color:var(--ant-color-text-secondary);line-height:2;padding-top:24px;">
       <div style="color:var(--ant-color-text-description);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px;">唯一差异</div>
       <table class="spec-table">
-        <tr><td>rootPath</td><td>'ddl/'</td></tr>
+        <tr><td>rootPath</td><td>'tables/'</td></tr>
         <tr><td>fileExtension</td><td>.ddl</td></tr>
         <tr><td>图标</td><td>ti-database</td></tr>
         <tr><td>搜索 placeholder</td><td>搜索 DDL 表定义</td></tr>
@@ -1021,7 +1021,7 @@ body {
       <div class="rule-num">P1</div>
       <div>
         <div class="rule-title">Tables 树：FileTree 接受 rootPath + fileExtension 参数</div>
-        <div class="rule-desc">FileTree 组件新增 rootPath prop（默认 ''）和 fileExtension prop（默认 '.sql'）。Tables 视图传入 rootPath='ddl/'、fileExtension='.ddl'。图标根据 fileExtension 自动切换。FileTreeHeader title 也参数化。</div>
+        <div class="rule-desc">FileTree 组件新增 rootPath prop（默认 ''）和 fileExtension prop（默认 '.sql'）。Tables 视图传入 rootPath='tables/'、fileExtension='.ddl'。图标根据 fileExtension 自动切换。FileTreeHeader title 也参数化。</div>
       </div>
     </div>
     <div class="rule-item">

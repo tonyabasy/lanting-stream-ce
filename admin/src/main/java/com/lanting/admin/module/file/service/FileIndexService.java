@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.zip.CRC32;
 
 import static com.lanting.admin.module.file.entity.FileIndexEntity.FILE;
-import static com.lanting.admin.module.file.entity.FileIndexEntity.isDirectory;
+import static com.lanting.admin.module.file.entity.FileIndexEntity.isFolder;
 import static com.lanting.admin.module.file.service.GitFileService.EMPTY_CONTENT;
 
 /**
@@ -147,7 +147,7 @@ public class FileIndexService {
      */
     public FileIndexEntity indexOnCreate(String path, String type, Path root) {
         long now = System.currentTimeMillis();
-        long mtime = isDirectory(type) ? lastModifiedTime(root.resolve(path)) : 0L;
+        long mtime = isFolder(type) ? lastModifiedTime(root.resolve(path)) : 0L;
 
         FileIndexEntity existing = getByPath(path);
         if (existing != null) {
@@ -427,7 +427,7 @@ public class FileIndexService {
         for (FileIndexEntity entity : allIndex) {
             String path = entity.getPath();
             if (!diskPaths.contains(path)) {
-                if (entity.isDirectory()) {
+                if (entity.isFolder()) {
                     staleFolders.add(path);
                 } else {
                     staleFiles.add(path);

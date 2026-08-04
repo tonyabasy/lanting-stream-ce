@@ -16,6 +16,7 @@ import java.util.*;
 
 import java.util.stream.Collectors;
 
+import static com.lanting.admin.module.file.service.GitFileService.TABLES_FOLDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -43,7 +44,7 @@ class FileIndexServiceTest extends BaseIntegrationTest {
     @BeforeEach
     void setUp() {
         root = workspaceService.getDefaultWorkspaceRoot();
-        uniqueDir = "ddl/test-idx-" + UUID.randomUUID().toString().substring(0, 8);
+        uniqueDir = TABLES_FOLDER + "/test-idx-" + UUID.randomUUID().toString().substring(0, 8);
         // 确保测试目录存在
         try {
             Files.createDirectories(root.resolve(uniqueDir));

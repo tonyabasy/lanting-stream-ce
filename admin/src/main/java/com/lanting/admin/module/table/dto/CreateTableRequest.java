@@ -19,7 +19,7 @@ public class CreateTableRequest {
 
     /** 文件相对路径，建议以 .ddl 结尾 */
     @NotBlank(message = "文件路径不能为空")
-    @Schema(description = "文件相对路径", example = "ddl/ods_order.ddl")
+    @Schema(description = "文件相对路径", example = "tables/ods_order.ddl")
     private String path;
 
     /** 完整 Flink SQL DDL 文本 */

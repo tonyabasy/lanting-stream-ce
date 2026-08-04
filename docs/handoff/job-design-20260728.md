@@ -11,13 +11,13 @@
 | 视图 | 内容 | 数据源 | 频率 |
 |---|---|---|---|
 | Project | SQL 文件 | `GET /files/tree` 过滤 | 高，默认 |
-| Tables | DDL 文件 | `GET /files/tree` 过滤 `ddl/` | 高 |
+| Tables | DDL 文件 | `GET /files/tree` 过滤 `tables/` | 高 |
 | Changed | 未提交变更 | `GET /files/uncommit` | 中 |
 | Workspace | 全量文件 | `GET /files/tree` | 低 |
 
 ### 2. Table 设计（DDL 文件）
 
-- 存储在 `$workspace/ddl/`，`.ddl` 后缀，内容为 Flink SQL DDL
+- 存储在 `$workspace/tables/`，`.ddl` 后缀，内容为 Flink SQL DDL
 - DB 索引层（`FileIndexService` 扩展）解析结构化元信息（表名、连接器、字段列表）
 - 前端双模态编辑：表格表单（快速建表） ↔ CodeMirror 文本（精细控制），编辑同一文件
 
@@ -39,8 +39,8 @@ $workspace/.flink/conf/{fileId}.json
 
 | 目录 | 保护 |
 |---|---|
-| `sql/` | 禁止删除/重命名/移动 |
-| `ddl/` | 禁止删除/重命名/移动 |
+| `project/` | 禁止删除/重命名/移动 |
+| `tables/` | 禁止删除/重命名/移动 |
 | `.flink/` | 禁止删除/重命名/移动 |
 
 同现有的 `.lanting`、`.git` 保护逻辑。

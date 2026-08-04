@@ -7,6 +7,7 @@ import com.lanting.admin.module.file.dto.*;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.service.FileIndexService;
+import com.lanting.admin.module.file.service.GitFileService;
 import com.lanting.admin.module.file.service.WorkspaceService;
 import com.lanting.admin.module.file.vo.CommitResultVO;
 import org.eclipse.jgit.api.Git;
@@ -38,6 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static com.lanting.admin.module.file.service.GitFileService.PROJECT_FOLDER;
+import static com.lanting.admin.module.file.service.GitFileService.TABLES_FOLDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -64,7 +67,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
     @BeforeEach
     void setUp() {
         token = loginAsAdmin();
-        uniquePath = "sql/test-" + UUID.randomUUID().toString().substring(0, 8);
+        uniquePath = "project/test-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     @AfterEach
@@ -804,7 +807,7 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         @BeforeEach
         void cleanProtectedFolders() throws IOException {
             Path root = workspaceService.getDefaultWorkspaceRoot();
-            for (String name : List.of("ddl", "sql")) {
+            for (String name : GitFileService.PROTECTED_FOLDERS) {
                 // 物理删除该目录及其子孙在 file_index 中的记录
                 fileIndexMapper.delete(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<FileIndexEntity>()
                         .eq(FileIndexEntity::getPath, name)
@@ -826,10 +829,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("删除 ddl/ 目录应被拒绝")
+        @DisplayName("删除 tables/ 目录应被拒绝")
         void deleteDdlDirectoryShouldBeRejected() {
-            createFolder("ddl");
-            Long folderId = fileIdByPath("ddl");
+            createFolder(TABLES_FOLDER);
+            Long folderId = fileIdByPath(TABLES_FOLDER);
             assertThat(folderId).isNotNull();
 
             ResponseEntity<JsonNode> response = restTemplate.exchange(
@@ -840,10 +843,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("删除 sql/ 目录应被拒绝")
+        @DisplayName("删除 project/ 目录应被拒绝")
         void deleteSqlDirectoryShouldBeRejected() {
-            createFolder("sql");
-            Long folderId = fileIdByPath("sql");
+            createFolder(PROJECT_FOLDER);
+            Long folderId = fileIdByPath(PROJECT_FOLDER);
             assertThat(folderId).isNotNull();
 
             ResponseEntity<JsonNode> response = restTemplate.exchange(
@@ -854,10 +857,10 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("重命名 sql/ 目录应被拒绝")
+        @DisplayName("重命名 project/ 目录应被拒绝")
         void renameSqlDirectoryShouldBeRejected() {
-            createFolder("sql");
-            Long folderId = fileIdByPath("sql");
+            createFolder(PROJECT_FOLDER);
+            Long folderId = fileIdByPath(PROJECT_FOLDER);
             assertThat(folderId).isNotNull();
 
             RenameDTO dto = new RenameDTO();
@@ -870,16 +873,16 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("将其他目录重命名为 ddl 应被拒绝")
-        void renameOtherToDdlShouldBeRejected() {
-            String folder = "folder-to-ddl-" + UUID.randomUUID().toString().substring(0, 8);
+        @DisplayName("将其他目录重命名为 tables 应被拒绝")
+        void renameOtherToTablesShouldBeRejected() {
+            String folder = "folder-to-tables-" + UUID.randomUUID().toString().substring(0, 8);
             createFolder(folder);
             Long folderId = fileIdByPath(folder);
             assertThat(folderId).isNotNull();
 
             RenameDTO dto = new RenameDTO();
             dto.setFileId(folderId);
-            dto.setNewName("ddl");
+            dto.setNewName(TABLES_FOLDER);
             ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/rename", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt())
@@ -887,18 +890,18 @@ class GitFileServiceIntegrationTest extends BaseIntegrationTest {
         }
 
         @Test
-        @DisplayName("移动 ddl/ 内部文件应允许")
-        void moveFileInsideDdlShouldSucceed() {
-            createFolder("ddl");
-            String file = "ddl/move-inside.sql";
+        @DisplayName("移动 tables/ 内部文件应允许")
+        void moveFileInsideTablesShouldSucceed() {
+            createFolder(TABLES_FOLDER);
+            String file = TABLES_FOLDER + "/move-inside.sql";
             Long fileId = createFile(file);
             assertThat(fileId).isNotNull();
 
-            // 移动到 ddl/sub/ 下
-            createFolder("ddl/sub");
+            // 移动到 tables/sub/ 下
+            createFolder(TABLES_FOLDER + "/sub");
             MoveDTO dto = new MoveDTO();
             dto.setFileId(fileId);
-            dto.setNewPath("ddl/sub/move-inside.sql");
+            dto.setNewPath(TABLES_FOLDER + "/sub/move-inside.sql");
             ResponseEntity<JsonNode> response = restTemplate.exchange("/api/files/move", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
             assertThat(Objects.requireNonNull(response.getBody()).path("code").asInt()).isEqualTo(0);

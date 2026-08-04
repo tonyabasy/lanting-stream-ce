@@ -59,7 +59,7 @@ private final FileIndexService fileIndexService;
 
 ```
 given: bob 执行 acquireFolderLock("sql", "bob")
-when:  alice 执行 acquire(1L, "sql/etl/daily/init.sql", "alice")
+when:  alice 执行 acquire(1L, "project/etl/daily/init.sql", "alice")
 then:  抛 FILE_LOCKED
 ```
 
@@ -67,7 +67,7 @@ then:  抛 FILE_LOCKED
 
 ```
 given: bob 执行 acquireFolderLock("sql", "bob")，lockedAt 被设为 11 秒前
-when:  alice 执行 acquire(1L, "sql/etl/init.sql", "alice")
+when:  alice 执行 acquire(1L, "project/etl/init.sql", "alice")
 then:  无异常，且 folderHardLocks 中 "sql" 已被清理
 ```
 

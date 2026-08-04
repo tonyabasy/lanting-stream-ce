@@ -16,8 +16,8 @@ import { opsOf } from '@/services/fileTypeOps';
 /** 视图配置表：key → 视图属性（对应 Java 的 Map<String, FileTreeViewProp>） */
 export const FileTreeViews: Record<string, FileTreeViewProp> = {
   workspace: { key: 'workspace', rootPath: '', title: 'Workspace' },
-  project:   { key: 'project',   rootPath: 'sql', title: 'Project' },
-  tables:    { key: 'tables',    rootPath: 'ddl', title: 'Tables' },
+  project:   { key: 'project',   rootPath: 'project', title: 'Project' },
+  tables:    { key: 'tables',    rootPath: 'tables', title: 'Tables' },
 };
 
 /**
@@ -30,7 +30,7 @@ export default () => {
    * 当前视图根路径。
    * 视图切换 = 调用 switchTreeView 重新拉取并替换 treeData。
    * - Project 视图：''
-   * - Table 视图：'ddl/'
+   * - Table 视图：'tables/'
    */
   const [rootPath, setRootPath] = useState<string>('');
   const [viewKey, setViewKey] = useState<FileTreeViewKey>('workspace');
@@ -41,12 +41,12 @@ export default () => {
    *
    * key 对应文件/目录的相对路径，例如：
    * - 'docs' 表示 docs 目录展开
-   * - 'sql/ods' 表示 sql/ods 目录展开
+   * - 'project/ods' 表示 project/ods 目录展开
    *
    * 示例：
    * expandedKeys = []                          // 全部收起
    * expandedKeys = ['docs']                    // 展开 docs
-   * expandedKeys = ['docs', 'sql', 'sql/ods']  // 展开 docs、sql、sql/ods
+   * expandedKeys = ['docs', 'sql', 'project/ods']  // 展开 docs、sql、project/ods
    */
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<string[]>([]);
@@ -133,7 +133,7 @@ export default () => {
   /**
    * 将树展开到目标路径，确保所有祖先目录已加载并展开。
    *
-   * 'sql/ods/foo.sql' → 依次加载并展开 'sql'、'sql/ods'，
+   * 'project/ods/foo.sql' → 依次加载并展开 'sql'、'project/ods'，
    * 最后选中目标文件。
    */
   const expandToPath = useCallback(async (path: string) => {

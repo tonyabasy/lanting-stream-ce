@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.lanting.admin.module.file.service.GitFileService.PROJECT_FOLDER;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -31,7 +32,7 @@ class FileControllerTest extends BaseIntegrationTest {
     @BeforeEach
     void setUp() {
         token = loginAsAdmin();
-        uniquePath = "sql/controller-" + UUID.randomUUID().toString().substring(0, 8);
+        uniquePath = "project/controller-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
     @AfterEach
@@ -137,7 +138,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("path 含 '..' → PATH_ILLEGAL（30705）")
         void shouldRejectPathWithDotDot() {
             CreateFileDTO dto = new CreateFileDTO();
-            dto.setPath("sql/../../../etc/passwd");
+            dto.setPath("project/../../../etc/passwd");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);
@@ -159,7 +160,7 @@ class FileControllerTest extends BaseIntegrationTest {
         @DisplayName("反斜杠路径 → PATH_ILLEGAL（30705）")
         void shouldRejectBackslashPath() {
             CreateFileDTO dto = new CreateFileDTO();
-            dto.setPath("sql\\a.sql");
+            dto.setPath(PROJECT_FOLDER + "\\a.sql");
             ResponseEntity<JsonNode> response = restTemplate.exchange(
                     "/api/files/create", HttpMethod.POST,
                     new HttpEntity<>(dto, authHeaders(token)), JsonNode.class);

@@ -43,7 +43,7 @@
 
 1. 用户进入 Tables 视图 → 点击新建 → 选择「DDL 表」
 2. 在表单模式中填写表名、连接器类型（Kafka / Doris）、字段列表
-3. 点击「确定」保存 → 写盘 `ddl/xxx.ddl`，触发 Table Index 更新（代码提示可用）
+3. 点击「确定」保存 → 写盘 `tables/xxx.ddl`，触发 Table Index 更新（代码提示可用）
 4. 在 SQL 文件中直接引用表名编写 Flink SQL
 
 ---
@@ -201,7 +201,7 @@ CREATE TABLE kafka_order (
 ```
 
 **关键节点**：
-- 创建：表单模式填写 → 确定 → 写盘 `ddl/xxx.ddl`
+- 创建：表单模式填写 → 确定 → 写盘 `tables/xxx.ddl`
 - 编辑：两种模态——表单（确定保存）/ 文本（自动保存）
 - 删除：物理删除磁盘文件 + Table Index 记录
 - 提交 = git commit + 入待发布池（参考 `file-publish-design.md`）
@@ -368,7 +368,7 @@ Table Index (lanting_table_index + lanting_column_index)
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/files/tree?parentPath=ddl/` | Tables 树数据 |
+| GET | `/api/files/tree?parentPath=tables/` | Tables 树数据 |
 | POST | `/api/files/save` | 保存 .ddl → 后端解析 → upsert Index |
 | DELETE | `/api/files/delete` | 删除 .ddl → 物理删除 Index |
 
@@ -483,8 +483,8 @@ TableController 只负责 Index 查询和外部集成。
 
 ```
 $workspace/
-├── sql/          ← SQL 文件根目录（受保护）
-├── ddl/          ← DDL 文件根目录（受保护）
+├── project/          ← SQL 文件根目录（受保护）
+├── tables/          ← DDL 文件根目录（受保护）
 │   ├── dws_rw_ord_cnt_1m.ddl
 │   └── ...
 └── .flink/       ← Flink 系统配置（隐藏 + 完全封禁）
@@ -497,8 +497,8 @@ $workspace/
 
 | 目录 | 保护方式 | 说明 |
 |---|---|---|
-| `sql/` | 目录本身不可删/改/移，内部文件正常 CRUD | SQL 文件根 |
-| `ddl/` | 目录本身不可删/改/移，内部文件正常 CRUD | DDL 文件根 |
+| `project/` | 目录本身不可删/改/移，内部文件正常 CRUD | SQL 文件根 |
+| `tables/` | 目录本身不可删/改/移，内部文件正常 CRUD | DDL 文件根 |
 | `.flink/` | 完全封禁（含所有子路径） | 系统配置，用户不可见 |
 
 ### 双模态编辑
@@ -515,7 +515,7 @@ $workspace/
 | 视图 | 内容 | 数据源 |
 |---|---|---|
 | Project | SQL 文件 | `GET /files/tree` 过滤 |
-| Tables | DDL 文件 | `GET /files/tree` 过滤 `ddl/` |
+| Tables | DDL 文件 | `GET /files/tree` 过滤 `tables/` |
 | Changed | 未提交变更 | `GET /files/uncommit` |
 | Workspace | 全量文件 | `GET /files/tree` 全量 |
 

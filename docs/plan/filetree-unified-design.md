@@ -43,8 +43,8 @@ FileTreeContent / FileTreeHeader（全局唯一，UI 不变，前端不感知虚
 
 ```
 文件类型（fileType = 扩展名）
-  ├── ddl → TableController API
-  ├── sql → FileController（当前）/ SqlFileController（未来）
+  ├── tables → TableController API
+  ├── project → FileController（当前）/ SqlFileController（未来）
   └── 其他 → FileController
 ```
 
@@ -57,8 +57,8 @@ FileTreeContent / FileTreeHeader（全局唯一，UI 不变，前端不感知虚
 | 视图 | 数据源根路径 | title | 说明 |
 |------|------------|-------|------|
 | Project | `''`（根） | Project | 默认视图 |
-| Tables | `ddl/` | Tables | 替换现有 Tables 占位 |
-| TableType | `ddl/`（后端按 connector 分组返回虚拟目录） | Tables(Type) | 虚拟目录由后端构造，前端同构渲染 |
+| Tables | `tables/` | Tables | 替换现有 Tables 占位 |
+| TableType | `tables/`（后端按 connector 分组返回虚拟目录） | Tables(Type) | 虚拟目录由后端构造，前端同构渲染 |
 | Workspace | `''`（根） | Workspace | 后续 |
 
 **前端不感知虚拟目录**：三个视图都是「拉 rootPath + 显示 title」，完全同构。
