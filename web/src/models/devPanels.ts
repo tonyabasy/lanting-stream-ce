@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-export type LeftTopTab = 'files' | 'tables' | 'changes' | null;
+export type LeftTopTab = 'files' | 'changes' | null;
 export type RightTab = 'config' | 'ai' | null;
 export type LeftBottomTab = 'terminal' | 'git' | null;
 
@@ -39,6 +39,7 @@ export default () => {
     leftTop,
     right,
     leftBottom,
+    setLeftTop,
     toggleLeftTop,
     toggleRight,
     toggleLeftBottom,

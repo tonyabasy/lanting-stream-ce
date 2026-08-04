@@ -1,4 +1,4 @@
-import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch, IconTable } from '@tabler/icons-react';
+import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch } from '@tabler/icons-react';
 import { Button, Tooltip } from 'antd';
 import type { LeftTopKey, LeftBottomKey, LeftTopTab, LeftBottomTab } from '@/models/devPanels';
 import '../index.css';
@@ -25,15 +25,6 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           data-active={activeTop === 'files'}
           icon={<IconFolder className="lt-sidebar-icon" />}
           onClick={() => onToggleTop('files')}
-        />
-      </Tooltip>
-      <Tooltip title="Tables" placement="right">
-        <Button
-          className="lt-sidebar-btn"
-          type="text"
-          data-active={activeTop === 'tables'}
-          icon={<IconTable className="lt-sidebar-icon" />}
-          onClick={() => onToggleTop('tables')}
         />
       </Tooltip>
       <Tooltip title="变更" placement="right">

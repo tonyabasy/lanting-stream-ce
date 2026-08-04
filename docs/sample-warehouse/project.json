@@ -21,4 +21,8 @@
       "jdbcUrl": "jdbc:clickhouse://clickhouse:8123/default"
     }
   }
+
+
+
+  
 }

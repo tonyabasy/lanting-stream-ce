@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Tree, Button, Dropdown, Modal, message, Spin, Typography } from 'antd';
 import type { TreeDataNode, TreeProps } from 'antd';
 import { useModel } from 'umi';
 import { IconChevronDown, IconDotsVertical, IconFolder } from '@tabler/icons-react';
-import { toTreeDataNode, leafName, parentOf, findNode, TREE_ICON_SIZE, getFileIcon, highlightMatch } from './treeUtils';
+import { leafName, parentOf, findNode, TREE_ICON_SIZE, getFileIcon, highlightMatch } from './treeUtils';
 import { getFileMenuItems, folderMenuItems } from './FileMenuItems';
-import type { FileTreeNode } from '../types/file';
+import type { FileTreeDataNode, FileTreeNode } from '@/types/file';
 
 const { Text } = Typography;
 
@@ -38,20 +38,16 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
   } = useModel('fileTree');
   const { openFile } = useModel('editor');
 
-  useEffect(() => {
-    if (treeData.length === 0) {
-      loadTree('');
-    }
-  }, [loadTree, treeData.length]);
-
-  const selectedKeys = selectedNode ? [selectedNode.path] : [];
+  const selectedKeys = selectedNode?.key != null ? [String(selectedNode.key)] : [];
 
   // ==================== 搜索交互 ====================
 
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
 
-  const handleSearchResultClick = async (result: FileTreeNode) => {
-    await expandToPath(result.path);
+  const handleSearchResultClick = async (result: FileTreeDataNode) => {
+    const raw = result.data;
+    if (!raw) return;
+    await expandToPath(raw.path);
     selectNode(result);
     clearSearch();
   };
@@ -105,8 +101,8 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     const found = findNode(treeData, path);
     if (!found) return;
 
-    if (found.type === 'file') {
-      openFile(found);
+    if (found.data?.type === 'file') {
+      openFile(found.data);
     } else {
       const expanded = expandedKeys.includes(path);
       toggleExpand(path, !expanded);
@@ -115,11 +111,13 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
 
   /** 三点按钮菜单点击 */
   const handleMenuClick = (treeNode: TreeDataNode) => ({ key }: { key: string }) => {
-    const node = treeNode as TreeDataNode & { fileId: number };
-    const fileId = node.fileId;
+    const node = treeNode as TreeDataNode & { fileId?: number; data?: FileTreeNode };
+    const raw = node.data;
+    const fileId = raw?.fileId ?? node.fileId;
+    if (fileId == null) return; // 虚拟目录无 fileId，不响应操作
     const path = String(node.key);
     const name = leafName(path);
-    const isFolder = !node.isLeaf;
+    const isFolder = raw ? raw.type === 'folder' : !node.isLeaf;
 
     switch (key) {
       case 'lock':
@@ -151,21 +149,21 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
           okText: '删除',
           okType: 'danger',
           cancelText: '取消',
-          onOk: () => deleteNode(fileId, path).catch((e: any) => message.error(e?.message || '删除失败')),
+          onOk: () => deleteNode(node as unknown as FileTreeDataNode).catch((e: any) => message.error(e?.message || '删除失败')),
         });
         break;
     }
   };
 
   const titleRender = (treeNode: TreeDataNode) => {
-    const node = treeNode as TreeDataNode & { isMyLock: boolean };
+    const node = treeNode as TreeDataNode & { isMyLock?: boolean; data?: FileTreeNode };
 
     return (
       <span className="lt-filetree-node-row">
         <span>{treeNode.title as React.ReactNode}</span>
         <Dropdown
           menu={{
-            items: treeNode.isLeaf ? getFileMenuItems(node.isMyLock) : folderMenuItems,
+            items: treeNode.isLeaf ? getFileMenuItems(node.isMyLock ?? false) : folderMenuItems,
             onClick: handleMenuClick(treeNode),
             rootClassName: 'lt-filetree-ctxmenu',
           }}
@@ -173,6 +171,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
         >
           <Button
             type="text"
+            shape="circle"
             size="small"
             className="lt-filetree-more-btn"
             icon={<IconDotsVertical size={TREE_ICON_SIZE} />}
@@ -201,8 +200,9 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
         {!searchLoading && searchResults.length > 0 && (
           <div className="lt-filetree-search-results">
             {searchResults.map((result, index) => {
-              const isFolder = result.type === 'folder';
-              const parent = parentOf(result.path);
+              const raw = result.data;
+              const isFolder = raw ? raw.type === 'folder' : !result.isLeaf;
+              const parent = raw ? parentOf(raw.path) : parentOf(String(result.key ?? ''));
               const isActive = index === activeSearchIndex;
               return (
                 <div
@@ -212,10 +212,10 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
                   onMouseEnter={() => setActiveSearchIndex(index)}
                 >
                   <span className="lt-filetree-search-item-icon">
-                    {isFolder ? <IconFolder size={TREE_ICON_SIZE} /> : getFileIcon(result.name)}
+                    {isFolder ? <IconFolder size={TREE_ICON_SIZE} /> : getFileIcon(raw?.name ?? '')}
                   </span>
                   <span className="lt-filetree-search-item-name">
-                    {highlightMatch(result.name, searchQuery.trim())}
+                    {highlightMatch(raw?.name ?? '', searchQuery.trim())}
                   </span>
                   {parent && (
                     <Text type="secondary" className="lt-filetree-search-item-path">
@@ -236,7 +236,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
   return (
     <div className="lt-filetree-body">
       <Tree
-        treeData={treeData.map((node) => toTreeDataNode(node))}
+        treeData={treeData}
         loadData={onLoadData}
         showIcon
         switcherIcon={<IconChevronDown size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}

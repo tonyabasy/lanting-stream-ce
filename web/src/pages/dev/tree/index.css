@@ -17,9 +17,15 @@
   flex-shrink: 0;
 }
 .lt-filetree-header-title {
-  flex: 1;
   font-weight: var(--ant-font-weight-strong);
   letter-spacing: 0.04em;
+  padding: 0;
+}
+.lt-filetree-header-btn-group {
+  margin-left: auto;   /* 把整个按钮组推到最右 */
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 /* 操作按钮：默认隐藏，hover 文件树区域时出现 */
@@ -169,12 +175,8 @@
 
 /* 三点按钮：默认隐藏，hover 节点时出现 */
 .lt-filetree-more-btn.lt-filetree-more-btn {
-  width: 20px;
-  height: 20px;
-  margin-left: auto;
   opacity: 0;
   color: var(--ant-color-text-description);
-  flex-shrink: 0;
   transition: opacity 0.12s;
 }
 .lt-filetree-body .lt-filetree-treenode:hover .lt-filetree-more-btn {

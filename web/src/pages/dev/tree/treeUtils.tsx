@@ -7,13 +7,19 @@ import {
   IconJson,
   IconHtml,
 } from '@tabler/icons-react';
-import type { TreeDataNode } from 'antd';
 import type { ReactNode } from 'react';
-import type { FileTreeNode } from '../types/file';
+import type { FileTreeDataNode, FileTreeNode } from '@/types/file';
 
 /* 设计稿规范为 11px，奇数尺寸 SVG 渲染发虚，取 12px */
 export const TREE_ICON_SIZE = 16;
 export const CTX_ICON_SIZE = 16;
+
+/** 从文件名提取扩展名（小写，不含点）。目录返回 undefined；无扩展名返回 '' */
+export const inferFileType = (name: string, isFolder: boolean): string | undefined => {
+  if (isFolder) return undefined;
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 && dot < name.length - 1 ? name.substring(dot + 1).toLowerCase() : '';
+};
 
 export const getFileIcon = (name: string) => {
   if (name.endsWith('.md')) return <IconMarkdown size={TREE_ICON_SIZE} />;
@@ -24,19 +30,23 @@ export const getFileIcon = (name: string) => {
   return <IconFile size={TREE_ICON_SIZE} />;
 };
 
-/** 将 FileTreeNode 转换为 TreeDataNode */
+/** 将 FileTreeNode 转换为 FileTreeDataNode（antd 节点，携带原始数据引用） */
 export const toTreeDataNode = (
   node: FileTreeNode,
-): TreeDataNode => {
+): FileTreeDataNode => {
   const isFolder = node.type === 'folder';
+  const enriched: FileTreeNode = isFolder
+    ? node
+    : { ...node, fileType: node.fileType ?? inferFileType(node.name, isFolder) };
   return {
     key: node.path,
     fileId: node.fileId,
+    data: enriched,
     title: node.name,
     icon: isFolder ? <IconFolder size={TREE_ICON_SIZE} /> : getFileIcon(node.name),
     isLeaf: !isFolder,
     children: node.children?.map((child) => toTreeDataNode(child)),
-  } as TreeDataNode & { fileId: number; isMyLock: boolean };
+  } as FileTreeDataNode;
 };
 
 /** 从路径提取末段名称。'README.md' → 'README.md' */
@@ -51,12 +61,12 @@ export const parentOf = (path: string): string => {
   return i > 0 ? path.substring(0, i) : '';
 };
 
-/** 根据 path 在 treeData 中查找节点 */
-export const findNode = (list: FileTreeNode[], path: string): FileTreeNode | undefined => {
+/** 根据 path 在 treeData 中查找节点（FileTreeDataNode，key 即路径） */
+export const findNode = (list: FileTreeDataNode[], path: string): FileTreeDataNode | undefined => {
   for (const node of list) {
-    if (node.path === path) return node;
+    if (node.key === path) return node;
     if (node.children) {
-      const found = findNode(node.children, path);
+      const found = findNode(node.children as FileTreeDataNode[], path);
       if (found) return found;
     }
   }

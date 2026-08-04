@@ -1,19 +1,32 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Input, Modal, message } from 'antd';
 import { useModel } from 'umi';
-import FileTreeHeader from './FileTreeHeader';
+import type { FileTreeViewKey } from '@/types/file';
+import FileTreeHeader, { buildViewOptions } from './FileTreeHeader';
 import FileTreeSearch from './FileTreeSearch';
 import FileTreeContent from './FileTreeContent';
 import './index.css';
 
 /**
- * 文件树组件。
+ * 文件树组件（视图下拉切换）。
  *
- * 状态由全局 fileTree model 管理。
+ * 视图由 fileTree model 的 viewKey 决定（下拉切换），挂载时 switchTreeView 拉对应根路径数据。
  */
 const FileTree: React.FC = () => {
-  const { refresh, collapseAll, createFileNode, createFolderNode, selectedNode } = useModel('fileTree');
-  const { toggleLeftTop } = useModel('devPanels');
+  const model = useModel('fileTree');
+  const { refresh, collapseAll, createFileNode, createFolderNode, selectedNode, switchTreeView, viewKey, treeData } = model;
+  const { setLeftTop } = useModel('devPanels');
+
+  const view: FileTreeViewKey = viewKey;
+
+  // 挂载时若全局树数据为空才加载（面板重开时 treeData/展开状态仍在全局 model，直接复用，不重置）
+  // 视图切换由 Header 下拉触发 switchTreeView，组件常驻时不会重跑本 effect
+  useEffect(() => {
+    if (treeData.length === 0) {
+      switchTreeView(viewKey);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 通用输入弹窗状态
   const [modalVisible, setModalVisible] = useState(false);
@@ -47,7 +60,7 @@ const FileTree: React.FC = () => {
     refresh().catch((e: any) => message.error(e?.message || '刷新失败'));
   };
 
-  const getParentPath = () => selectedNode?.type === 'folder' ? selectedNode.path : '';
+  const getParentPath = () => selectedNode?.data?.type === 'folder' ? selectedNode.data.path : '';
 
   const handleAddFile = () => {
     const parentPath = getParentPath();
@@ -62,11 +75,14 @@ const FileTree: React.FC = () => {
   return (
     <div className="lt-filetree">
       <FileTreeHeader
+        view={view}
+        viewOptions={buildViewOptions()}
+        onViewChange={switchTreeView}
         onRefresh={handleRefresh}
         onAddFile={handleAddFile}
         onAddFolder={handleAddFolder}
         onCollapseAll={collapseAll}
-        onCollapsePanel={() => toggleLeftTop('files')}
+        onCollapsePanel={() => setLeftTop(null)}
       />
       <div className="lt-filetree-divider" />
       <FileTreeSearch />

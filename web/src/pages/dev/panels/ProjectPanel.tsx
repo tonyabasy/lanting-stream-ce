@@ -6,12 +6,18 @@ interface ProjectPanelProps {
   active: LeftTopTab;
 }
 
-const ProjectPanel: React.FC<ProjectPanelProps> = ({ active }) => (
-  <div className="lt-panel-base">
-    {active === 'files' && (<FileTree />)}
-    {active === 'tables' && <div>ProjectPanel（模型区）</div>}
-    {active === 'changes' && <div>ChangesPanel（变更区）</div>}
-  </div>
-);
+const ProjectPanel: React.FC<ProjectPanelProps> = ({ active }) => {
+  if (!active) return <div className="lt-panel-base" />;
+  // 变更面板单独模块，此处占位
+  if (active === 'changes') {
+    return <div className="lt-panel-base">变更面板待实现</div>;
+  }
+  // 文件树面板：视图由 fileTree model 的 viewKey 决定，下拉切换
+  return (
+    <div className="lt-panel-base">
+      <FileTree />
+    </div>
+  );
+};
 
 export default ProjectPanel;

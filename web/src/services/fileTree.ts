@@ -1,5 +1,5 @@
 import request from '@/utils/request';
-import type { FileTreeNode } from '@/pages/dev/types/file';
+import type { FileTreeNode } from '@/types/file';
 
 /**
  * 获取文件树。

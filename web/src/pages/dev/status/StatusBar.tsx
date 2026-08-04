@@ -7,7 +7,7 @@ const StatusBar: React.FC = () => {
   const { selectedNode } = useModel('fileTree');
   const { openTabs, activeTabId, isFileEditable } = useModel('editor');
 
-  const segments = selectedNode ? selectedNode.path.split('/') : [];
+  const segments = selectedNode?.data ? selectedNode.data.path.split('/') : [];
   const editable = activeTabId !== null && isFileEditable(activeTabId);
 
   return (

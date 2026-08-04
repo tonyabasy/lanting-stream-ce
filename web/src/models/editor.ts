@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModel } from 'umi';
 import { Text } from '@codemirror/state';
-import type { FileTreeNode } from '@/pages/dev/types/file';
+import type { FileTreeNode } from '@/types/file';
 import { loadContent, saveContent, acquireLock as acquireLockApi } from '@/services/fileTree';
 
 /**

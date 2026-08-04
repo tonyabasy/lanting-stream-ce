@@ -1,16 +1,24 @@
 import { useCallback, useRef, useState } from 'react';
-import type { FileTreeNode } from '@/pages/dev/types/file';
+import { FileTreeDataNode, FileTreeViewKey, FileTreeViewProp } from '@/types/file';
+import { toTreeDataNode, parentOf } from '@/pages/dev/tree/treeUtils';
 import {
   tree,
   searchFiles,
   acquireLock as acquireLockApi,
   releaseLock as releaseLockApi,
   renameFile,
-  deleteFile,
   createFile as createFileApi,
   createFolder as createFolderApi,
   moveFile,
 } from '@/services/fileTree';
+import { opsOf } from '@/services/fileTypeOps';
+
+/** 视图配置表：key → 视图属性（对应 Java 的 Map<String, FileTreeViewProp>） */
+export const FileTreeViews: Record<string, FileTreeViewProp> = {
+  workspace: { key: 'workspace', rootPath: '', title: 'Workspace' },
+  project:   { key: 'project',   rootPath: 'sql', title: 'Project' },
+  tables:    { key: 'tables',    rootPath: 'ddl', title: 'Tables' },
+};
 
 /**
  * 全局文件树状态 model。
@@ -18,7 +26,15 @@ import {
  * 任何组件都可以通过 useModel('fileTree') 读取或操作目录状态。
  */
 export default () => {
-  const [treeData, setTreeData] = useState<FileTreeNode[]>([]);
+  /**
+   * 当前视图根路径。
+   * 视图切换 = 调用 switchTreeView 重新拉取并替换 treeData。
+   * - Project 视图：''
+   * - Table 视图：'ddl/'
+   */
+  const [rootPath, setRootPath] = useState<string>('');
+  const [viewKey, setViewKey] = useState<FileTreeViewKey>('workspace');
+  const [treeData, setTreeData] = useState<FileTreeDataNode[]>([]);
 
   /**
    * 当前展开的目录节点 key 列表。
@@ -35,13 +51,13 @@ export default () => {
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<string[]>([]);
 
-  const [selectedNode, setSelectedNode] = useState<FileTreeNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<FileTreeDataNode | null>(null);
   const [loading, setLoading] = useState(false);
 
   // ==================== 搜索 ====================
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<FileTreeNode[]>([]);
+  const [searchResults, setSearchResults] = useState<FileTreeDataNode[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -55,7 +71,7 @@ export default () => {
     setSearchLoading(true);
     try {
       const results = await searchFiles(q.trim());
-      setSearchResults(results);
+      setSearchResults(results.map((node) => toTreeDataNode(node)));
     } finally {
       setSearchLoading(false);
     }
@@ -79,14 +95,34 @@ export default () => {
 
   // ==================== 树操作 ====================
 
-  const loadTree = useCallback(async (parentPath: string) => {
+  /**
+   * 切换视图：查表取 rootPath，重新拉取根数据，替换整棵 treeData。
+   * 视图 key 作为当前视图状态保存；加载期间 loading=true（Content 禁用交互），
+   * 数据回来才解锁，避免竞态。
+   */
+  const switchTreeView = useCallback(async (key: FileTreeViewKey) => {
+    const view = FileTreeViews[key];
+    if (!view) return;
+    setViewKey(key);
+    setRootPath(view.rootPath);
+    setLoading(true);
+    try {
+      clearSearch()
+      await refresh(view.rootPath);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadTree = useCallback(async (parentPath: string, replaceRoot = false) => {
     setLoading(true);
     try {
       const nodes = await tree(parentPath);
-      if (parentPath === '') {
-        setTreeData(nodes);
+      const antdNodes = nodes.map((node) => toTreeDataNode(node));
+      if (replaceRoot || parentPath === '') {
+        setTreeData(antdNodes);
       } else {
-        setTreeData((origin) => updateTreeData(origin, parentPath, nodes));
+        setTreeData((origin) => updateTreeData(origin, parentPath, antdNodes));
         setLoadedKeys((prev) => prev.includes(parentPath) ? prev : [...prev, parentPath]);
       }
     } finally {
@@ -109,7 +145,7 @@ export default () => {
     }
   }, [loadTree]);
 
-  const selectNode = useCallback((node: FileTreeNode | null) => {
+  const selectNode = useCallback((node: FileTreeDataNode | null) => {
     setSelectedNode(node);
   }, []);
 
@@ -124,11 +160,11 @@ export default () => {
     setExpandedKeys([]);
   }, []);
 
-  /** 刷新根目录数据，保留当前展开状态 */
-  const refresh = useCallback(async () => {
-    await loadTree('');
+  /** 刷新当前视图根目录数据，保留当前展开状态 */
+  const refresh = useCallback(async (path?: string) => {
+    await loadTree(path ?? rootPath, true);
     setLoadedKeys([]);
-  }, [loadTree]);
+  }, [rootPath]);
 
   /** 抢锁，成功后刷新所在目录 */
   const acquireLock = useCallback(async (fileId: number, path: string) => {
@@ -151,18 +187,22 @@ export default () => {
     await loadTree(parentPath);
   }, [loadTree]);
 
-  /** 删除，成功后清除选中（如被删）并刷新所在目录 */
-  const deleteNode = useCallback(async (fileId: number, path: string) => {
-    await deleteFile(fileId);
-    setSelectedNode((prev) => prev?.fileId === fileId ? null : prev);
-    const parentPath = parentOf(path);
+  /** 删除：按文件类型路由到对应操作集，成功后清除选中（如被删）并刷新所在目录 */
+  const deleteNode = useCallback(async (node: FileTreeDataNode) => {
+    const raw = node.data;
+    if (!raw) return;
+    await opsOf(raw.fileType).delete(raw.fileId);
+    setSelectedNode((prev) => prev?.fileId === raw.fileId ? null : prev);
+    const parentPath = parentOf(raw.path);
     await loadTree(parentPath);
   }, [loadTree]);
 
-  /** 新建文件 */
+  /** 新建文件：按名字后缀路由到对应操作集 */
   const createFileNode = useCallback(async (parentPath: string, name: string) => {
     const fullPath = parentPath ? `${parentPath}/${name}` : name;
-    await createFileApi(fullPath);
+    const dot = name.lastIndexOf('.');
+    const ext = dot >= 0 && dot < name.length - 1 ? name.substring(dot + 1).toLowerCase() : undefined;
+    await (opsOf(ext).create?.(fullPath) ?? createFileApi(fullPath));
     await loadTree(parentPath);
   }, [loadTree]);
 
@@ -185,6 +225,8 @@ export default () => {
   }, [loadTree]);
 
   return {
+    rootPath,
+    viewKey,
     treeData,
     expandedKeys,
     loadedKeys,
@@ -199,6 +241,7 @@ export default () => {
     clearSearch,
     expandToPath,
     // 树操作
+    switchTreeView,
     loadTree,
     refresh,
     selectNode,
@@ -215,28 +258,19 @@ export default () => {
 };
 
 /**
- * 从完整路径提取父目录路径。
- * 'README.md' → ''，'sql/ods/foo.sql' → 'sql/ods'
- */
-const parentOf = (path: string): string => {
-  const i = path.lastIndexOf('/');
-  return i > 0 ? path.substring(0, i) : '';
-};
-
-/**
- * 更新指定 path 的 children，返回新的 treeData。
+ * 更新指定 key（路径）的 children，返回新的 treeData。
  */
 const updateTreeData = (
-  list: FileTreeNode[],
+  list: FileTreeDataNode[],
   key: string,
-  children: FileTreeNode[],
-): FileTreeNode[] =>
+  children: FileTreeDataNode[],
+): FileTreeDataNode[] =>
   list.map((node) => {
-    if (node.path === key) {
+    if (node.key === key) {
       return { ...node, children };
     }
     if (node.children) {
-      return { ...node, children: updateTreeData(node.children, key, children) };
+      return { ...node, children: updateTreeData(node.children as FileTreeDataNode[], key, children) };
     }
     return node;
   });

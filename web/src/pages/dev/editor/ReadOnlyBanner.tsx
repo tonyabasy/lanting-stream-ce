@@ -1,6 +1,6 @@
 import { Button, message } from 'antd';
 import { IconLock } from '@tabler/icons-react';
-import type { FileTreeNode } from '@/pages/dev/types/file';
+import type { FileTreeNode } from '@/types/file';
 
 interface ReadOnlyBannerProps {
   activeTab: FileTreeNode;
