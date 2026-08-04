@@ -46,7 +46,7 @@ export default () => {
    * 示例：
    * expandedKeys = []                          // 全部收起
    * expandedKeys = ['docs']                    // 展开 docs
-   * expandedKeys = ['docs', 'sql', 'project/ods']  // 展开 docs、sql、project/ods
+   * expandedKeys = ['docs', 'project', 'project/ods']  // 展开 docs、project、project/ods
    */
   const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
   const [loadedKeys, setLoadedKeys] = useState<string[]>([]);
@@ -133,7 +133,7 @@ export default () => {
   /**
    * 将树展开到目标路径，确保所有祖先目录已加载并展开。
    *
-   * 'project/ods/foo.sql' → 依次加载并展开 'sql'、'project/ods'，
+   * 'project/ods/foo.sql' → 依次加载并展开 'project'、'project/ods'，
    * 最后选中目标文件。
    */
   const expandToPath = useCallback(async (path: string) => {

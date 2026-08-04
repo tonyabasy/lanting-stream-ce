@@ -3,6 +3,7 @@ import { Empty } from 'antd';
 import { useModel } from 'umi';
 import FileTabs from '@/pages/dev/components/CodeEditor/FileTabs';
 import CodeEditor, { type CodeEditorRef } from '@/pages/dev/components/CodeEditor';
+import TableEditor from '@/pages/dev/components/TableEditor';
 import '../index.css';
 
 const EditorPanel: React.FC = () => {
@@ -21,6 +22,10 @@ const EditorPanel: React.FC = () => {
   } = editor;
 
   const readonly = activeTabId === null || !isFileEditable(activeTabId);
+
+  const activeTab = openTabs.find((t) => t.fileId === activeTabId);
+  const isDdl = activeTab?.fileType === 'ddl';
+  const content = activeTabId !== null && baselineDocs[activeTabId] ? baselineDocs[activeTabId].toString() : '';
 
   const codeEditorRef = useRef<CodeEditorRef>(null);
 
@@ -54,15 +59,23 @@ const EditorPanel: React.FC = () => {
           <Empty />
         </div>
       ) : (
-        <CodeEditor
-          ref={codeEditorRef}
-          activeTabId={activeTabId}
-          readonly={readonly}
-          baselineDocs={baselineDocs}
-          setDirtyFlags={setDirtyFlags}
-          checkClean={checkClean}
-          autoSave={autoSave}
-        />
+        isDdl && activeTab ? (
+          <TableEditor
+            fileId={activeTab.fileId}
+            readonly={readonly}
+            content={content}
+          />
+        ) : (
+          <CodeEditor
+            ref={codeEditorRef}
+            activeTabId={activeTabId}
+            readonly={readonly}
+            baselineDocs={baselineDocs}
+            setDirtyFlags={setDirtyFlags}
+            checkClean={checkClean}
+            autoSave={autoSave}
+          />
+        )
       )}
     </div>
   );
