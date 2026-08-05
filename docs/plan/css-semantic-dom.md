@@ -87,11 +87,11 @@ antd v6 引入 Semantic DOM，组件内部结构通过 `classNames` 和 `styles`
 
 ---
 
-### 3. Tabs（FileTabs）— P2（半完成）
+### 3. Tabs（Index）— P2（半完成）
 
 **官方 Semantic DOM**：`root`、`header`、`item`、`remove`（6.4.0）、`indicator`、`body`、`content`、`popup.root`
 
-`classNames.root`、`classNames.header`、`classNames.item` 已在 `FileTabs.tsx` 中设置 ✅
+`classNames.root`、`classNames.header`、`classNames.item` 已在 `index.tsx` 中设置 ✅
 
 **遗留 CSS**：`header` 就是 nav 容器，可用它消掉 `.ant-tabs-nav` 引用。
 
@@ -141,6 +141,6 @@ antd v6 引入 Semantic DOM，组件内部结构通过 `classNames` 和 `styles`
 
 ## 补充说明
 
-- `FileTabs.tsx` 的 `classNames.header` 已设置，计划里标记为"半完成"的状态可更新为"CSS 待收尾"。
+- `index.tsx` 的 `classNames.header` 已设置，计划里标记为"半完成"的状态可更新为"CSS 待收尾"。
 - Tree 的 selected/hover 状态类（如 `.ant-tree-treenode-selected`）由 antd 内部保留，迁移后组合选择器仍需引用这些状态类，不能只改基类前缀。
 - Input 的 Semantic DOM key 以 `antd@^6.5.0` 实际导出为准，建议在动手前确认 `Input` 的 `classNames` 类型定义。

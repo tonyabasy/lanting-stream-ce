@@ -120,8 +120,8 @@ Ctrl+S       → autoSave(..., force=true)
 | `web/src/pages/dev/editor/autoSaveExtension.ts` | **新增**：独立 CodeMirror 6 扩展，封装 `updateListener` + idle timer，通过 Facet 注入回调，便于分屏等多编辑器实例复用 |
 | `web/src/pages/dev/editor/CodeEditor.tsx` | 接入 `autoSaveExtension`；`Ctrl+S` 调 `autoSave(force=true)`；通过 `useImperativeHandle` 暴露 `saveTab` |
 | `web/src/pages/dev/editor/ReadOnlyBanner.tsx` | **新增**：只读提示横幅 + 抢锁按钮 |
-| `web/src/pages/dev/editor/FileTabs.tsx` | 接收 `dirtyFlags`，未保存 tab 显示 ● 圆点 |
-| `web/src/pages/dev/panels/EditorPanel.tsx` | 组合 `FileTabs` / `ReadOnlyBanner` / `CodeEditor`；切换/关闭 tab 前保存；关闭未持锁 dirty tab 时弹确认 |
+| `web/src/pages/dev/editor/EditorTab.tsx` | 接收 `dirtyFlags`，未保存 tab 显示 ● 圆点 |
+| `web/src/pages/dev/panels/EditorPanel.tsx` | 组合 `Index` / `ReadOnlyBanner` / `CodeEditor`；切换/关闭 tab 前保存；关闭未持锁 dirty tab 时弹确认 |
 | `web/src/pages/dev/editor/index.css` | 增加未保存圆点样式 |
 
 ## 7. 运行成本与性能分析

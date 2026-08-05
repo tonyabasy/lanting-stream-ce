@@ -2,7 +2,7 @@ import { Tabs } from 'antd';
 import type { FileTreeNode } from '@/types/file';
 import './index.css';
 
-export interface FileTabsProps {
+export interface EditorTabProps {
   tabs: FileTreeNode[];
   activeTabId: number | null;
   dirtyFlags: Record<number, boolean>;
@@ -10,7 +10,7 @@ export interface FileTabsProps {
   onClose: (fileId: number) => void;
 }
 
-const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, dirtyFlags, onSwitch, onClose }) => {
+const EditorTab: React.FC<EditorTabProps> = ({ tabs, activeTabId, dirtyFlags, onSwitch, onClose }) => {
   if (tabs.length === 0) return null;
 
   return (
@@ -45,4 +45,4 @@ const FileTabs: React.FC<FileTabsProps> = ({ tabs, activeTabId, dirtyFlags, onSw
   );
 };
 
-export default FileTabs;
+export default EditorTab;

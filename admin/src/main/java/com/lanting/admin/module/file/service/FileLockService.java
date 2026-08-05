@@ -2,6 +2,7 @@ package com.lanting.admin.module.file.service;
 
 import com.lanting.admin.common.exception.BusinessException;
 import com.lanting.admin.module.file.entity.FileIndexEntity;
+import com.lanting.admin.module.file.model.LockInfo;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.vo.AcquireLockVO;
 import lombok.extern.slf4j.Slf4j;

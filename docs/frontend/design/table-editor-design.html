@@ -243,9 +243,21 @@ body {
 .edit-sep { height: 0.5px; background: var(--ant-color-split); flex-shrink: 0; }
 
 /* Segmented 模式切换 */
+/* 操作栏（toolbar）：左=动作按钮（常显），右=模态切换 */
 .mode-bar {
-  display: flex; align-items: center; padding: var(--ant-size-sm) var(--ant-padding-sm); gap: var(--ant-size-sm); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--ant-size-sm) var(--ant-padding-sm); gap: var(--ant-size-sm); flex-shrink: 0;
 }
+.mode-bar-left { display: flex; align-items: center; gap: 2px; }
+.mode-bar-right { display: flex; align-items: center; gap: 4px; }
+/* 动作按钮：纯图标 · 常显（高频操作）· 无边框无背景 · hover 微浮现 */
+.tool-btn {
+  width: 24px; height: 24px; border-radius: var(--ant-border-radius-sm);
+  font-size: 14px; color: var(--ant-color-text-tertiary);
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+.tool-btn:hover { background: var(--ant-color-fill-tertiary); color: var(--ant-color-text); }
 .mode-seg {
   display: flex; background: var(--ant-color-fill-quaternary); border-radius: var(--ant-border-radius); padding: 2px; gap: 1px;
 }
@@ -256,6 +268,14 @@ body {
 }
 .mode-seg-btn:hover { color: var(--ant-color-text-secondary); }
 .mode-seg-btn.active { background: var(--ant-color-bg-container); color: var(--ant-color-text); font-weight: var(--ant-font-weight-strong); }
+
+/* 字段行拖拽手柄（排序） */
+.field-drag {
+  width: 32px; text-align: center; cursor: grab;
+  color: var(--ant-color-text-quaternary, rgba(0,0,0,0.25)); font-size: 13px;
+}
+.field-table tr:hover .field-drag { color: var(--ant-color-text-tertiary); }
+.field-drag:active { cursor: grabbing; }
 
 /* 表单区域 */
 .form-body { flex: 1; padding: 0 var(--ant-padding) var(--ant-padding); overflow-y: auto; }
@@ -338,6 +358,49 @@ body {
 }
 .prop-table tr:last-child td { border-bottom: none; }
 .prop-table tr:hover td { background: var(--ant-color-bg-text-hover); }
+
+/* ── 高级属性段（PRIMARY KEY / WATERMARK / DISTRIBUTED）── */
+.adv-section {
+  border: 0.5px solid var(--ant-color-border-secondary);
+  border-radius: var(--ant-border-radius);
+  padding: var(--ant-padding-sm) var(--ant-padding-sm) var(--ant-padding-xs);
+  margin-bottom: var(--ant-margin-sm);
+}
+.adv-section-title {
+  font-size: 11px; font-weight: var(--ant-font-weight-strong);
+  color: var(--ant-color-text-description);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  margin-bottom: var(--ant-margin-xs);
+  display: flex; align-items: center; gap: 6px;
+}
+.adv-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.adv-row-label { font-size: var(--ant-font-size-sm); color: var(--ant-color-text-secondary); width: 88px; flex-shrink: 0; }
+.adv-expr {
+  flex: 1; height: 28px; padding: 0 10px;
+  border: 0.5px solid var(--ant-color-border); border-radius: var(--ant-border-radius);
+  font-size: var(--ant-font-size-sm); color: var(--ant-color-text);
+  background: var(--ant-color-bg-container);
+  font-family: var(--ant-font-family-code); outline: none;
+}
+.adv-expr:focus { border-color: var(--ant-color-primary); box-shadow: 0 0 0 2px var(--ant-color-primary-bg); }
+.adv-expr[readonly] { background: var(--ant-color-fill-quaternary); color: var(--ant-color-text-tertiary); cursor: not-allowed; }
+.adv-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 8px; border-radius: var(--ant-border-radius-sm);
+  background: var(--ant-color-primary-bg); color: var(--ant-color-primary-text);
+  font-size: 11px; font-family: var(--ant-font-family-code);
+}
+.adv-tag .ti { font-size: 10px; cursor: pointer; }
+.adv-tag .ti:hover { color: var(--ant-color-error); }
+
+/* ── 列类型徽标（物理/元数据/计算）── */
+.col-type-badge {
+  font-size: 10px; padding: 0 6px; border-radius: var(--ant-border-radius-sm);
+  letter-spacing: 0.03em; font-weight: var(--ant-font-weight-strong);
+}
+.col-type-badge.physical { background: var(--ant-color-fill-quaternary); color: var(--ant-color-text-description); }
+.col-type-badge.metadata { background: var(--ant-color-warning-bg, #fffbe6); color: var(--ant-color-warning); }
+.col-type-badge.computed { background: var(--ant-color-error-bg, #fff2f0); color: var(--ant-color-error); }
 
 /* ── 代码编辑器 ── */
 .code-editor { flex: 1; display: flex; overflow: hidden; }
@@ -424,7 +487,7 @@ body {
       <div class="rule-num">R2</div>
       <div>
         <div class="rule-title">双模态共享同一底板，切换不产生色差跳动</div>
-        <div class="rule-desc">原则 07（底板内部背景完全一致）：表单和文本编辑器在同一块 colorBgContainer 白色底板内，模式切换只替换内容区。Segmented 控件放在内容区顶部，和 FileTabs 之间有 0.5px colorSplit 极细分隔。</div>
+        <div class="rule-desc">原则 07（底板内部背景完全一致）：表单和文本编辑器在同一块 colorBgContainer 白色底板内，模式切换只替换内容区。Segmented 控件放在内容区顶部，和 Index 之间有 0.5px colorSplit 极细分隔。</div>
       </div>
     </div>
     <div class="rule-item">
@@ -537,13 +600,15 @@ body {
       </table>
     </div>
     <div class="spec-card">
-      <div class="spec-card-title">模式切换 Segmented</div>
+      <div class="spec-card-title">操作栏</div>
       <table class="spec-table">
-        <tr><td>位置</td><td>编辑器内容区顶部 · FileTabs 下方 · padding sizeSM·sizeSM</td></tr>
-        <tr><td>容器背景</td><td>colorFillQuaternary · borderRadius(6px) · 内边距 2px</td></tr>
-        <tr><td>按钮尺寸</td><td>26×h · borderRadiusSM · padding 0 14px</td></tr>
-        <tr><td>字号颜色</td><td>fontSizeSM · 默认 colorTextDescription</td></tr>
-        <tr><td>激活态</td><td>colorBgContainer 白底 · colorText · fontWeightStrong</td></tr>
+        <tr><td>位置</td><td>编辑器内容区顶部 · Index 下方 · padding sizeSM·sizeSM</td></tr>
+        <tr><td>布局</td><td>左=动作按钮（左对齐）· 右=模态切换（右对齐）· justify-content: space-between</td></tr>
+        <tr><td>动作按钮</td><td>24×24 · 纯图标 14px · colorTextTertiary 常显（高频操作）· hover: colorFillTertiary 背景 + colorText</td></tr>
+        <tr><td>动作按钮图标</td><td>验证=ti-checks · 格式化=ti-align-left</td></tr>
+        <tr><td>Segmented 容器</td><td>colorFillQuaternary · borderRadius(6px) · 内边距 2px</td></tr>
+        <tr><td>Segmented 按钮</td><td>26×h · borderRadiusSM · padding 0 14px · fontSizeSM · 默认 colorTextDescription</td></tr>
+        <tr><td>Segmented 激活态</td><td>colorBgContainer 白底 · colorText · fontWeightStrong</td></tr>
         <tr><td>默认模式</td><td>表单（降低入门门槛）</td></tr>
       </table>
     </div>
@@ -560,6 +625,8 @@ body {
         <tr><td>下拉框</td><td>28px · 右侧箭头图标 · 连接器类型: Kafka/Doris/HUDI/JDBC</td></tr>
         <tr><td>添加按钮</td><td>28×h · colorPrimaryText · hover: colorPrimaryBg</td></tr>
         <tr><td>保存按钮</td><td>表单底部固定「确定」，点击后序列化为 Flink DDL 写盘</td></tr>
+        <tr><td>高级属性段</td><td>独立 adv-section 卡片（0.5px colorBorderSecondary 描边）· PRIMARY KEY / WATERMARK / DISTRIBUTED 三块</td></tr>
+        <tr><td>计算列提示</td><td>字段表下方 11px 说明：「计算列为表达式派生，表单只读展示，编辑请切换文本模式」</td></tr>
       </table>
     </div>
     <div class="spec-card">
@@ -569,6 +636,8 @@ body {
         <tr><td>单元格</td><td>padding 5px 10px · fontFamilyCode · fontSizeSM · colorTextSecondary</td></tr>
         <tr><td>hover 行</td><td>colorBgTextHover · 文字不变（焦点稳定）</td></tr>
         <tr><td>类型枚举</td><td>STRING / BIGINT / DOUBLE / DATE / DATETIME / TIMESTAMP</td></tr>
+        <tr><td>列类型徽标</td><td>物理=colorFillQuaternary · 元数据=warning 色系 · 计算=error 色系（只读）</td></tr>
+        <tr><td>排序手柄</td><td>行首 32px 列 · ti-grip-vertical 13px · 默认 colorTextQuaternary · 行 hover 变 colorTextTertiary · cursor: grab</td></tr>
         <tr><td>删除按钮</td><td>11px · colorTextDescription · hover: colorError</td></tr>
       </table>
     </div>
@@ -755,16 +824,23 @@ body {
           <div class="ftab">ods_user_log.ddl</div>
         </div>
         <div class="edit-sep"></div>
-        <!-- Segmented -->
+        <!-- 操作栏（可交互：左=验证/格式化常显图标，右=表单/文本切换） -->
         <div class="mode-bar">
-          <div class="mode-seg">
-            <button class="mode-seg-btn active">表单</button>
-            <button class="mode-seg-btn">文本</button>
+          <div class="mode-bar-left">
+            <button class="tool-btn" title="验证"><i class="ti ti-checks"></i></button>
+            <button class="tool-btn" title="格式化"><i class="ti ti-align-left"></i></button>
+          </div>
+          <div class="mode-bar-right">
+            <div class="mode-seg" data-demo-seg>
+              <button class="mode-seg-btn active" data-demo-mode="form">表单</button>
+              <button class="mode-seg-btn" data-demo-mode="text">文本</button>
+            </div>
           </div>
         </div>
         <!-- 表单内容 -->
-        <div class="form-body">
+        <div class="form-body" data-demo-panel="form">
 
+          <!-- 段1：基本信息 -->
           <div class="form-section">
             <div class="form-section-label">▸ 基本信息</div>
             <div class="form-row">
@@ -781,26 +857,78 @@ body {
                 <option>FileSystem</option>
               </select>
             </div>
+            <div class="form-row">
+              <span class="form-row-label">表注释</span>
+              <input class="form-input" value="订单流水表（ODS 层）" />
+            </div>
           </div>
 
+          <!-- 段2：字段定义（physical + metadata + computed） -->
           <div class="form-section">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--ant-margin-xs);">
               <div class="form-section-label" style="margin-bottom:0;">▸ 字段定义</div>
               <button class="form-add-btn"><i class="ti ti-plus"></i>添加</button>
             </div>
             <table class="field-table">
-              <thead><tr><th>字段名</th><th>类型</th><th>注释</th><th style="width:36px;"></th></tr></thead>
+              <thead><tr><th style="width:32px;"></th><th style="width:64px;">类型</th><th>字段名</th><th>类型</th><th>注释 / 表达式</th><th style="width:36px;"></th></tr></thead>
               <tbody>
-                <tr><td>order_id</td><td>BIGINT</td><td>订单ID</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
-                <tr><td>user_id</td><td>BIGINT</td><td>用户ID</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
-                <tr><td>amount</td><td>DOUBLE</td><td>金额</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
-                <tr><td>status</td><td>STRING</td><td>订单状态</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
-                <tr><td>create_time</td><td>BIGINT</td><td>创建时间</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
-                <tr><td>dt</td><td>STRING</td><td>分区字段</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge physical">物理</span></td><td>order_id</td><td>BIGINT</td><td>订单ID</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge physical">物理</span></td><td>user_id</td><td>BIGINT</td><td>用户ID</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge physical">物理</span></td><td>amount</td><td>DOUBLE</td><td>金额</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge physical">物理</span></td><td>status</td><td>STRING</td><td>订单状态</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge physical">物理</span></td><td>create_time</td><td>TIMESTAMP(3)</td><td>创建时间</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge metadata">元数据</span></td><td>partition</td><td>STRING</td><td>METADATA FROM 'partition'</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
+                <tr><td class="field-drag"><i class="ti ti-grip-vertical"></i></td><td><span class="col-type-badge computed">计算</span></td><td>gmv</td><td>DOUBLE</td><td>AS amount * (1 - refund_rate)</td><td class="field-act"><i class="ti ti-x"></i></td></tr>
               </tbody>
             </table>
+            <div style="font-size:11px;color:var(--ant-color-text-description);margin-top:6px;">
+              <span class="col-type-badge computed">计算</span> 列为表达式派生，表单只读展示，编辑请切换文本模式
+            </div>
           </div>
 
+          <!-- 段3：高级属性（PRIMARY KEY / WATERMARK / DISTRIBUTED） -->
+          <div class="form-section">
+            <div class="form-section-label">▸ 高级属性</div>
+
+            <div class="adv-section">
+              <div class="adv-section-title"><i class="ti ti-key" style="font-size:12px;"></i> PRIMARY KEY</div>
+              <div class="adv-row">
+                <span class="adv-row-label">主键字段</span>
+                <span class="adv-tag">order_id <i class="ti ti-x"></i></span>
+                <span class="adv-tag">+ 选择字段</span>
+              </div>
+            </div>
+
+            <div class="adv-section">
+              <div class="adv-section-title"><i class="ti ti-wave-sine" style="font-size:12px;"></i> WATERMARK</div>
+              <div class="adv-row">
+                <span class="adv-row-label">时间字段</span>
+                <select class="form-select" style="flex:1;">
+                  <option>create_time</option>
+                  <option>event_time</option>
+                </select>
+              </div>
+              <div class="adv-row">
+                <span class="adv-row-label">水位线</span>
+                <input class="adv-expr" value="create_time - INTERVAL '5' SECOND" />
+              </div>
+            </div>
+
+            <div class="adv-section">
+              <div class="adv-section-title"><i class="ti ti-distribute-vertical" style="font-size:12px;"></i> DISTRIBUTED</div>
+              <div class="adv-row">
+                <span class="adv-row-label">分布字段</span>
+                <select class="form-select" style="flex:1;">
+                  <option>order_id</option>
+                  <option>user_id</option>
+                </select>
+                <span class="adv-row-label" style="width:auto;">桶数</span>
+                <input class="adv-expr" style="flex:0 0 80px;" value="4" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 段4：分区 -->
           <div class="form-section">
             <div class="form-section-label">▸ 分区</div>
             <div class="form-row">
@@ -809,6 +937,7 @@ body {
             </div>
           </div>
 
+          <!-- 段5：连接器属性 -->
           <div class="form-section">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--ant-margin-xs);">
               <div class="form-section-label" style="margin-bottom:0;">▸ 连接器属性</div>
@@ -847,6 +976,65 @@ body {
       <div>· 表格行 hover 只改 bg，文字不变 → 原则 05（焦点稳定）</div>
       <div>· 删除 hover 变 colorError → 不常驻红色，减少误操作恐惧</div>
       <div>· 切换连接器后自动预填默认属性</div>
+      <div>· 高级属性（PK/WATERMARK/DISTRIBUTED）独立描边卡片 → 表达力弱于表单常规项，但语义完整</div>
+      <div>· 计算列只读徽标 + 提示 → 表单绝不静默改写未编辑的语法</div>
+      <div>· 列类型徽标（物理/元数据/计算）→ 一眼区分列语义，权重靠颜色建立</div>
+      <div>· 动作按钮纯图标常显 → 高频操作不隐藏（原则2），无边框无文字（原则1、原则10）</div>
+      <div>· 排序手柄常显极弱 + 行 hover 变深 → 可发现且不抢眼（原则1、原则4）</div>
+    </div>
+
+    <!-- 可交互演示：文本模式（点击上方 Segmented「文本」切换显示） -->
+    <div class="mockup-label" style="margin-top:var(--ant-margin-lg);">文本模式 — 完整编辑器（点击上方 Segmented 切换）</div>
+    <div class="editor-panel" style="height:420px;" data-demo-panel="text" hidden>
+      <div class="file-tabs">
+        <div class="ftab active">ods_order.ddl <i class="ti ti-x x"></i></div>
+        <div class="ftab">ods_user_log.ddl</div>
+      </div>
+      <div class="edit-sep"></div>
+      <div class="mode-bar">
+        <div class="mode-bar-left">
+          <button class="tool-btn" title="验证"><i class="ti ti-checks"></i></button>
+          <button class="tool-btn" title="格式化"><i class="ti ti-align-left"></i></button>
+        </div>
+        <div class="mode-bar-right">
+          <div class="mode-seg">
+            <button class="mode-seg-btn">表单</button>
+            <button class="mode-seg-btn active">文本</button>
+          </div>
+        </div>
+      </div>
+      <div class="code-editor">
+        <div class="line-nums">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20<br>21<br>22</div>
+        <div class="code">
+          <span class="line cm">-- ODS 层：订单流水表</span>
+          <span class="line"><span class="kw">CREATE TABLE</span> IF NOT EXISTS ods_order (</span>
+          <span class="line">    order_id    <span class="kw">BIGINT</span>,</span>
+          <span class="line">    user_id     <span class="kw">BIGINT</span>,</span>
+          <span class="line">    amount      <span class="kw">DOUBLE</span>,</span>
+          <span class="line">    status      <span class="kw">STRING</span>,</span>
+          <span class="line">    create_time <span class="kw">TIMESTAMP(3)</span>,</span>
+          <span class="line">    partition   <span class="kw">STRING</span> <span class="kw">METADATA</span> <span class="kw">FROM</span> <span class="str">'partition'</span>,</span>
+          <span class="line">    gmv         <span class="kw">DOUBLE</span> <span class="kw">AS</span> amount * (1 - refund_rate),</span>
+          <span class="line">    <span class="kw">WATERMARK</span> <span class="kw">FOR</span> create_time <span class="kw">AS</span> create_time - <span class="kw">INTERVAL</span> <span class="str">'5'</span> <span class="kw">SECOND</span>,</span>
+          <span class="line">    <span class="kw">PRIMARY KEY</span> (order_id) <span class="kw">NOT ENFORCED</span></span>
+          <span class="line">) <span class="kw">DISTRIBUTED BY</span> (order_id) <span class="kw">INTO</span> 4 <span class="kw">BUCKETS</span></span>
+          <span class="line"> <span class="kw">WITH</span> (</span>
+          <span class="line">    <span class="str">'connector'</span> = <span class="str">'hudi'</span>,</span>
+          <span class="line">    <span class="str">'hoodie.table.type'</span> = <span class="str">'COPY_ON_WRITE'</span>,</span>
+          <span class="line">    <span class="str">'hoodie.datasource.write.recordkey.field'</span> = <span class="str">'order_id'</span>,</span>
+          <span class="line">    <span class="str">'hoodie.datasource.write.precombine.field'</span> = <span class="str">'create_time'</span></span>
+          <span class="line">);</span>
+        </div>
+      </div>
+      <div class="statusbar">
+        <span>ddl</span><span>/</span>
+        <span style="color:var(--ant-color-text-secondary);">ods_order.ddl</span>
+        <div class="st-right">
+          <span>行 5，列 12</span>
+          <span>空格: 4</span>
+          <span><i class="ti ti-code" style="font-size:10px;"></i> 文本</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -866,13 +1054,19 @@ body {
         </div>
         <div class="edit-sep"></div>
         <div class="mode-bar">
-          <div class="mode-seg">
-            <button class="mode-seg-btn">表单</button>
-            <button class="mode-seg-btn active">文本</button>
+          <div class="mode-bar-left">
+            <button class="tool-btn" title="验证"><i class="ti ti-checks"></i></button>
+            <button class="tool-btn" title="格式化"><i class="ti ti-align-left"></i></button>
+          </div>
+          <div class="mode-bar-right">
+            <div class="mode-seg">
+              <button class="mode-seg-btn">表单</button>
+              <button class="mode-seg-btn active">文本</button>
+            </div>
           </div>
         </div>
         <div class="code-editor">
-          <div class="line-nums">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16</div>
+          <div class="line-nums">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20<br>21<br>22</div>
           <div class="code">
             <span class="line cm">-- ODS 层：订单流水表</span>
             <span class="line"><span class="kw">CREATE TABLE</span> IF NOT EXISTS ods_order (</span>
@@ -880,14 +1074,17 @@ body {
             <span class="line">    user_id     <span class="kw">BIGINT</span>,</span>
             <span class="line">    amount      <span class="kw">DOUBLE</span>,</span>
             <span class="line">    status      <span class="kw">STRING</span>,</span>
-            <span class="line">    create_time <span class="kw">BIGINT</span>,</span>
-            <span class="line">    update_time <span class="kw">BIGINT</span>,</span>
-            <span class="line">    dt          <span class="kw">STRING</span></span>
-            <span class="line">) <span class="kw">WITH</span> (</span>
+            <span class="line">    create_time <span class="kw">TIMESTAMP(3)</span>,</span>
+            <span class="line">    partition   <span class="kw">STRING</span> <span class="kw">METADATA</span> <span class="kw">FROM</span> <span class="str">'partition'</span>,</span>
+            <span class="line">    gmv         <span class="kw">DOUBLE</span> <span class="kw">AS</span> amount * (1 - refund_rate),</span>
+            <span class="line">    <span class="kw">WATERMARK</span> <span class="kw">FOR</span> create_time <span class="kw">AS</span> create_time - <span class="kw">INTERVAL</span> <span class="str">'5'</span> <span class="kw">SECOND</span>,</span>
+            <span class="line">    <span class="kw">PRIMARY KEY</span> (order_id) <span class="kw">NOT ENFORCED</span></span>
+            <span class="line">) <span class="kw">DISTRIBUTED BY</span> (order_id) <span class="kw">INTO</span> 4 <span class="kw">BUCKETS</span></span>
+            <span class="line"> <span class="kw">WITH</span> (</span>
             <span class="line">    <span class="str">'connector'</span> = <span class="str">'hudi'</span>,</span>
             <span class="line">    <span class="str">'hoodie.table.type'</span> = <span class="str">'COPY_ON_WRITE'</span>,</span>
             <span class="line">    <span class="str">'hoodie.datasource.write.recordkey.field'</span> = <span class="str">'order_id'</span>,</span>
-            <span class="line">    <span class="str">'hoodie.datasource.write.precombine.field'</span> = <span class="str">'update_time'</span></span>
+            <span class="line">    <span class="str">'hoodie.datasource.write.precombine.field'</span> = <span class="str">'create_time'</span></span>
             <span class="line">);</span>
           </div>
         </div>
@@ -1055,5 +1252,33 @@ body {
   </div>
 </div>
 
+<script>
+/* 表单/文本 可交互切换 demo（仅第5节演示用） */
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('[data-demo-mode]');
+  if (!btn) return;
+  var seg = btn.closest('[data-demo-seg]');
+  if (!seg) return;
+  var wrap = seg.closest('.editor-panel')?.parentElement;
+  if (!wrap) return;
+  var mode = btn.getAttribute('data-demo-mode');
+
+  // 切换按钮激活态
+  seg.querySelectorAll('[data-demo-mode]').forEach(function (b) {
+    b.classList.toggle('active', b === btn);
+  });
+
+  // 切换面板显隐（当前 mockup-row 内的两个 data-demo-panel）
+  wrap.querySelectorAll('[data-demo-panel]').forEach(function (panel) {
+    var isTarget = panel.getAttribute('data-demo-panel') === mode;
+    panel.hidden = !isTarget;
+    // 同步面板内 Segmented 激活态
+    panel.querySelectorAll('.mode-seg-btn').forEach(function (pb) {
+      var pm = pb.textContent.trim();
+      pb.classList.toggle('active', pm === (mode === 'form' ? '表单' : '文本'));
+    });
+  });
+});
+</script>
 </body>
 </html>

@@ -1,0 +1,21 @@
+.lt-editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 0 var(--ant-padding-xxs);
+  background-color: var;
+}
+
+.lt-editor-toolbar-left,
+.lt-editor-toolbar-right {
+  display: flex;
+  align-items: center;
+}
+
+/* 统一工具栏按钮内图标大小 */
+.lt-editor-toolbar svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
+}

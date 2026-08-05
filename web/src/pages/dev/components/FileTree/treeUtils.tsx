@@ -7,11 +7,13 @@ import {
   IconJson,
   IconHtml,
 } from '@tabler/icons-react';
+import TablerIcon from '@/components/TablerIcon';
 import type { ReactNode } from 'react';
 import type { FileTreeDataNode, FileTreeNode } from '@/types/file';
 
 /* 设计稿规范为 11px，奇数尺寸 SVG 渲染发虚，取 12px */
 export const TREE_ICON_SIZE = 16;
+export const TREE_ICON_WEIGHT = 2;
 export const CTX_ICON_SIZE = 16;
 
 /** 从文件名提取扩展名（小写，不含点）。目录返回 undefined；无扩展名返回 '' */
@@ -22,12 +24,12 @@ export const inferFileType = (name: string, isFolder: boolean): string | undefin
 };
 
 export const getFileIcon = (name: string) => {
-  if (name.endsWith('.md')) return <IconMarkdown size={TREE_ICON_SIZE} />;
-  if (name.endsWith('.sql')) return <IconSql size={TREE_ICON_SIZE} />;
-  if (name.endsWith('.ddl')) return <IconDatabase size={TREE_ICON_SIZE} />;
-  if (name.endsWith('.json')) return <IconJson size={TREE_ICON_SIZE} />;
-  if (name.endsWith('.html')) return <IconHtml size={TREE_ICON_SIZE} />;
-  return <IconFile size={TREE_ICON_SIZE} />;
+  if (name.endsWith('.md')) return <TablerIcon icon={IconMarkdown} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
+  if (name.endsWith('.sql')) return <TablerIcon icon={IconSql} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
+  if (name.endsWith('.ddl')) return <TablerIcon icon={IconDatabase} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
+  if (name.endsWith('.json')) return <TablerIcon icon={IconJson} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
+  if (name.endsWith('.html')) return <TablerIcon icon={IconHtml} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
+  return <TablerIcon icon={IconFile} strokeWidth={TREE_ICON_WEIGHT} size={TREE_ICON_SIZE} />;
 };
 
 /** 将 FileTreeNode 转换为 FileTreeDataNode（antd 节点，携带原始数据引用） */
@@ -43,7 +45,7 @@ export const toTreeDataNode = (
     fileId: node.fileId,
     data: enriched,
     title: node.name,
-    icon: isFolder ? <IconFolder size={TREE_ICON_SIZE} /> : getFileIcon(node.name),
+    icon: isFolder ? <TablerIcon icon={IconFolder} size={TREE_ICON_SIZE} /> : getFileIcon(node.name),
     isLeaf: !isFolder,
     children: node.children?.map((child) => toTreeDataNode(child)),
   } as FileTreeDataNode;

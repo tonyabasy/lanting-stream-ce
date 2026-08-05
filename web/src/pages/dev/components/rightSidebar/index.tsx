@@ -1,5 +1,7 @@
 import { IconAdjustments, IconFlower } from '@tabler/icons-react';
-import { Button, Tooltip } from 'antd';
+import { Button } from 'antd';
+import Tooltip from '@/components/Tooltip';
+import TablerIcon from '@/components/TablerIcon';
 import type { RightTab, RightKey } from '@/models/devPanels';
 import '../../index.css';
 
@@ -16,7 +18,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ active, onToggle }) => (
           className="lt-sidebar-btn"
           type="text"
           data-active={active === 'config'}
-          icon={<IconAdjustments className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconAdjustments} className="lt-sidebar-icon" />}
           onClick={() => onToggle('config')}
         />
       </Tooltip>
@@ -25,7 +27,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({ active, onToggle }) => (
           className="lt-sidebar-btn"
           type="text"
           data-active={active === 'ai'}
-          icon={<IconFlower className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconFlower} className="lt-sidebar-icon" />}
           onClick={() => onToggle('ai')}
         />
       </Tooltip>

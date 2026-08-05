@@ -1,5 +1,7 @@
-import { Button, Tooltip, Dropdown } from 'antd';
+import { Button, Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
+import Tooltip from '@/components/Tooltip';
+import TablerIcon from '@/components/TablerIcon';
 import {
   IconPlus,
   IconFocusCentered,
@@ -32,8 +34,8 @@ export interface FileTreeHeaderProps {
 }
 
 const addMenuItems: MenuProps['items'] = [
-  { key: 'file', label: '文件', icon: <IconFileCode size={CTX_ICON_SIZE} /> },
-  { key: 'folder', label: '目录', icon: <IconFolderPlus size={CTX_ICON_SIZE} /> },
+  { key: 'file', label: '文件', icon: <TablerIcon icon={IconFileCode} size={CTX_ICON_SIZE} /> },
+  { key: 'folder', label: '目录', icon: <TablerIcon icon={IconFolderPlus} size={CTX_ICON_SIZE} /> },
 ];
 
 /** 由 FileTreeViews 生成下拉菜单项 */
@@ -73,19 +75,19 @@ const FileTreeHeader: React.FC<FileTreeHeaderProps> = ({
       </Dropdown>
       <div className={"lt-filetree-header-btn-group"}>
         <Tooltip title="刷新">
-          <Button type="text" className="lt-filetree-header-btn" icon={<IconRefresh size={16} strokeWidth={1.5} />} onClick={onRefresh} />
+          <Button type="text" className="lt-filetree-header-btn" icon={<TablerIcon icon={IconRefresh} size={16} />} onClick={onRefresh} />
         </Tooltip>
         <Dropdown menu={{ items: addMenuItems, onClick: handleAddMenuClick }} trigger={['click']}>
-          <Button type="text" className="lt-filetree-header-btn" icon={<IconPlus size={16} strokeWidth={1.5} />} />
+          <Button type="text" className="lt-filetree-header-btn" icon={<TablerIcon icon={IconPlus} size={16} />} />
         </Dropdown>
         <Tooltip title="定位">
-          <Button type="text" className="lt-filetree-header-btn" icon={<IconFocusCentered size={16} strokeWidth={1.5} />} />
+          <Button type="text" className="lt-filetree-header-btn" icon={<TablerIcon icon={IconFocusCentered} size={16} />} />
         </Tooltip>
         <Tooltip title="收起全部">
-          <Button type="text" className="lt-filetree-header-btn" icon={<IconArrowsMinimize size={16} strokeWidth={1.5} />} onClick={onCollapseAll} />
+          <Button type="text" className="lt-filetree-header-btn" icon={<TablerIcon icon={IconArrowsMinimize} size={16} />} onClick={onCollapseAll} />
         </Tooltip>
         <Tooltip title="收起面板">
-          <Button type="text" className="lt-filetree-header-btn" icon={<IconLayoutSidebarLeftCollapse size={16} strokeWidth={1.5} />} onClick={onCollapsePanel} />
+          <Button type="text" className="lt-filetree-header-btn" icon={<TablerIcon icon={IconLayoutSidebarLeftCollapse} size={16} />} onClick={onCollapsePanel} />
         </Tooltip>
       </div>
     </div>

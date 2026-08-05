@@ -1,5 +1,7 @@
 import { IconFolder, IconGitCommit, IconTerminal2, IconGitBranch } from '@tabler/icons-react';
-import { Button, Tooltip } from 'antd';
+import { Button } from 'antd';
+import Tooltip from '@/components/Tooltip';
+import TablerIcon from '@/components/TablerIcon';
 import type { LeftTopKey, LeftBottomKey, LeftTopTab, LeftBottomTab } from '@/models/devPanels';
 import '../../index.css';
 
@@ -23,7 +25,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           className="lt-sidebar-btn"
           type="text"
           data-active={activeTop === 'files'}
-          icon={<IconFolder className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconFolder} className="lt-sidebar-icon" />}
           onClick={() => onToggleTop('files')}
         />
       </Tooltip>
@@ -32,7 +34,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           className="lt-sidebar-btn"
           type="text"
           data-active={activeTop === 'changes'}
-          icon={<IconGitCommit className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconGitCommit} className="lt-sidebar-icon" />}
           onClick={() => onToggleTop('changes')}
         />
       </Tooltip>
@@ -46,7 +48,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           className="lt-sidebar-btn"
           type="text"
           data-active={activeBottom === 'terminal'}
-          icon={<IconTerminal2 className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconTerminal2} className="lt-sidebar-icon" />}
           onClick={() => onToggleBottom('terminal')}
         />
       </Tooltip>
@@ -55,7 +57,7 @@ const LeftSidebar: React.FC<LeftSidebarProps> = ({
           className="lt-sidebar-btn"
           type="text"
           data-active={activeBottom === 'git'}
-          icon={<IconGitBranch className="lt-sidebar-icon" />}
+          icon={<TablerIcon icon={IconGitBranch} className="lt-sidebar-icon" />}
           onClick={() => onToggleBottom('git')}
         />
       </Tooltip>

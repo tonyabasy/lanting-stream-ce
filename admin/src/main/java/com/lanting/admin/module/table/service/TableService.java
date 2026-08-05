@@ -11,6 +11,8 @@ import com.lanting.admin.module.table.entity.ColumnIndexEntity;
 import com.lanting.admin.module.table.entity.TableIndexEntity;
 import com.lanting.admin.module.table.mapper.ColumnIndexMapper;
 import com.lanting.admin.module.table.mapper.TableIndexMapper;
+import com.lanting.admin.module.table.model.FlinkColumn;
+import com.lanting.admin.module.table.model.FlinkTable;
 import com.lanting.admin.module.table.util.FlinkSqlParser;
 import com.lanting.admin.module.table.vo.ColumnVO;
 import com.lanting.admin.module.table.vo.TableCreatedVO;
@@ -220,7 +222,7 @@ public class TableService {
             return null;
         }
 
-        final FlinkSqlParser.Table table;
+        final FlinkTable table;
         try {
             table = FlinkSqlParser.parseCreateTable(content);
         } catch (Exception e) {
@@ -254,7 +256,7 @@ public class TableService {
         columnIndexMapper.delete(
                 new LambdaQueryWrapper<ColumnIndexEntity>().eq(ColumnIndexEntity::getTableId, tableId));
 
-        List<FlinkSqlParser.Column> columns = table.columns();
+        List<FlinkColumn> columns = table.columns();
         if (columns.isEmpty()) {
             return tableId;
         }
@@ -269,9 +271,9 @@ public class TableService {
                 new LambdaQueryWrapper<TableIndexEntity>().eq(TableIndexEntity::getFileId, fileId));
     }
 
-    private static @NonNull List<ColumnIndexEntity> createColumnEntities(List<FlinkSqlParser.Column> columns, Long tableId, long now) {
+    private static @NonNull List<ColumnIndexEntity> createColumnEntities(List<FlinkColumn> columns, Long tableId, long now) {
         List<ColumnIndexEntity> columnEntities = new ArrayList<>(columns.size());
-        for (FlinkSqlParser.Column column : columns) {
+        for (FlinkColumn column : columns) {
             ColumnIndexEntity columnEntity = new ColumnIndexEntity();
             columnEntity.setTableId(tableId);
             columnEntity.setName(column.name());

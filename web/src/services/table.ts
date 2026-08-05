@@ -1,5 +1,13 @@
 import request from '@/utils/request';
-import type { TableVO } from '@/types/table';
+import type { FlinkTableVO, TableVO } from '@/types/table';
+
+/** 反序列化：DDL 文本 → 结构化表单数据（纯解析不落库） */
+export const stringToCreateTable = (ddl: string): Promise<FlinkTableVO> =>
+  request.post('/tables/utils/deserialize', { ddl });
+
+/** 序列化：表单数据 → DDL 文本（纯生成不落库） */
+export const createTableToString = (form: FlinkTableVO): Promise<string> =>
+  request.post('/tables/utils/serialize', form);
 
 /** 创建表：后端创建 .ddl 文件（ddl 可选，不传则建空文件）并解析索引 */
 export const createTable = (path: string, ddl?: string): Promise<{ fileId: number; tableId: number; path: string }> =>

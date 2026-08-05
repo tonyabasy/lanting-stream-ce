@@ -330,17 +330,14 @@ WITH (
 ### 同步规则
 
 ```
-DDL 文件保存
-  → 解析 DDL 文本（表名、连接器、字段列表）
-  → lanting_table_index: upsert（按 file_id）
-  → lanting_column_index: delete（按 table_id）+ batch insert
+Table 提交（Git commit / 发布）
+  → 全量读取 Disk tables/ 目录下的 .ddl 文件
+  → 逐个解析 DDL 文本（表名、连接器、字段列表）
+  → 全量重建 lanting_table_index + lanting_column_index
+    （先清空，再按当前磁盘状态重新插入）
 
-DDL 文件删除
-  → 物理删除 lanting_table_index（级联删除 lanting_column_index）
-
-不触发 Index 变更的操作：
-  - Git commit / 发布
-  - DDL 文件重命名/移动（file_id 不变）
+文件保存 / 删除 / 重命名 / 移动
+  → 不触发 Index 变更（Index 反映「已提交的表定义快照」）
 ```
 
 ### 数据流
@@ -348,7 +345,7 @@ DDL 文件删除
 ```
 磁盘 .ddl 文件 ←── 唯一数据源
        │
-       ▼ （保存/删除时解析）
+       ▼ （提交时全量解析重建）
 Table Index (lanting_table_index + lanting_column_index)
        │
        ├── SQL 代码提示
@@ -362,19 +359,81 @@ Table Index (lanting_table_index + lanting_column_index)
 
 ## API 设计
 
-> Table Index 的写入由 FileService 在 saveFile/deleteFile 中自动维护，前端不需要感知 Index 存在。TableController 仅负责 Index 查询和外部集成。
+> **策略**：Table 文件（.ddl）的创建、保存、删除**全部走 FileController**（文件是 Disk 事实源，走通用文件接口）。
+> **Table Index 只在「提交」时更新**（从 Disk 重新解析全量重建），不是保存时同步。
+> TableController 只负责：DDL 的 deserialize/serialize（表单 ↔ 文本）、Index 查询、外部集成（check/pull）。
 
 ### 已有接口（复用，不改）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/files/tree?parentPath=tables/` | Tables 树数据 |
-| POST | `/api/files/save` | 保存 .ddl → 后端解析 → upsert Index |
-| DELETE | `/api/files/delete` | 删除 .ddl → 物理删除 Index |
+| POST | `/api/files/save` | 保存 .ddl（纯文件写盘，**不更新 Index**）|
+| POST | `/api/files/create` | 创建 .ddl 文件 |
+| DELETE | `/api/files/delete` | 删除 .ddl 文件（**不更新 Index**）|
 
-### 新增接口
+> 文件 CRUD 由 FileController 统一处理，前端操作 .ddl 与 .sql 无差异（同一套接口）。
 
-#### 1. 查询所有表
+### TableController 接口
+
+#### 1. 反序列化：DDL 文本 → 结构化表单数据
+
+```
+POST /api/tables/utils/deserialize
+```
+
+**请求**：
+```json
+{ "ddl": "CREATE TABLE IF NOT EXISTS ods_order (...)" }
+```
+
+**响应**（`Result<FlinkTable>`，字段对齐后端 model/FlinkTable）：
+```json
+{
+  "code": 0, "message": "success",
+  "data": {
+    "tableName": "ods_order",
+    "ifNotExists": true,
+    "columns": [
+      { "name": "order_id", "type": "BIGINT", "comment": "订单ID", "ordinal": 0, "columnType": "physical", "metadataFrom": null, "virtual": false, "expr": null },
+      { "name": "kafka_partition", "type": "STRING", "comment": null, "ordinal": 6, "columnType": "metadata", "metadataFrom": "partition", "virtual": false, "expr": null },
+      { "name": "gmv", "type": null, "comment": null, "ordinal": 7, "columnType": "computed", "metadataFrom": null, "virtual": false, "expr": "`amount` * (1 - `refund_rate`)" }
+    ],
+    "watermark": { "field": "create_time", "expr": "`create_time` - INTERVAL '5' SECOND" },
+    "primaryKeys": ["order_id"],
+    "comment": "订单流水表",
+    "distribution": { "by": ["order_id"], "buckets": 4 },
+    "partitionKeys": ["dt"],
+    "properties": { "connector": "hudi" },
+    "connector": "hudi"
+  }
+}
+```
+
+**实现**：Controller 直接调 `FlinkSqlParser.parseCreateTable(ddl)`（纯解析不落库）。
+
+#### 2. 序列化：表单数据 → DDL 文本
+
+```
+POST /api/tables/utils/serialize
+```
+
+**请求**：`FlinkTable`（与 deserialize 响应同构）
+**响应**：`Result<String>` — DDL 文本
+
+**实现**：Controller 直接调 `FlinkSqlParser.createTableToString(form)`（纯生成不落库）。
+
+#### 3. 提交（更新 Index）— 暂不实现
+
+```
+POST /api/tables/commit
+```
+
+- 从 Disk 的 tables/ 目录全量读取 .ddl 文件，逐个解析，**全量重建** `lanting_table_index` + `lanting_column_index`
+- **触发时机：事件驱动（后续再说），本次不实现**——Index 同步挂到 Git 提交/发布事件上（与 file-publish 流程集成）
+- 设计决策：Index 反映「已提交的表定义快照」，不是磁盘任意保存状态
+
+#### 4. 查询全部表
 
 ```
 GET /api/tables
@@ -392,25 +451,7 @@ GET /api/tables
 }
 ```
 
-#### 2. 查询表字段列表
-
-```
-GET /api/tables/{tableId}/columns
-```
-
-**响应**（`Result<List<ColumnVO>>`）：
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": [
-    { "name": "order_id", "type": "BIGINT", "comment": "订单ID", "ordinal": 0 },
-    { "name": "amount", "type": "DOUBLE", "comment": "金额", "ordinal": 1 }
-  ]
-}
-```
-
-#### 3. 按字段名搜索
+#### 5. 按字段名搜索
 
 ```
 GET /api/tables/search?q={keyword}
@@ -428,51 +469,32 @@ GET /api/tables/search?q={keyword}
 }
 ```
 
-#### 4. DDL 检查（vs Doris）
+#### 6. DDL 检查（vs Doris，占位）
 
 ```
 POST /api/tables/{tableId}/check
 ```
 
-**响应**（`Result<CheckResultVO>`）：
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "exists": true,
-    "fieldDiffs": [
-      { "name": "pay_ord_amt", "local": "DOUBLE", "remote": null, "issue": "local_only" },
-      { "name": "create_time", "local": null, "remote": "BIGINT", "issue": "remote_only" }
-    ],
-    "typeIssues": [
-      { "name": "stat_time", "local": "DATETIME", "remote": "STRING" }
-    ],
-    "propertyIssues": ["connector 类型不匹配"]
-  }
-}
-```
-
-#### 5. 从 Datasource 拉取 Schema（待定）
+#### 7. 从 Datasource 拉取 Schema（占位）
 
 ```
 POST /api/tables/pull
 ```
-- 请求体：`{ "tableName": "xxx", "connectorType": "Doris", "dbConfig": {...} }`
-- 返回 `Result<PullResultVO>` — 技术方案待定，接口先占位
 
 ### 职责边界
 
 ```
 FileController                    TableController
-├── 文件 CRUD（已有）              ├── GET /api/tables（Index 查询）
-├── 文件树（已有）                  ├── GET /api/tables/{id}/columns
-├── 保存/删除 ──副作用──► Index     ├── GET /api/tables/search
-└── 锁管理（已有）                  ├── POST /api/tables/{id}/check
-                                   └── POST /api/tables/pull
+├── 文件 CRUD（创建/保存/删除）     ├── POST /utils/deserialize（DDL → FlinkTable）
+├── 文件树（已有）                  ├── POST /utils/serialize（FlinkTable → DDL）
+├── 锁管理（已有）                  ├── POST /commit（提交时重建 Index）
+│                                 ├── GET /api/tables（Index 查询）
+│                                 ├── GET /api/tables/search
+│                                 ├── POST /api/tables/{id}/check（占位）
+│                                 └── POST /api/tables/pull（占位）
 
-Table Index 由 FileService 在 saveFile/deleteFile 中自动维护，
-TableController 只负责 Index 查询和外部集成。
+Index 只在 commit 时全量重建（读 Disk tables/ 解析），
+文件保存/删除不触发 Index 变更。
 ```
 
 ---
@@ -509,6 +531,49 @@ $workspace/
 | 文本 | 1.5s 自动保存 | 精细控制、CodeMirror 直接编辑 |
 
 两种模态编辑同一底层 `.ddl` 文件，切换时双向同步。
+
+### DDL 语法支持矩阵
+
+`CREATE TABLE` 语句允许包含的子句（Flink 2.3 官方语法），以及表单编辑器对它们的支持计划：
+
+```
+CREATE TABLE [IF NOT EXISTS] [catalog.][db.]table_name
+( { <physical> | <metadata> | <computed> }[ , ...n]
+  [ <watermark> ] [ <table_constraint> ][ , ...n] )
+[COMMENT table_comment]
+[PARTITIONED BY (col1, col2, ...)]
+[DISTRIBUTED BY (col) INTO n BUCKETS]
+[LIKE source_table]
+WITH ( 'key' = 'val', ... )
+[AS select_query]          -- CTAS
+```
+
+| # | 子句/元素 | 语法 | 用途 | 支持计划 |
+|---|----------|------|------|---------|
+| 1 | **物理列** physical column | `col_name type [COMMENT '...']` | 普通字段（最基础） | ✅ 本次支持（字段表） |
+| 2 | **计算列** computed column | `col_name AS expr` | 表达式派生列（如 `cost AS price*qty`） | ⏸ 短期不计划支持 |
+| 3 | **元数据列** metadata column | `col_name type METADATA FROM 'alias' [VIRTUAL]` | 从消息头/元数据取 | ✅ 本次支持 |
+| 4 | **WATERMARK** | `WATERMARK FOR ts AS expr` | 事件时间水位线 | ✅ 本次支持 |
+| 5 | **表约束 PRIMARY KEY** | `PRIMARY KEY (col) NOT ENFORCED` | 主键（维度表/upsert 用）| ✅ 本次支持 |
+| 6 | **COMMENT**（表级） | `COMMENT 'table desc'` | 表注释 | ✅ 本次支持 |
+| 7 | **PARTITIONED BY** | `PARTITIONED BY (col)` | 分区（Hive/FileSystem）| ✅ 本次支持 |
+| 8 | **DISTRIBUTED** | `DISTRIBUTED BY (col) INTO n BUCKETS` | 桶分布（新特性）| ✅ 本次支持 |
+| 9 | **LIKE** | `LIKE source_table` | 复用其他表定义 | ❌ 长期不计划支持 |
+| 10 | **WITH Options** | `'key' = 'val', ...` | 连接器配置 | ✅ 本次支持（key/value 表） |
+| 11 | **AS select_query** (CTAS/RTAS) | `AS SELECT ...` | 建表即写入 | ❌ 长期不计划支持 |
+
+#### 支持计划说明
+
+1. **本次计划支持**：物理列、元数据列、WATERMARK、PRIMARY KEY、COMMENT、PARTITIONED BY、DISTRIBUTED、WITH Options
+   - 结构化提取（后端 FlinkSqlParser），表单编辑 + serialize 还原
+   - 计算列之外的所有常见 DDL 都能被表单完整表达，不丢语法
+2. **短期不计划支持**：计算列（`col AS expr`）
+   - 表达式是自由文本，表单化等于再造表达式编辑器，收益低
+   - 打开含计算列的 DDL：表单只读展示计算列原文，提示「请用文本模式编辑」
+3. **长期不计划支持**：LIKE、AS select_query（CTAS/RTAS）
+   - 复用/写查询是另一形态（引用关系、SELECT 语句），不属于表定义表单的职责
+
+> 设计原则：**表单绝不静默改写/丢失用户未在表单中编辑的语法**。遇到不支持的子句 → 只读展示原文 + 禁用表单保存（改 DDL 必须切文本模式）。
 
 ### ProjectPanel 多视图
 

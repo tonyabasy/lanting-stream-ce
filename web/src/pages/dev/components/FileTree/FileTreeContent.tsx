@@ -3,6 +3,7 @@ import { Tree, Button, Dropdown, Modal, message, Spin, Typography } from 'antd';
 import type { TreeDataNode, TreeProps } from 'antd';
 import { useModel } from 'umi';
 import { IconChevronDown, IconDotsVertical, IconFolder } from '@tabler/icons-react';
+import TablerIcon from '@/components/TablerIcon';
 import { leafName, parentOf, findNode, TREE_ICON_SIZE, getFileIcon, highlightMatch } from './treeUtils';
 import { getFileMenuItems, folderMenuItems } from './FileMenuItems';
 import type { FileTreeDataNode, FileTreeNode } from '@/types/file';
@@ -174,7 +175,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
             shape="circle"
             size="small"
             className="lt-filetree-more-btn"
-            icon={<IconDotsVertical size={TREE_ICON_SIZE} />}
+            icon={<TablerIcon icon={IconDotsVertical} size={TREE_ICON_SIZE} />}
             onClick={(e) => e.stopPropagation()}
           />
         </Dropdown>
@@ -239,7 +240,7 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
         treeData={treeData}
         loadData={onLoadData}
         showIcon
-        switcherIcon={<IconChevronDown size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}
+        switcherIcon={<TablerIcon icon={IconChevronDown} size={TREE_ICON_SIZE} className="lt-filetree-chevron" />}
         expandedKeys={expandedKeys}
         loadedKeys={loadedKeys}
         selectedKeys={selectedKeys}

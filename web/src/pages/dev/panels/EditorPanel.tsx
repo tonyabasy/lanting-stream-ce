@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { Empty } from 'antd';
 import { useModel } from 'umi';
-import FileTabs from '@/pages/dev/components/CodeEditor/FileTabs';
+import Index from '@/components/EditorTab';
 import CodeEditor, { type CodeEditorRef } from '@/pages/dev/components/CodeEditor';
 import TableEditor from '@/pages/dev/components/TableEditor';
 import '../index.css';
@@ -47,7 +47,7 @@ const EditorPanel: React.FC = () => {
 
   return (
     <div className="lt-panel-base lt-editor-panel">
-      <FileTabs
+      <Index
         tabs={openTabs}
         activeTabId={activeTabId}
         dirtyFlags={dirtyFlags}

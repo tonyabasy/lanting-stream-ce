@@ -1,4 +1,4 @@
-package com.lanting.admin.module.file.service;
+package com.lanting.admin.module.file.model;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -42,7 +42,7 @@ public class LockInfo {
         this.lastUseTime = System.currentTimeMillis();
     }
 
-    boolean isExpired() {
+    public boolean isExpired() {
         long now = System.currentTimeMillis();
         return now - lockedAt > lockTtl || now - lastUseTime > lockUnusedTtl;
     }
