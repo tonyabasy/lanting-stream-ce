@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModel } from 'umi';
 import { Text } from '@codemirror/state';
 import type { FileTreeNode } from '@/types/file';
-import { loadContent, saveContent, acquireLock as acquireLockApi, releaseLock as releaseLockApi } from '@/services/fileTree';
+import { loadContent, saveContent } from '@/services/fileTree';
 
 /**
  * 编辑器状态 model — 管理打开的文件 Tab、内容和编辑状态。
@@ -10,6 +10,7 @@ import { loadContent, saveContent, acquireLock as acquireLockApi, releaseLock as
 export default () => {
   const { initialState } = useModel('@@initialState');
   const currentUserId = initialState?.currentUser?.id as string | undefined;
+  const fileLock = useModel('fileLock');
 
   const [openTabs, setOpenTabs] = useState<FileTreeNode[]>([]);
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
@@ -20,12 +21,10 @@ export default () => {
   const saveGenerationRef = useRef<Record<number, number>>({});
 
   /** 判断文件是否可编辑（当前用户持有锁） */
-  const isFileEditable = useCallback((fileId: number): boolean => {
-    if (!currentUserId) return false;
-    const tab = openTabs.find((t) => t.fileId === fileId);
-    if (!tab) return false;
-    return tab.lockedBy === currentUserId;
-  }, [openTabs, currentUserId]);
+  const isReadonly = useCallback((fileId: number): boolean => {
+    if (!currentUserId) return true;
+    return fileLock.locks[fileId]?.lockedBy !== currentUserId;
+  }, [fileLock.locks, currentUserId]);
 
   /** 加载文件内容（如已缓存则跳过） */
   const loadFile = useCallback(async (fileId: number) => {
@@ -45,22 +44,18 @@ export default () => {
   /** 打开文件：已在 tabs 中则切换，否则新增 tab 并加载内容 */
   const openFile = useCallback((node: FileTreeNode) => {
     loadFile(node.fileId);
+    // 拉取最新锁状态（不再依赖树节点上的 lockedBy）
+    fileLock.whoLocked(node.fileId).catch(() => {});
     setOpenTabs((prev) => {
       const exists = prev.find((t) => t.fileId === node.fileId);
       if (exists) {
-        // 更新 lockedBy（可能已变化）
-        setOpenTabs((cur) =>
-          cur.map((t) =>
-            t.fileId === node.fileId ? { ...t, lockedBy: node.lockedBy, lockedAt: node.lockedAt } : t,
-          ),
-        );
         setActiveTabId(node.fileId);
         return prev;
       }
       setActiveTabId(node.fileId);
       return [...prev, node];
     });
-  }, [loadFile]);
+  }, [loadFile, fileLock]);
 
   const closeTab = useCallback((fileId: number) => {
     setOpenTabs((prev) => {
@@ -100,15 +95,13 @@ export default () => {
     } catch (e: any) {
       // 锁被接管或未持锁
       if (e?.data?.code === 30709 || e?.data?.code === 423) {
-        // 标记此文件为只读
-        setOpenTabs((prev) =>
-          prev.map((t) => (t.fileId === fileId ? { ...t, lockedBy: '<lost>' } : t)),
-        );
+        // 刷新本地锁状态（锁已被他人持有）
+        fileLock.whoLocked(fileId).catch(() => {});
         return false;
       }
       throw e;
     }
-  }, []);
+  }, [fileLock]);
 
   /** idle 时检查是否已 undo 回原位，是则清 dirty 并返回 true */
   const checkClean = useCallback((fileId: number, doc: Text): boolean => {
@@ -129,7 +122,7 @@ export default () => {
    */
   const autoSave = useCallback(
     async (fileId: number, snapshot: Text, force = false): Promise<boolean> => {
-      if (!isFileEditable(fileId)) return false;
+      if (!isReadonly(fileId)) return false;
 
       // 非强制保存时，若当前 doc 与 baseline 一致则跳过
       if (!force) {
@@ -151,30 +144,18 @@ export default () => {
         return false;
       }
     },
-    [isFileEditable, saveFile, baselineDocs],
+    [isReadonly, saveFile, baselineDocs],
   );
 
   /** 抢锁 */
   const acquireLock = useCallback(async (fileId: number, _path: string) => {
-    await acquireLockApi(fileId);
-    // 刷新 tab 锁状态
-    setOpenTabs((prev) =>
-      prev.map((t) =>
-        t.fileId === fileId ? { ...t, lockedBy: currentUserId } : t,
-      ),
-    );
-  }, [currentUserId]);
+    await fileLock.acquire(fileId);
+  }, [fileLock]);
 
   /** 释放锁 */
   const releaseLock = useCallback(async (fileId: number, _path: string) => {
-    await releaseLockApi(fileId);
-    // 刷新 tab 锁状态
-    setOpenTabs((prev) =>
-      prev.map((t) =>
-        t.fileId === fileId ? { ...t, lockedBy: undefined } : t,
-      ),
-    );
-  }, []);
+    await fileLock.release(fileId);
+  }, [fileLock]);
 
   // ── beforeunload 保护 ──
 
@@ -196,7 +177,7 @@ export default () => {
     baselineDocs,
     dirtyFlags,
     setDirtyFlags,
-    isFileEditable,
+    isReadonly,
     loadFile,
     saveFile,
     checkClean,

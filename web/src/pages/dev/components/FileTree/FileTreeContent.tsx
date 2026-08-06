@@ -29,8 +29,6 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     toggleExpand,
     clearSearch,
     expandToPath,
-    acquireLock,
-    releaseLock,
     renameNode,
     deleteNode,
     createFileNode,
@@ -121,12 +119,6 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
     const isFolder = raw ? raw.type === 'folder' : !node.isLeaf;
 
     switch (key) {
-      case 'lock':
-        acquireLock(fileId, path).catch((e: any) => message.error(e?.message || '抢锁失败'));
-        break;
-      case 'unlock':
-        releaseLock(fileId, path).catch((e: any) => message.error(e?.message || '释放锁失败'));
-        break;
       case 'rename':
         openInputModal('重命名', name, (val) => renameNode(fileId, path, val));
         break;
@@ -157,14 +149,12 @@ const FileTreeContent: React.FC<FileTreeContentProps> = ({ openInputModal }) => 
   };
 
   const titleRender = (treeNode: TreeDataNode) => {
-    const node = treeNode as TreeDataNode & { isMyLock?: boolean; data?: FileTreeNode };
-
     return (
       <span className="lt-filetree-node-row">
         <span>{treeNode.title as React.ReactNode}</span>
         <Dropdown
           menu={{
-            items: treeNode.isLeaf ? getFileMenuItems(node.isMyLock ?? false) : folderMenuItems,
+            items: treeNode.isLeaf ? getFileMenuItems() : folderMenuItems,
             onClick: handleMenuClick(treeNode),
             rootClassName: 'lt-filetree-ctxmenu',
           }}

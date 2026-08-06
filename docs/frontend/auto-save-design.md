@@ -169,7 +169,7 @@ await saveContent(fileId, snapshot.toString());
 
 | 操作 | 成本 | 说明 |
 |---|---|---|
-| `isFileEditable` | O(tabs) | tabs 数量通常很小 |
+| `isReadonly` | O(tabs) | tabs 数量通常很小 |
 | `snapshot.eq(baseline)` | O(共享节点数) | 最坏遍历全部节点 |
 | `snapshot.toString()` | O(n) + 字符串分配 | **保存路径最大内存开销**，与文件大小成正比 |
 | `saveContent` | 网络 + 后端写盘 | 无法避免 |

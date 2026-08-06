@@ -1,22 +1,16 @@
 import type { MenuProps } from 'antd';
 import {
-  IconLock,
   IconFileCode,
   IconFolderPlus,
   IconCursorText,
   IconArrowsMove,
   IconTrash,
-  IconLockOpen2,
 } from '@tabler/icons-react';
 import TablerIcon from '@/components/TablerIcon';
 import { CTX_ICON_SIZE } from './treeUtils';
 
-/** 文件操作菜单（根据是否自己持锁切换「抢锁/释放锁」） */
-export const getFileMenuItems = (isMyLock: boolean): MenuProps['items'] => [
-  isMyLock
-    ? { key: 'unlock', label: '释放锁', icon: <TablerIcon icon={IconLockOpen2} size={CTX_ICON_SIZE} /> }
-    : { key: 'lock', label: '抢锁', icon: <TablerIcon icon={IconLock} size={CTX_ICON_SIZE} /> },
-  { type: 'divider' },
+/** 文件操作菜单 */
+export const getFileMenuItems = (): MenuProps['items'] => [
   { key: 'new-file', label: '新建文件', icon: <TablerIcon icon={IconFileCode} size={CTX_ICON_SIZE} /> },
   { key: 'new-folder', label: '新建文件夹', icon: <TablerIcon icon={IconFolderPlus} size={CTX_ICON_SIZE} /> },
   { type: 'divider' },

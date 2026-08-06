@@ -22,6 +22,10 @@ export const acquireLock = (fileId: number): Promise<void> =>
 export const releaseLock = (fileId: number): Promise<void> =>
   request.post('/files/lock/release', { fileId });
 
+/** 查询文件锁状态（lockedBy/lockedAt，未锁定为 null） */
+export const getLock = (fileId: number): Promise<{ lockedBy: string | null; lockedAt: number | null } | null> =>
+  request.get('/files/lock', { params: { fileId } });
+
 /** 重命名文件或文件夹 */
 export const renameFile = (fileId: number, newName: string): Promise<{ fileId: number; oldPath: string; newPath: string }> =>
   request.post('/files/rename', { fileId, newName });

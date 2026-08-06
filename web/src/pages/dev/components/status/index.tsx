@@ -5,10 +5,10 @@ import './index.css';
 
 const StatusBar: React.FC = () => {
   const { selectedNode } = useModel('fileTree');
-  const { openTabs, activeTabId, isFileEditable } = useModel('editor');
+  const { openTabs, activeTabId, isReadonly } = useModel('editor');
 
   const segments = selectedNode?.data ? selectedNode.data.path.split('/') : [];
-  const editable = activeTabId !== null && isFileEditable(activeTabId);
+  const editable = activeTabId !== null && !isReadonly(activeTabId);
 
   return (
     <div className="lt-statusbar">

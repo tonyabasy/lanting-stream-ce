@@ -5,6 +5,7 @@ import com.lanting.admin.module.file.entity.FileIndexEntity;
 import com.lanting.admin.module.file.model.LockInfo;
 import com.lanting.admin.module.file.result.FileResultCode;
 import com.lanting.admin.module.file.vo.AcquireLockVO;
+import com.lanting.admin.module.file.vo.LockVO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.time.DateFormatUtils;
 import org.springframework.stereotype.Service;
@@ -311,6 +312,20 @@ public class FileLockService {
     public Long getLockedAt(Long fileId) {
         LockInfo current = getFileLock(key(fileId));
         return current == null ? null : current.getLockedAt();
+    }
+
+    /**
+     * 查询文件锁状态。
+     *
+     * @param fileId 文件 ID
+     * @return 锁状态（lockedBy/lockedAt），未锁定为 null
+     */
+    public LockVO getLockInfo(Long fileId) {
+        LockInfo current = getFileLock(key(fileId));
+        if (current == null) {
+            return null;
+        }
+        return new LockVO(current.getHolder(), current.getLockedAt());
     }
 
     // ==================== 目录锁（硬锁） ====================

@@ -37,8 +37,6 @@ export interface FileTreeNode {
 export interface FileTreeDataNode extends TreeDataNode {
   /** 文件/文件夹 ID（虚拟目录为 undefined） */
   fileId?: number;
-  /** 是否自己持有锁 */
-  isMyLock?: boolean;
   /** 原始后端节点 */
   data?: FileTreeNode;
   /** 虚拟目录标记（虚拟目录不是磁盘实体，无 fileId，操作路由跳过） */

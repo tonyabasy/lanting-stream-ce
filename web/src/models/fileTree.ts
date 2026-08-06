@@ -4,8 +4,6 @@ import { toTreeDataNode, parentOf } from '@/pages/dev/components/FileTree/treeUt
 import {
   tree,
   searchFiles,
-  acquireLock as acquireLockApi,
-  releaseLock as releaseLockApi,
   renameFile,
   createFile as createFileApi,
   createFolder as createFolderApi,
@@ -166,19 +164,6 @@ export default () => {
     setLoadedKeys([]);
   }, [rootPath]);
 
-  /** 抢锁，成功后刷新所在目录 */
-  const acquireLock = useCallback(async (fileId: number, path: string) => {
-    await acquireLockApi(fileId);
-    const parentPath = parentOf(path);
-    await loadTree(parentPath);
-  }, [loadTree]);
-
-  /** 释放锁，成功后刷新所在目录 */
-  const releaseLock = useCallback(async (fileId: number, path: string) => {
-    await releaseLockApi(fileId);
-    const parentPath = parentOf(path);
-    await loadTree(parentPath);
-  }, [loadTree]);
 
   /** 重命名，成功后刷新所在目录 */
   const renameNode = useCallback(async (fileId: number, path: string, newName: string) => {
@@ -247,8 +232,6 @@ export default () => {
     selectNode,
     toggleExpand,
     collapseAll,
-    acquireLock,
-    releaseLock,
     renameNode,
     deleteNode,
     createFileNode,

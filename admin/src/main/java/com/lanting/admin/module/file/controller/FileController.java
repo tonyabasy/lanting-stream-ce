@@ -205,6 +205,15 @@ public class FileController {
     // ==================== 文件锁 ====================
 
     /**
+     * 查询文件锁状态。返回当前持锁人与抢锁时间戳，未锁定返回 null。
+     */
+    @Operation(summary = "查询文件锁状态")
+    @GetMapping("/lock")
+    public Result<LockVO> getLock(@RequestParam @NotNull Long fileId) {
+        return Result.success(fileLockService.getLockInfo(fileId));
+    }
+
+    /**
      * 抢锁。软锁允许强制抢占他人持有的锁，返回前持锁人信息。
      */
     @Operation(summary = "抢锁")

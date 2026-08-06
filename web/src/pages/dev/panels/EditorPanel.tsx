@@ -15,13 +15,13 @@ const EditorPanel: React.FC = () => {
     baselineDocs,
     dirtyFlags,
     setDirtyFlags,
-    isFileEditable,
+    isReadonly,
     checkClean,
     autoSave,
     closeTab,
   } = editor;
 
-  const readonly = activeTabId === null || !isFileEditable(activeTabId);
+  const readonly = activeTabId === null || isReadonly(activeTabId);
 
   const activeTab = openTabs.find((t) => t.fileId === activeTabId);
   const isDdl = activeTab?.fileType === 'ddl';
@@ -31,7 +31,7 @@ const EditorPanel: React.FC = () => {
 
   const handleSwitchTab = async (fileId: number) => {
     // 切换前保存当前激活 tab 的未保存内容
-    if (activeTabId !== null && activeTabId !== fileId && dirtyFlags[activeTabId] && isFileEditable(activeTabId)) {
+    if (activeTabId !== null && activeTabId !== fileId && dirtyFlags[activeTabId] && !isReadonly(activeTabId)) {
       await codeEditorRef.current?.saveTab(activeTabId);
     }
     setActiveTabId(fileId);
@@ -39,7 +39,7 @@ const EditorPanel: React.FC = () => {
 
   const handleCloseTab = async (fileId: number) => {
     // 关闭当前激活 tab 时，如有未保存内容则先保存
-    if (fileId === activeTabId && dirtyFlags[fileId] && isFileEditable(fileId)) {
+    if (fileId === activeTabId && dirtyFlags[fileId] && !isReadonly(fileId)) {
       await codeEditorRef.current?.saveTab(fileId);
     }
     closeTab(fileId);
