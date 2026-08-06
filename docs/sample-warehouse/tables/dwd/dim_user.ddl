@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS dim_user (
     age       INT,
     gender    STRING,
     dt        STRING
-) USING HUDI
-PARTITIONED BY (dt)
-OPTIONS (
+) PARTITIONED BY (dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'COPY_ON_WRITE',
     'hoodie.datasource.write.recordkey.field' = 'user_id',
     'hoodie.datasource.write.precombine.field' = 'dt'

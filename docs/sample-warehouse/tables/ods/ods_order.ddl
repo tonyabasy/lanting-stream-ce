@@ -11,9 +11,9 @@ CREATE TABLE IF NOT EXISTS ods_order (
     create_time BIGINT,
     update_time BIGINT,
     dt          STRING
-) USING HUDI
-PARTITIONED BY (dt)
-OPTIONS (
+) PARTITIONED BY (dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'COPY_ON_WRITE',
     'hoodie.datasource.write.recordkey.field' = 'order_id',
     'hoodie.datasource.write.precombine.field' = 'update_time'

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useModel } from 'umi';
 import { Text } from '@codemirror/state';
 import type { FileTreeNode } from '@/types/file';
-import { loadContent, saveContent, acquireLock as acquireLockApi } from '@/services/fileTree';
+import { loadContent, saveContent, acquireLock as acquireLockApi, releaseLock as releaseLockApi } from '@/services/fileTree';
 
 /**
  * 编辑器状态 model — 管理打开的文件 Tab、内容和编辑状态。
@@ -165,6 +165,17 @@ export default () => {
     );
   }, [currentUserId]);
 
+  /** 释放锁 */
+  const releaseLock = useCallback(async (fileId: number, _path: string) => {
+    await releaseLockApi(fileId);
+    // 刷新 tab 锁状态
+    setOpenTabs((prev) =>
+      prev.map((t) =>
+        t.fileId === fileId ? { ...t, lockedBy: undefined } : t,
+      ),
+    );
+  }, []);
+
   // ── beforeunload 保护 ──
 
   useEffect(() => {
@@ -191,6 +202,7 @@ export default () => {
     checkClean,
     autoSave,
     acquireLock,
+    releaseLock,
     openFile,
     closeTab,
   };

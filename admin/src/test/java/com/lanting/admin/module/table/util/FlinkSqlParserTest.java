@@ -250,6 +250,26 @@ class FlinkSqlParserTest {
     }
 
     @Test
+    void shouldParseDdlWithTrailingSemicolon() {
+        String ddl = """
+                CREATE TABLE IF NOT EXISTS t_semi (
+                    id   BIGINT,
+                    name STRING
+                ) WITH (
+                    'connector' = 'hudi',
+                    'table.type' = 'COPY_ON_WRITE'
+                );
+                """;
+
+        FlinkTable metadata = FlinkSqlParser.parseCreateTable(ddl);
+
+        assertThat(metadata.tableName()).isEqualTo("t_semi");
+        assertThat(metadata.connector()).isEqualTo("hudi");
+        assertThat(metadata.ifNotExists()).isTrue();
+        assertThat(metadata.columns()).hasSize(2);
+    }
+
+    @Test
     void shouldRejectEmptyDdl() {
         assertThatThrownBy(() -> FlinkSqlParser.parseCreateTable(""))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -1,0 +1,31 @@
+/* 表单编辑器滚动区 */
+.lt-table-form-editor {
+  height: 100%;
+  overflow: auto;
+  padding: var(--ant-padding-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ant-margin-lg);
+}
+
+.lt-table-form-editor--center {
+  align-items: center;
+  justify-content: center;
+}
+
+/* 每一段卡片 */
+.lt-form-section {
+  margin-bottom: 0;
+}
+
+/* 底部固定操作栏 */
+.lt-table-form-footer {
+  position: sticky;
+  bottom: 0;
+  padding: var(--ant-padding-md) var(--ant-padding-lg);
+  background: var(--ant-color-bg-container);
+  border-top: 1px solid var(--ant-color-border);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ant-margin-sm);
+}

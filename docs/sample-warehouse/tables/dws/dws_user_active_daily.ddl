@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS dws_user_active_daily (
     dau      BIGINT,
     new_user BIGINT,
     active_user BIGINT
-) USING HUDI
-PARTITIONED BY (dt)
-OPTIONS (
+) PARTITIONED BY (dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'MERGE_ON_READ',
     'hoodie.datasource.write.recordkey.field' = 'dt'
 );

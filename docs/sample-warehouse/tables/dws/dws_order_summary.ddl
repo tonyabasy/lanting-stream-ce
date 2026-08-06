@@ -12,9 +12,9 @@ CREATE TABLE IF NOT EXISTS dws_order_summary (
     completed_amount  DOUBLE,
     completed_count   BIGINT,
     completion_rate   DOUBLE
-) USING HUDI
-PARTITIONED BY (dt)
-OPTIONS (
+) PARTITIONED BY (dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'MERGE_ON_READ',
     'hoodie.datasource.write.recordkey.field' = 'dt',
     'hoodie.datasource.write.precombine.field' = 'dt'

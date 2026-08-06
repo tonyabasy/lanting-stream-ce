@@ -1,14 +1,18 @@
 -- ============================================================
--- ADS 层：订单实时报表（ClickHouse）
+-- ADS 层：订单实时报表（ClickHouse，经 JDBC connector 读写）
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS ads_order_report (
-    report_dt     Date,
-    total_orders  UInt64,
-    gmv           Float64,
-    avg_price     Float64,
-    uv            UInt64,
-    arpu          Float64
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(report_dt)
-ORDER BY report_dt;
+    report_dt    STRING COMMENT '报表日期',
+    total_orders BIGINT,
+    gmv          DOUBLE,
+    avg_price    DOUBLE,
+    uv           BIGINT,
+    arpu         DOUBLE
+) COMMENT '订单实时报表（ClickHouse）'
+WITH (
+    'connector' = 'jdbc',
+    'url' = 'jdbc:clickhouse://localhost:8123/ads',
+    'table-name' = 'ads_order_report',
+    'driver' = 'com.clickhouse.jdbc.ClickHouseDriver'
+);

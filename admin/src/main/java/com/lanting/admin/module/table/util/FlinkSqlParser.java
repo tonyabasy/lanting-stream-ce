@@ -38,12 +38,14 @@ public final class FlinkSqlParser {
         if (ddl == null || ddl.isBlank()) {
             throw new IllegalArgumentException("DDL content is empty");
         }
+        // 兼容语句尾部终止分号：Flink parseQuery 只解析单条语句，不识别语句分隔符 `;`
+        String sql = stripTrailingSemicolons(ddl);
 
         try {
             SqlParser.Config config = SqlParser.config()
                     .withParserFactory(FlinkSqlParserImpl.FACTORY)
                     .withUnquotedCasing(Casing.UNCHANGED);
-            SqlParser parser = SqlParser.create(ddl, config);
+            SqlParser parser = SqlParser.create(sql, config);
             SqlNode sqlNode = parser.parseQuery();
 
             if (!(sqlNode instanceof SqlCreateTable createTable)) {
@@ -263,6 +265,20 @@ public final class FlinkSqlParser {
      */
     private static String stripBackticks(String sql) {
         return sql.replace("`", "");
+    }
+
+    /**
+     * 剔除语句尾部的终止分号（;）。
+     *
+     * <p>Flink 的 {@code parseQuery} 解析的是单条语句，不含语句分隔符；
+     * 而用户粘贴或文件中的 DDL 习惯以 {@code ;} 结尾，解析前先剔除尾部空白与分号。
+     */
+    private static String stripTrailingSemicolons(String ddl) {
+        String sql = ddl.stripTrailing();
+        while (sql.endsWith(";")) {
+            sql = sql.substring(0, sql.length() - 1).stripTrailing();
+        }
+        return sql;
     }
 
     /**

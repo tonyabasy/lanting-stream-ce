@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS dim_user_install (
     user_id    BIGINT,
     install_dt STRING,
     channel    STRING
-) USING HUDI
-PARTITIONED BY (install_dt)
-OPTIONS (
+) PARTITIONED BY (install_dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'COPY_ON_WRITE',
     'hoodie.datasource.write.recordkey.field' = 'user_id',
     'hoodie.datasource.write.precombine.field' = 'install_dt'

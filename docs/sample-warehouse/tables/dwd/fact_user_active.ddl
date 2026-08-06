@@ -7,9 +7,9 @@
 CREATE TABLE IF NOT EXISTS fact_user_active (
     user_id   BIGINT,
     active_dt STRING
-) USING HUDI
-PARTITIONED BY (active_dt)
-OPTIONS (
+) PARTITIONED BY (active_dt)
+WITH (
+    'connector' = 'hudi',
     'hoodie.table.type' = 'COPY_ON_WRITE',
     'hoodie.datasource.write.recordkey.field' = 'user_id',
     'hoodie.datasource.write.precombine.field' = 'active_dt'
